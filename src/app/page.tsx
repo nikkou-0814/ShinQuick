@@ -53,10 +53,14 @@ export default function Page() {
       setCurrentTime(formattedTime);
     };
 
-    const interval = setInterval(updateCurrentTime, 1000);
-    updateCurrentTime();
-
-    return () => clearInterval(interval);
+    const delay = 1000 - (new Date().getTime() % 1000);
+    const timeoutId = setTimeout(() => {
+      updateCurrentTime();
+      const interval = setInterval(updateCurrentTime, 1000);
+      return () => clearInterval(interval);
+    }, delay);
+  
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const updateSettings = (newSettings: Partial<Settings>) => {
