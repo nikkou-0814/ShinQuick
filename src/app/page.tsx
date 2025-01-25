@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
@@ -14,12 +14,14 @@ const DynamicMap = dynamic(() => import("@/components/map"), {
 
 interface Settings {
   theme: "system" | "dark" | "light";
+  enable_kyoshin_monitor: boolean;
   enable_dynamic_zoom: boolean;
   enable_low_accuracy_eew: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
+  enable_kyoshin_monitor: false,
   enable_dynamic_zoom: true,
   enable_low_accuracy_eew: false,
 };
@@ -40,6 +42,10 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
+    if (settings.enable_kyoshin_monitor) {
+      return;
+    }
+
     const updateCurrentTime = () => {
       const now = new Date();
       const formattedTime = now.toLocaleString("ja-JP", {
@@ -59,9 +65,9 @@ export default function Page() {
       const interval = setInterval(updateCurrentTime, 1000);
       return () => clearInterval(interval);
     }, delay);
-  
+
     return () => clearTimeout(timeoutId);
-  }, []);
+  }, [settings.enable_kyoshin_monitor]);
 
   const updateSettings = (newSettings: Partial<Settings>) => {
     setSettings((prevSettings) => {
@@ -89,9 +95,18 @@ export default function Page() {
     }
   };
 
+  const handleTimeUpdate = useCallback((newTime: string) => {
+    setCurrentTime(newTime);
+  }, []);
+
   return (
     <main className="h-full w-full">
-      <DynamicMap ref={mapRef} homePosition={{ center: [35, 136], zoom: 5 }} />
+      <DynamicMap
+        ref={mapRef}
+        homePosition={{ center: [35, 136], zoom: 5 }}
+        enableKyoshinMonitor={settings.enable_kyoshin_monitor}
+        onTimeUpdate={handleTimeUpdate}
+      />
 
       <SettingsDialog
         showSettings={ShowSettings}

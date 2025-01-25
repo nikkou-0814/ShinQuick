@@ -34,6 +34,7 @@ import {
 
 interface Settings {
   theme: 'system' | 'dark' | 'light';
+  enable_kyoshin_monitor: boolean;
   enable_dynamic_zoom: boolean;
   enable_low_accuracy_eew: boolean;
 }
@@ -85,6 +86,23 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* 強震モニタ */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>強震モニタを有効にする</span>
+              <Switch
+                checked={settings.enable_kyoshin_monitor}
+                onCheckedChange={(checked) => {
+                  handleSettingChange('enable_kyoshin_monitor', checked);
+                  window.dispatchEvent(new Event("enable_kyoshin_monitor_updated"));
+                }}
+              />
+            </div>
+            <p className="text-sm text-gray-500">
+              強震モニタの色を地図上に表示します。
+            </p>
+          </div>
+
           {/* 動的ズーム */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
