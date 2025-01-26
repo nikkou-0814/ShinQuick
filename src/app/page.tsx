@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
 import { Map } from "leaflet";
-import { Settings, LocateFixed } from "lucide-react";
+import { Settings, LocateFixed, Gauge } from "lucide-react";
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
   ssr: false,
@@ -31,7 +31,6 @@ export default function Page() {
   const { setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
-
   const mapRef = useRef<Map | null>(null);
 
   useEffect(() => {
@@ -59,14 +58,9 @@ export default function Page() {
       setCurrentTime(formattedTime);
     };
 
-    const delay = 1000 - (new Date().getTime() % 1000);
-    const timeoutId = setTimeout(() => {
-      updateCurrentTime();
-      const interval = setInterval(updateCurrentTime, 1000);
-      return () => clearInterval(interval);
-    }, delay);
-
-    return () => clearTimeout(timeoutId);
+    updateCurrentTime();
+    const interval = setInterval(updateCurrentTime, 1000);
+    return () => clearInterval(interval);
   }, [settings.enable_kyoshin_monitor]);
 
   const updateSettings = (newSettings: Partial<Settings>) => {
@@ -116,7 +110,7 @@ export default function Page() {
       />
 
       <div className="fixed bottom-4 left-4 shadow-lg bg-white dark:bg-black rounded-2xl space-x-4 border">
-        <div className="flex space-x-4 p-4 justify-center items-center">
+        <div className="flex space-x-4 p-3 justify-start items-center">
           <Button variant="outline" onClick={() => setShowSettings(true)}>
             <Settings />
           </Button>
@@ -124,8 +118,11 @@ export default function Page() {
             <LocateFixed />
           </Button>
           <div className="flex flex-col">
-            <p>{currentTime}</p>
-            <p className="text-sm text-gray-500">Latest Ping:</p>
+            <p className="pr-1">{currentTime}</p>
+            <div className="flex items-center text-sm text-gray-500 space-x-2">
+              <Gauge size={16} />
+              <p>DM-D.S.S</p>
+            </div>
           </div>
         </div>
       </div>

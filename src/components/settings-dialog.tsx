@@ -92,14 +92,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <span>強震モニタを有効にする</span>
               <Switch
                 checked={settings.enable_kyoshin_monitor}
-                onCheckedChange={(checked) => {
-                  handleSettingChange('enable_kyoshin_monitor', checked);
-                  window.dispatchEvent(new Event("enable_kyoshin_monitor_updated"));
-                }}
+                onCheckedChange={(checked) => handleSettingChange('enable_kyoshin_monitor', checked)}
               />
             </div>
             <p className="text-sm text-gray-500">
-              強震モニタの色を地図上に表示します。
+              強震モニタとP/S波をリアルタイムに表示します。<br/>
             </p>
           </div>
 
