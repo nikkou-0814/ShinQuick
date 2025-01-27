@@ -40,6 +40,7 @@ interface Settings {
   enable_kyoshin_monitor: boolean;
   enable_dynamic_zoom: boolean;
   enable_low_accuracy_eew: boolean;
+  enable_accuracy_info: boolean;
 }
 
 interface SettingsDialogProps {
@@ -183,6 +184,21 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             )}
           </div>
 
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>緊急地震速報の精度情報を表示する</span>
+              <Switch
+                checked={settings.enable_accuracy_info}
+                onCheckedChange={(checked) =>
+                  handleSettingChange("enable_accuracy_info", checked)
+                }
+              />
+            </div>
+            <p className="text-sm text-gray-500">
+              震源やマグニチュードの精度情報を表示します。
+            </p>
+          </div>
+
           {/* テーマ */}
           <div className="space-y-2">
             <p className="text-sm">テーマ</p>
@@ -242,10 +258,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </div>
 
           {/* 認証とWebSocket接続 */}
-          <div className="space-x-4">
+          <div className="space-y-2">
+          <p className="text-sm">DM-D.S.S</p>
             <Button
               variant={isAuthenticated ? "destructive" : "outline"}
               onClick={handleAuthenticationClick}
+              className="mr-4"
             >
               {isAuthenticated ? "アカウントとの連携を解除" : "認証"}
             </Button>
@@ -257,6 +275,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 {isConnected ? "WebSocketを切断" : "WebSocketに接続"}
               </Button>
             )}
+            <p className="text-sm text-gray-500">
+              DM-D.S.Sにアカウントを連携すると<br />WebSocketを使用してリアルタイムの情報を受信できます。
+            </p>
           </div>
         </div>
       </DialogContent>

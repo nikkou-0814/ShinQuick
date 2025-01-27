@@ -1,0 +1,514 @@
+import React from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { AlertCircle, AlertTriangle, Info } from "lucide-react";
+import { EewDisplayProps } from "@/types/eewdata";
+
+const EewDisplay: React.FC<EewDisplayProps> = ({ parsedData, isAccuracy = false, isLowAccuracy = false }) => {
+  if (!parsedData) {
+    return null;
+  }
+  const {
+    serialNo = "",
+    status = "通常",
+    body,
+  } = parsedData;
+
+  const {
+    isCanceled = false,
+    isLastInfo = false,
+    isWarning = false,
+    earthquake,
+  } = body;
+
+  const convertIntensity = (value: string, isFrom: boolean = false): string => {
+    const mapping: Record<string, string> = {
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4",
+      "5-": "5弱",
+      "5+": "5強",
+      "6-": "6弱",
+      "6+": "6強",
+      "7": "7",
+      "over": "over",
+      "不明": "不明",
+    };
+  
+    let intensity = mapping[value] || "不明";
+    if (isFrom && intensity !== "不明") {
+      intensity += "程度以上";
+    }
+    return intensity;
+  };  
+
+  if (isCanceled) {
+    return (
+      <div className="fixed bottom-4 right-4 bg-gray-100 dark:bg-gray-800 p-4 rounded-xl shadow-lg max-w-md overflow-auto">
+        <h2 className="text-lg font-bold">緊急地震速報キャンセル</h2>
+        <p className="text-sm font-medium">
+          先程の緊急地震速報は取り消されました。
+        </p>
+      </div>
+    );
+  }
+
+  const isTest = status === "訓練" || status === "試験";
+  const title = `${isTest ? "訓練・試験報" : ""}
+    緊急地震速報（${isWarning ? "警報" : "予報"}）${isLastInfo ? "最終報" : `第${serialNo}報` }
+  `;
+
+  const hypName = earthquake?.hypocenter?.name || "不明";
+  const depthValue = earthquake?.hypocenter?.depth?.value || "不明";
+  const magnitudeValue = earthquake?.magnitude?.value || "不明";
+  const magnitudeCondition = earthquake?.magnitude?.condition || "";
+  const magnitudeDisplay =
+    magnitudeValue !== "不明" ? `M${magnitudeValue}` : magnitudeCondition || "不明";
+  const forecastMaxInt = body?.intensity?.forecastMaxInt || {};
+
+  const raw_maxIntensity = (() => {
+    if (forecastMaxInt.to === "over") {
+      return convertIntensity(forecastMaxInt.from || "不明");
+    } else {
+      return convertIntensity(forecastMaxInt.to || "不明");
+    }
+  })();
+
+  const maxIntensity = (() => {
+    if (forecastMaxInt.to === "over") {
+      return convertIntensity(forecastMaxInt.from || "不明", true);
+    } else {
+      return convertIntensity(forecastMaxInt.to || "不明");
+    }
+  })();
+
+  const forecastMaxLgInt = body?.intensity?.forecastMaxLgInt || {};
+
+  const maxLgInt = forecastMaxLgInt.to === "over"
+    ? `${forecastMaxLgInt.from || "不明"}程度以上`
+    : forecastMaxLgInt.to || "不明";
+
+
+  const method = (() => {
+    const condition = earthquake?.condition || "不明";
+    const accuracyEpicenters = earthquake?.hypocenter?.accuracy?.epicenters || [];
+
+    if (condition === "仮定震源要素") {
+      return "PLUM法";
+    } else if (accuracyEpicenters.length > 0) {
+      const epicVal = accuracyEpicenters[0];
+      const epicValInt = parseInt(epicVal, 10);
+
+      if (epicValInt === 1) {
+        return earthquake?.originTime ? "IPF法 (1点)" : "レベル法";
+      } else if (epicValInt === 2) {
+        return "IPF法 (2点)";
+      } else if (epicValInt === 3 || epicValInt === 4) {
+        return "IPF法 (3点以上)";
+      } else {
+        return earthquake?.originTime ? "不明" : "レベル法";
+      }
+    } else {
+      return earthquake?.originTime ? "不明" : "レベル法";
+    }
+  })();
+
+  if (parsedData.body && !isLowAccuracy && (method === "PLUM法" || method === "レベル法" || method === "IPF法 (1点)")) {
+    return null;
+  }
+
+  const intensityColors: Record<string, { background: string; text: string }> = {
+    "0": { background: "#62626B", text: "white" },
+    "1": { background: "#2B8EB2", text: "white" },
+    "2": { background: "#4CD0A7", text: "black" },
+    "3": { background: "#F6CB51", text: "black" },
+    "4": { background: "#FF9939", text: "black" },
+    "5弱": { background: "#E52A18", text: "white" },
+    "5強": { background: "#C31B1B", text: "white" },
+    "6弱": { background: "#A50C6B", text: "white" },
+    "6強": { background: "#930A7A", text: "white" },
+    "7": { background: "#5F0CA2", text: "white" },
+    "不明": { background: "#62626B", text: "white" },
+    "0程度以上": { background: "#62626B", text: "white" },
+    "1程度以上": { background: "#2B8EB2", text: "white" },
+    "2程度以上": { background: "#4CD0A7", text: "black" },
+    "3程度以上": { background: "#F6CB51", text: "black" },
+    "4程度以上": { background: "#FF9939", text: "black" },
+    "5弱程度以上": { background: "#E52A18", text: "white" },
+    "5強程度以上": { background: "#C31B1B", text: "white" },
+    "6弱程度以上": { background: "#A50C6B", text: "white" },
+    "6強程度以上": { background: "#930A7A", text: "white" },
+    "7程度以上": { background: "#5F0CA2", text: "white" },
+  };
+
+  const lgintcolors: Record<string, { background: string; text: string }> = {
+    "0": { background: "#2B8EB2", text: "white" },
+    "1": { background: "#F6CB51", text: "black" },
+    "2": { background: "#E54812", text: "white" },
+    "3": { background: "#C31B1B", text: "white" },
+    "4": { background: "#930A7A", text: "white" },
+    "不明": { background: "#62626B", text: "white" },
+    "0程度以上": { background: "#2B8EB2", text: "white" },
+    "1程度以上": { background: "#F6CB51", text: "black" },
+    "2程度以上": { background: "#E54812", text: "white" },
+    "3程度以上": { background: "#C31B1B", text: "white" },
+    "4程度以上": { background: "#930A7A", text: "white" },
+  };
+
+  const backgroundColor = intensityColors[maxIntensity]?.background || "#CCCCCC";
+  const textColor = intensityColors[maxIntensity]?.text || "black";
+
+  const lgint_backgroundColor = lgintcolors[maxLgInt]?.background || "#CCCCCC";
+  const lgint_textColor = lgintcolors[maxLgInt]?.text || "black";
+
+  const prefectures = body?.prefectures || [];
+  const zones = body?.zones || [];
+
+  const regions = prefectures.length > 8 
+  ? zones.map((zone) => zone.name || "不明")
+  : prefectures.map((pref) => pref.name || "不明");
+
+  const regionsDisplay = regions.length > 0 ? regions.join("、") : "不明";
+
+  const accuracyData = earthquake?.hypocenter?.accuracy;
+  const epicenters = accuracyData?.epicenters || [];
+  const epicenterAccuracy0 = epicenters[0] || "不明";
+  const epicenterAccuracy1 = epicenters[1] || "不明";
+  const accuracyDepthLabel = accuracyData?.depth || "不明";
+  const accuracyMagnitudeCalc = accuracyData?.magnitudeCalculation || "不明";
+  const accuracyNumberOfMagCalc = accuracyData?.numberOfMagnitudeCalculation || "不明";
+  const accuracyEpicenters = accuracyData?.epicenters || [];
+
+  const mapAccuracyValue = (value: string | number, category: string): string => {
+    const mapping: Record<string, Record<string, string>> = {
+      epicenters: {
+        "0": "不明",
+        "1": "P波/S波レベル越え、IPF法(1点)または仮定震源要素",
+        "2": "IPF法(2点)",
+        "3": "IPF法(3点/4点)",
+        "4": "IPF法(5点以上)",
+        "5": "防災科研システム(4点以下または精度情報なし)",
+        "6": "防災科研システム(5点以上)",
+        "7": "EPOS(海域)",
+        "8": "EPOS(内陸)",
+        "9": "震源とマグニチュードに基づく最終精度（気象庁）",
+      },
+      depth: {
+        "0": "不明",
+        "1": "P波/S波レベル越え、IPF法(1点)または仮定震源要素",
+        "2": "IPF法(2点)",
+        "3": "IPF法(3点/4点)",
+        "4": "IPF法(5点以上)",
+        "5": "防災科研システム(4点以下または精度情報なし)",
+        "6": "防災科研システム(5点以上)",
+        "7": "EPOS(海域)",
+        "8": "EPOS(内陸)",
+      },
+      magnitudeCalculation: {
+        "0": "不明",
+        "2": "速度マグニチュード",
+        "3": "全相P相",
+        "4": "P相/全相混在",
+        "5": "全点全相",
+        "6": "EPOS",
+        "8": "P波/S波レベル越えまたは仮定震源要素",
+      },
+      numberOfMagnitudeCalculation: {
+        "0": "不明",
+        "1": "1点",
+        "2": "2点",
+        "3": "3点",
+        "4": "4点",
+        "5": "5点以上",
+      },
+    };
+
+    return mapping[category]?.[String(value)] || "未知の値";
+  };
+
+  const getJstTime = (timestamp: string | undefined): Date | null => {
+    try {
+      if (!timestamp) return null;
+      const date = new Date(timestamp);
+      const utcOffset = 9 * 60;
+      const jstTime = new Date(date.getTime() + utcOffset * 60 * 1000);
+      return jstTime;
+    } catch {
+      return null;
+    }
+  };
+  
+  let originDt: Date | null = null;
+  if (earthquake?.originTime) {
+    originDt = getJstTime(earthquake.originTime);
+  } else if (earthquake?.arrivalTime) {
+    originDt = getJstTime(earthquake.arrivalTime);
+  } else {
+    originDt = new Date();
+  }
+  
+  let formattedTimeDisplay = "不明";
+  if (originDt) {
+    formattedTimeDisplay = `${originDt.getMonth() + 1}月${originDt.getDate()}日 ${
+      originDt.getHours().toString().padStart(2, "0")
+    }時${originDt.getMinutes().toString().padStart(2, "0")}分${originDt.getSeconds()
+      .toString()
+      .padStart(2, "0")}秒`;
+  }
+  
+  const detectionOrOccurrence = method === "PLUM法" || method === "レベル法" ? "検知" : "発生";
+
+  let displayIntensity = maxIntensity;
+
+  // IPF法
+  if (method.startsWith("IPF法")) {
+    if (accuracyEpicenters?.length) {
+      const epicenterAccuracy = parseInt(epicenterAccuracy0);
+      if (epicenterAccuracy === 1) {
+        displayIntensity = "単独点処理のため震度推定なし";
+      } else {
+        if (forecastMaxInt?.to === "over") {
+          displayIntensity = `推定最大震度: ${convertIntensity(forecastMaxInt?.from || "不明", true)}`;
+        } else {
+          displayIntensity = `推定最大震度: ${convertIntensity(forecastMaxInt?.to || "不明")}`;
+        }
+      }
+    } else {
+      displayIntensity = "単独点処理のため震度推定なし";
+    }
+  }
+
+  // PLUM法
+  else if (method === "PLUM法") {
+    if (maxIntensity === "不明") {
+      displayIntensity = "単独点処理のため震度推定なし";
+    } else {
+      const fromInt = forecastMaxInt?.from || "不明";
+      if (fromInt !== "不明") {
+        displayIntensity = `推定最大震度: ${convertIntensity(fromInt, true)}`;
+      } else {
+        displayIntensity = "単独点処理のため震度推定なし";
+      }
+    }
+  }
+
+  // レベル法
+  else if (method === "レベル法") {
+    if (maxIntensity === "不明" && (forecastMaxInt?.to || "不明") === "不明") {
+      displayIntensity = "単独点処理のため震度推定なし";
+    } else {
+      if (forecastMaxInt?.to === "over") {
+        displayIntensity = `推定最大震度: ${convertIntensity(forecastMaxInt?.from || "不明", true)}`;
+      } else {
+        displayIntensity = `推定最大震度: ${convertIntensity(forecastMaxInt?.to || "不明")}`;
+      }
+    }
+  }
+
+  // 深発
+  if (depthValue !== "不明") {
+    const depthStr = depthValue.replace(/[^0-9]/g, ""); // 数字以外を除去
+    const depthNum = parseInt(depthStr, 10);
+    if (!isNaN(depthNum) && depthNum > 150) {
+      displayIntensity = "深発地震のため震度推定なし";
+    }
+  }
+  
+
+  const additionalMessage = (() => {
+    if (isWarning && ["6弱", "6強", "7"].includes(maxIntensity)) {
+      return (
+        <>
+          緊急地震速報の特別警報です
+          <br />
+          身の安全を確保してください
+        </>
+      );
+    } else if (displayIntensity === "深発") {
+      return (
+        <>
+          震源が深いため震央から遠い場所で
+          <br />
+          揺れが大きくなることがあります
+        </>
+      );
+    } else if (method === "レベル法" && displayIntensity !== "深発") {
+      return (
+        <>
+          大きな加速度が検出されたため
+          <br />
+          <strong>震度{raw_maxIntensity}</strong>と仮定して発表されています
+        </>
+      );
+    } else if (method === "PLUM法" && maxIntensity !== "不明" && displayIntensity !== "深発") {
+      return (
+        <>
+          リアルタイム震度から直接推定
+          <br />
+          された震度が発表されています
+        </>
+      );
+    } else if (method === "PLUM法" && maxIntensity === "不明" && displayIntensity !== "深発") {
+      return (
+        <>
+          使用されている観測点が少ないため
+          <br />
+          震源の精度が低い可能性があります
+        </>
+      );
+    } else if (method.startsWith("IPF法") && maxIntensity === "不明" && displayIntensity !== "深発") {
+      return (
+        <>
+          使用されている観測点が少ないため
+          <br />
+          震源の精度が低い可能性があります
+        </>
+      );
+    } else if (isWarning) {
+      return (
+        <>
+          緊急地震速報（警報）発表
+          <br />
+          強い揺れに警戒してください
+        </>
+      );
+    } else {
+      return (
+        <>
+          緊急地震速報（予報）発表
+          <br />
+          揺れに注意してください
+        </>
+      );
+    }
+  })();  
+
+  const description = (
+    <>
+      {regionsDisplay !== "不明" ? <><strong>{regionsDisplay}</strong><br />では強い揺れに警戒してください<br /><br /></> : ""}
+      {additionalMessage}
+    </>
+  );
+  
+  const eventType = method !== "PLUM法" && method !== "レベル法" ? "地震" : "揺れ";
+
+  return (
+    <Card className="fixed top-4 left-4 w-96 shadow-xl bg-white/90 dark:bg-black/75 border-2">
+      <CardHeader className="pb-2">
+        <CardTitle className={`flex items-center gap-2 text-lg ${isWarning ? "bg-red-100 dark:bg-red-600/10" : "bg-yellow-100 dark:bg-yellow-950/30"} p-2 rounded-lg`}>
+          {isWarning ? (
+            <AlertCircle className="h-5 w-5 text-red-500" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          )}
+          {title}
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        <div className={`rounded-lg border-2 p-4 ${
+          isWarning 
+            ? "border-red-500/50 bg-red-200/30 dark:bg-red-950/30" 
+            : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
+        }`}>
+          <div className="text-2xl font-bold mb-2">
+            {hypName}で{eventType}
+          </div>
+          
+          <div className="text-sm text-gray-800 dark:text-gray-300">
+            {formattedTimeDisplay}{detectionOrOccurrence}
+          </div>
+
+          <div
+            className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
+            style={{ backgroundColor, color: textColor }}
+          >
+            {displayIntensity}
+          </div>
+
+          {maxLgInt !== "不明" && maxLgInt !== "0" && (
+            <div
+              className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
+              style={{ backgroundColor: lgint_backgroundColor, color: lgint_textColor }}
+            >
+              推定最大長周期地震動階級: {maxLgInt}
+            </div>
+          )}
+        </div>
+
+        {description && (
+          <div className={`rounded-lg p-4 border-2 ${
+            isWarning 
+              ? "border-red-500/50 bg-red-200/30 dark:bg-red-950/30" 
+              : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
+          }`}>
+            <p className="text-sm font-medium">
+              {description}
+            </p>
+          </div>
+        )}
+
+        {method === "PLUM法" || method === "レベル法" ? (
+          <div className="space-y-1 w-full">
+            <p className="font-medium text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
+              {method === "PLUM法" ? "PLUM法による仮定震源" : "レベル法による仮定震源"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1 p-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400">マグニチュード</p>
+              <p className="font-medium">{magnitudeDisplay}</p>
+            </div>
+            <div className="space-y-1 p-2">
+              <p className="text-sm text-gray-500 dark:text-gray-400">深さ</p>
+              <p className="font-medium">{depthValue} km</p>
+            </div>
+          </div>
+        )}
+
+        {isAccuracy && (
+          <>
+            <Separator className="my-4" />
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 bg-blue-100 dark:bg-blue-950/30 p-2 rounded-lg">
+                <Info className="h-4 w-4 text-blue-500" />
+                <h3 className="font-medium">精度情報</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="p-2">
+                  <p className="text-gray-500 dark:text-gray-400">震央精度</p>
+                  <p className="mt-1">{mapAccuracyValue(epicenterAccuracy0, "epicenters")}</p>
+                </div>
+                <div className="p-2">
+                  <p className="text-gray-500 dark:text-gray-400">震源精度</p>
+                  <p className="mt-1">{mapAccuracyValue(epicenterAccuracy1, "epicenters")}</p>
+                </div>
+                <div className="p-2">
+                  <p className="text-gray-500 dark:text-gray-400">深さ精度</p>
+                  <p className="mt-1">{mapAccuracyValue(accuracyDepthLabel, "depth")}</p>
+                </div>
+                <div className="p-2">
+                  <p className="text-gray-500 dark:text-gray-400">M精度</p>
+                  <p className="mt-1">{mapAccuracyValue(accuracyMagnitudeCalc, "magnitudeCalculation")}</p>
+                </div>
+                <div className="p-2">
+                  <p className="text-gray-500 dark:text-gray-400">M計算使用観測点数</p>
+                  <p className="mt-1">{mapAccuracyValue(accuracyNumberOfMagCalc, "numberOfMagnitudeCalculation")}</p>
+                </div>
+                <div className="p-2">
+                  <p className="text-gray-500 dark:text-gray-400">手法</p>
+                  <p className="mt-1">{method}</p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default EewDisplay;

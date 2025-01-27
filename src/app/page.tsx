@@ -6,19 +6,18 @@ import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
 import { Map } from "leaflet";
-import { Settings, LocateFixed, Gauge } from "lucide-react";
+import { Settings, LocateFixed, Gauge, FlaskConical } from "lucide-react";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
-
-const DynamicMap = dynamic(() => import("@/components/map"), {
-  ssr: false,
-});
+import EewDisplay from "@/components/eew-display";
+import { EewData } from "@/types/eewdata";
 
 interface Settings {
   theme: "system" | "dark" | "light";
   enable_kyoshin_monitor: boolean;
   enable_dynamic_zoom: boolean;
   enable_low_accuracy_eew: boolean;
+  enable_accuracy_info: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -26,7 +25,12 @@ const DEFAULT_SETTINGS: Settings = {
   enable_kyoshin_monitor: false,
   enable_dynamic_zoom: true,
   enable_low_accuracy_eew: false,
+  enable_accuracy_info: false,
 };
+
+const DynamicMap = dynamic(() => import("@/components/map"), {
+  ssr: false,
+});
 
 function PageContent() {
   const [ShowSettings, setShowSettings] = useState<boolean>(false);
@@ -34,7 +38,7 @@ function PageContent() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
   const mapRef = useRef<Map | null>(null);
-  const { isConnected, receivedData, connectWebSocket, disconnectWebSocket } = useWebSocket();
+  const { isConnected, receivedData, connectWebSocket, disconnectWebSocket, injectTestData } = useWebSocket();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
@@ -91,7 +95,7 @@ function PageContent() {
   const handleConnectWebSocket = () => {
     const token = localStorage.getItem("dmdata_access_token");
     if (!token) {
-      toast.error("アカウントを認証してください");
+      toast.error("アカウントを認証してください。");
       return;
     }
     connectWebSocket(token);
@@ -100,7 +104,7 @@ function PageContent() {
   const handleDisconnectAuthentication = () => {
     localStorage.removeItem("dmdata_access_token");
     setIsAuthenticated(false);
-    toast.info("アカウントとの連携を解除しました");
+    toast.info("アカウントとの連携を解除しました。");
   };
 
   const handleWebSocketDisconnect = async () => {
@@ -116,6 +120,20 @@ function PageContent() {
   const handleTimeUpdate = useCallback((newTime: string) => {
     setCurrentTime(newTime);
   }, []);
+
+  const handleTest = async () => {
+    try {
+      const response = await fetch('/testdata3.json');
+      if (!response.ok) {
+        throw new Error(`テストデータの取得に失敗しました: ${response.statusText}`);
+      }
+      const testData = await response.json();
+      injectTestData(testData);
+    } catch (error) {
+      console.error("テストデータの挿入に失敗しました:", error);
+      toast.error("テストデータの読み込みに失敗しました。");
+    }
+  };
 
   return (
     <main className="h-full w-full">
@@ -137,7 +155,7 @@ function PageContent() {
         onDisconnectWebSocket={handleWebSocketDisconnect}
       />
 
-      <div className="fixed bottom-4 left-4 shadow-lg bg-white dark:bg-black rounded-2xl space-x-4 border">
+      <div className="fixed bottom-4 left-4 shadow-lg bg-white dark:bg-black rounded-lg space-x-4 border">
         <div className="flex space-x-3 p-3 justify-start items-center">
           <Button variant="outline" onClick={() => setShowSettings(true)}>
             <Settings />
@@ -157,14 +175,11 @@ function PageContent() {
         </div>
       </div>
 
-      {receivedData && (
-        <div className="fixed bottom-4 right-4 bg-gray-100 dark:bg-gray-800 p-4 rounded-xl shadow-lg max-w-md overflow-auto">
-          <h2 className="text-lg font-bold">Received Data</h2>
-          <pre className="text-sm whitespace-pre-wrap">
-            {JSON.stringify(receivedData, null, 2)}
-          </pre>
-        </div>
-      )}
+      <EewDisplay
+        parsedData={receivedData as EewData | null}
+        isAccuracy={settings.enable_accuracy_info}
+        isLowAccuracy={settings.enable_low_accuracy_eew}
+      />
     </main>
   );
 }
