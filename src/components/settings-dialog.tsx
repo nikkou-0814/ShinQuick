@@ -242,16 +242,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </div>
 
           {/* 認証とWebSocket接続 */}
-          <div className="space-y-4">
+          <div className="space-x-4">
             <Button
-              className="mr-4"
-              variant={isAuthenticated ? "destructive" : "default"}
+              variant={isAuthenticated ? "destructive" : "outline"}
               onClick={handleAuthenticationClick}
             >
               {isAuthenticated ? "アカウントとの連携を解除" : "認証"}
             </Button>
             {isAuthenticated && (
-              <Button variant="default" onClick={handleWebSocketToggle}>
+              <Button
+                variant={isConnected ? "destructive" : "outline"}
+                onClick={handleWebSocketToggle}
+              >
                 {isConnected ? "WebSocketを切断" : "WebSocketに接続"}
               </Button>
             )}
@@ -295,7 +297,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               本当にアカウントとの連携を解除しますか？
             </AlertDialogTitle>
             <AlertDialogDescription>
-              アカウントとの連携を解除すると、保存されていた認証トークンが削除されます。
+              アカウントとの連携を解除すると、再度認証をしないとWebSocketが接続できません。
               <br />
               続行しますか？
             </AlertDialogDescription>
