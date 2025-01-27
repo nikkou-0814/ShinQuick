@@ -1,6 +1,8 @@
 import "../app/globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { type FC } from "react";
+import { Toaster } from "@/components/ui/sonner"
+
 type RootLayoutProps = {
   children: React.ReactNode;
 };
@@ -18,6 +20,7 @@ const RootLayout: FC<RootLayoutProps> = (props) => {
       <body className="">
        <ThemeProvider attribute="class" defaultTheme="system">
           {props.children}
+          <Toaster richColors expand={true} />
        </ThemeProvider>
       </body>
     </html>

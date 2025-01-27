@@ -46,10 +46,6 @@ const colorList: Record<string, string> = {
   z: "#993333",
 };
 
-function ConvertStringToColor(ch: string): string {
-  return colorList[ch.toLowerCase()] || "#b00201";
-}
-
 type PsWaveItem = {
   latitude: string;
   longitude: string;
@@ -89,6 +85,10 @@ type KyoshinMonitorJson = {
   estShindo: null | unknown;
   [key: string]: unknown;
 };
+
+function ConvertStringToColor(ch: string): string {
+  return colorList[ch.toLowerCase()] || "#b00201";
+}
 
 if (typeof window !== "undefined") {
   L.Map.mergeOptions({
@@ -217,11 +217,11 @@ function KyoshinMonitor({
   onTimeUpdate?: (time: string) => void;
 }) {
   const map = useMap();
-  const layerRef = useRef<LayerGroup | null>(null);
-  const waveLayerRef = useRef<LayerGroup | null>(null);
   const [pointList, setPointList] = useState<Array<[number, number]>>([]);
   const [kmoniData, setKmoniData] = useState<KyoshinMonitorJson | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(map.getZoom());
+  const layerRef = useRef<LayerGroup | null>(null);
+  const waveLayerRef = useRef<LayerGroup | null>(null);
 
   useMapEvents({
     zoomend: () => {
@@ -239,6 +239,7 @@ function KyoshinMonitor({
     return 0.3;
   };
 
+  // Fetch SiteList
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
 
@@ -252,7 +253,6 @@ function KyoshinMonitor({
           return;
         }
         const data = await res.json();
-
         if (data.items && Array.isArray(data.items)) {
           setPointList(data.items);
         } else {
@@ -266,6 +266,7 @@ function KyoshinMonitor({
     fetchSiteList();
   }, [enableKyoshinMonitor]);
 
+  // Fetch KyoshinMonitor
   useEffect(() => {
     if (!enableKyoshinMonitor) {
       if (layerRef.current) {
@@ -279,16 +280,18 @@ function KyoshinMonitor({
       return;
     }
 
+    const anyMin = 0;
+
     let isMounted = true;
 
     const fetchKyoshinMonitorData = async () => {
       try {
         const date = new Date();
         date.setSeconds(date.getSeconds() - 3);
-        date.setMinutes(date.getMinutes() - 1);
+        date.setMinutes(date.getMinutes() - anyMin);
 
         const NowTime =
-          date.getFullYear() +
+          date.getFullYear().toString() +
           ("0" + (date.getMonth() + 1)).slice(-2) +
           ("0" + date.getDate()).slice(-2) +
           ("0" + date.getHours()).slice(-2) +
@@ -296,11 +299,12 @@ function KyoshinMonitor({
           ("0" + date.getSeconds()).slice(-2);
 
         const NowDay =
-          date.getFullYear() +
+          date.getFullYear().toString() +
           ("0" + (date.getMonth() + 1)).slice(-2) +
           ("0" + date.getDate()).slice(-2);
 
-        const url = `https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/${NowDay}/${NowTime}.json`; // https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/20250113/20250113212031.json
+        // TestData https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/20250127/20250127132045.json
+        const url = `https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/${NowDay}/${NowTime}.json`;
 
         const res = await fetch(url);
         if (!res.ok) {
@@ -311,19 +315,20 @@ function KyoshinMonitor({
 
         if (isMounted) {
           setKmoniData(data);
-
-          if (onTimeUpdate && data.realTimeData?.timestamp) {
-            onTimeUpdate(data.realTimeData.timestamp);
-          } else if (onTimeUpdate) {
-            const formattedTime = new Date().toLocaleString("ja-JP", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            });
-            onTimeUpdate(formattedTime);
+          if (onTimeUpdate) {
+            if (data.realTimeData?.timestamp) {
+              onTimeUpdate(data.realTimeData.timestamp);
+            } else {
+              const fallbackTime = new Date().toLocaleString("ja-JP", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              });
+              onTimeUpdate(fallbackTime);
+            }
           }
         }
       } catch (err) {
@@ -343,6 +348,7 @@ function KyoshinMonitor({
     };
   }, [map, enableKyoshinMonitor, onTimeUpdate]);
 
+  // UpdateLayer
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
     if (!kmoniData?.realTimeData?.intensity) return;
@@ -357,10 +363,8 @@ function KyoshinMonitor({
     const intensityStr = kmoniData.realTimeData.intensity;
 
     pointList.forEach((pt, idx) => {
-      const lat = pt[0];
-      const lng = pt[1];
+      const [lat, lng] = pt;
       const char = intensityStr.charAt(idx) || "a";
-
       const circle = L.circleMarker([lat, lng], {
         radius: radiusForZoom,
         color: ConvertStringToColor(char),
@@ -372,16 +376,15 @@ function KyoshinMonitor({
     layerRef.current.addTo(map);
   }, [map, kmoniData, zoomLevel, pointList, enableKyoshinMonitor]);
 
-  // PSWave
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
+
     if (!kmoniData?.psWave?.items || kmoniData.psWave.items.length === 0) {
       if (waveLayerRef.current) {
         waveLayerRef.current.clearLayers();
       }
       return;
     }
-
     if (!waveLayerRef.current) {
       waveLayerRef.current = L.layerGroup();
     }
@@ -394,23 +397,21 @@ function KyoshinMonitor({
     });
 
     kmoniData.psWave.items.forEach((item) => {
-      const latStr = item.latitude;
-      const lngStr = item.longitude;
+      const { latitude: latStr, longitude: lngStr } = item;
       const pRadius = parseFloat(item.pRadius);
       const sRadius = parseFloat(item.sRadius);
 
       const latVal =
-        (latStr.startsWith("N") ? 1 : -1) *
-        parseFloat(latStr.slice(1));
+        (latStr.startsWith("N") ? 1 : -1) * parseFloat(latStr.slice(1));
       const lngVal =
-        (lngStr.startsWith("E") ? 1 : -1) *
-        parseFloat(lngStr.slice(1));
+        (lngStr.startsWith("E") ? 1 : -1) * parseFloat(lngStr.slice(1));
 
       const epicenterMarker = L.marker([latVal, lngVal], {
         icon: epicenterIcon,
       });
       waveLayerRef.current?.addLayer(epicenterMarker);
 
+      // PWave
       const pCircle = L.circle([latVal, lngVal], {
         radius: pRadius * 1000,
         color: "#0066FF",
@@ -418,10 +419,13 @@ function KyoshinMonitor({
       });
       waveLayerRef.current?.addLayer(pCircle);
 
+      // SWave
       const sCircle = L.circle([latVal, lngVal], {
         radius: sRadius * 1000,
         color: "#FF0000",
-        fill: false,
+        fill: true,
+        fillColor: "#FFCCCC",
+        fillOpacity: 0.5
       });
       waveLayerRef.current?.addLayer(sCircle);
     });
@@ -454,7 +458,7 @@ function MapInner({
         smoothWheelZoom?: boolean | string;
         smoothSensitivity?: number;
       }
-    ).smoothWheelZoom = true; // or "center"
+    ).smoothWheelZoom = true;
     (
       map.options as L.MapOptions & {
         smoothWheelZoom?: boolean | string;
@@ -466,6 +470,7 @@ function MapInner({
   return null;
 }
 
+//MapMain
 const Map = forwardRef<
   L.Map,
   {
@@ -474,9 +479,9 @@ const Map = forwardRef<
     onTimeUpdate?: (time: string) => void;
   }
 >(( { homePosition, enableKyoshinMonitor, onTimeUpdate }, ref) => {
-  const [currentZoom, setCurrentZoom] = useState(4);
+  const [currentZoom, setCurrentZoom] = useState(homePosition.zoom);
   const { resolvedTheme } = useTheme();
-  const theme = resolvedTheme || "system";
+  const theme = resolvedTheme || "light";
 
   useEffect(() => {
     const mapElement = document.querySelector(".leaflet-container");
@@ -515,10 +520,7 @@ const Map = forwardRef<
       <GeoJSON
         data={CountriesData}
         style={{
-          color:
-            theme === "dark"
-              ? "rgba(180,180,180,0.4)"
-              : "rgba(80,80,80,0.4)",
+          color: theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
           fillColor: theme === "dark" ? "#252525" : "#737A8A",
           fillOpacity: 0.6,
           weight: 0.8,
@@ -529,40 +531,31 @@ const Map = forwardRef<
       <GeoJSON
         data={JapanData}
         style={{
-          color:
-            theme === "dark"
-              ? "rgba(255,255,255,0.6)"
-              : "rgba(0,0,0,0.4)",
+          color: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
           fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
           fillOpacity: 0.9,
           weight: 0.6,
         }}
       />
 
-      {/* 細分 (ある程度ズームしたら) */}
+      {/* 細分区域 */}
       {shouldShowSaibun && (
         <GeoJSON
           data={SaibunData}
           style={{
-            color:
-              theme === "dark"
-                ? "rgba(255,255,255,0.3)"
-                : "rgba(0,0,0,0.2)",
+            color: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
             fillOpacity: 0,
             weight: 0.5,
           }}
         />
       )}
 
-      {/* 市区町村 (さらにズームしたら) */}
+      {/* 市区町村 */}
       {shouldShowCities && (
         <GeoJSON
           data={CitiesData}
           style={{
-            color:
-              theme === "dark"
-                ? "rgba(255,255,255,0.2)"
-                : "rgba(0,0,0,0.2)",
+            color: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
             fillOpacity: 0,
             weight: theme === "dark" ? 0.3 : 0.4,
           }}

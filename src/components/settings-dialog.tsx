@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+"use client";
+
+import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown, ChevronDown, ChevronRight } from "lucide-react";
 import {
@@ -31,9 +33,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useWebSocket } from "@/components/websocket";
 
 interface Settings {
-  theme: 'system' | 'dark' | 'light';
+  theme: "system" | "dark" | "light";
   enable_kyoshin_monitor: boolean;
   enable_dynamic_zoom: boolean;
   enable_low_accuracy_eew: boolean;
@@ -44,12 +47,16 @@ interface SettingsDialogProps {
   setShowSettings: (value: boolean) => void;
   settings: Settings;
   handleSettingChange: (key: keyof Settings, value: Settings[keyof Settings]) => void;
+  onConnectWebSocket: () => void;
+  isAuthenticated: boolean;
+  onDisconnectAuthentication: () => void;
+  onDisconnectWebSocket: () => Promise<void>;
 }
 
 const THEME_OPTIONS = [
-  { value: 'system', label: 'システム' },
-  { value: 'dark', label: 'ダーク' },
-  { value: 'light', label: 'ライト' },
+  { value: "system", label: "システム" },
+  { value: "dark", label: "ダーク" },
+  { value: "light", label: "ライト" },
 ] as const;
 
 const SettingsDialog: React.FC<SettingsDialogProps> = ({
@@ -57,32 +64,57 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   setShowSettings,
   settings,
   handleSettingChange,
+  onConnectWebSocket,
+  isAuthenticated,
+  onDisconnectAuthentication,
+  onDisconnectWebSocket,
 }) => {
   const [open, setOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
+  const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
+  const { isConnected } = useWebSocket();
 
   const handleToggleLowAccuracyEEW = (checked: boolean) => {
     if (checked) {
       setShowAlert(true);
     } else {
-      handleSettingChange('enable_low_accuracy_eew', false);
+      handleSettingChange("enable_low_accuracy_eew", false);
     }
   };
 
   const confirmLowAccuracyEEW = () => {
-    handleSettingChange('enable_low_accuracy_eew', true);
+    handleSettingChange("enable_low_accuracy_eew", true);
     setShowAlert(false);
+  };
+
+  const handleAuthenticationClick = () => {
+    if (isAuthenticated) {
+      setShowDisconnectAlert(true);
+    } else {
+      window.location.href = "/api/oauth/authorize";
+    }
+  };
+
+  const confirmDisconnectAuthentication = () => {
+    onDisconnectAuthentication();
+    setShowDisconnectAlert(false);
+  };
+
+  const handleWebSocketToggle = async () => {
+    if (isConnected) {
+      await onDisconnectWebSocket();
+    } else {
+      onConnectWebSocket();
+    }
   };
 
   return (
     <Dialog open={showSettings} onOpenChange={setShowSettings}>
-      <DialogContent style={{ maxHeight: '80vh' }}>
+      <DialogContent style={{ maxHeight: "80vh" }}>
         <DialogHeader>
           <DialogTitle>設定</DialogTitle>
-          <DialogDescription>
-            設定を変更することができます
-          </DialogDescription>
+          <DialogDescription>設定を変更することができます</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -92,11 +124,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <span>強震モニタを有効にする</span>
               <Switch
                 checked={settings.enable_kyoshin_monitor}
-                onCheckedChange={(checked) => handleSettingChange('enable_kyoshin_monitor', checked)}
+                onCheckedChange={(checked) =>
+                  handleSettingChange("enable_kyoshin_monitor", checked)
+                }
               />
             </div>
             <p className="text-sm text-gray-500">
-              強震モニタとP/S波をリアルタイムに表示します。<br/>
+              強震モニタとP/S波をリアルタイムに表示します。
             </p>
           </div>
 
@@ -106,7 +140,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <span>地図の動的ズームを有効にする</span>
               <Switch
                 checked={settings.enable_dynamic_zoom}
-                onCheckedChange={(checked) => handleSettingChange('enable_dynamic_zoom', checked)}
+                onCheckedChange={(checked) =>
+                  handleSettingChange("enable_dynamic_zoom", checked)
+                }
               />
             </div>
             <p className="text-sm text-gray-500">
@@ -127,12 +163,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               className="text-sm font-bold text-gray-500 cursor-pointer flex items-center"
               onClick={() => setIsCollapsed(!isCollapsed)}
             >
-              {isCollapsed ? <ChevronDown className="mr-2" /> : <ChevronRight className="mr-2" />}
+              {isCollapsed ? (
+                <ChevronDown className="mr-2" />
+              ) : (
+                <ChevronRight className="mr-2" />
+              )}
               十分に知識がある方のみご利用ください。
             </p>
             {isCollapsed && (
               <div className="text-sm text-gray-500">
-                <p>緊急地震速報の1点観測では、観測された揺れが地震によるものとは限りません。</p>
+                <p>
+                  緊急地震速報の1点観測では、観測された揺れが地震によるものとは限りません。
+                </p>
                 <p>
                   例えば、事故や落雷による振動、または観測機器の不具合などが原因で、
                   誤った情報が発信される場合があります。
@@ -153,7 +195,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   className="w-full justify-between"
                 >
                   {settings.theme
-                    ? THEME_OPTIONS.find((theme) => theme.value === settings.theme)?.label
+                    ? THEME_OPTIONS.find(
+                        (theme) => theme.value === settings.theme
+                      )?.label
                     : "テーマを選択"}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -167,14 +211,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                           key={theme.value}
                           value={theme.value}
                           onSelect={(currentValue) => {
-                            handleSettingChange('theme', currentValue as 'system' | 'dark' | 'light');
+                            handleSettingChange(
+                              "theme",
+                              currentValue as "system" | "dark" | "light"
+                            );
                             setOpen(false);
                           }}
                         >
                           <Check
                             className={cn(
                               "mr-2 h-4 w-4",
-                              settings.theme === theme.value ? "opacity-100" : "opacity-0"
+                              settings.theme === theme.value
+                                ? "opacity-100"
+                                : "opacity-0"
                             )}
                           />
                           {theme.label}
@@ -186,27 +235,76 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </PopoverContent>
             </Popover>
             <p className="text-sm text-gray-500">
-              アプリケーションの外観を変更できます。<br/>「システム」設定では、デバイスの設定に従います。
+              アプリケーションの外観を変更できます。
+              <br />
+              「システム」設定では、デバイスの設定に従います。
             </p>
+          </div>
+
+          {/* 認証とWebSocket接続 */}
+          <div className="space-y-4">
+            <Button
+              className="mr-4"
+              variant={isAuthenticated ? "destructive" : "default"}
+              onClick={handleAuthenticationClick}
+            >
+              {isAuthenticated ? "アカウントとの連携を解除" : "認証"}
+            </Button>
+            {isAuthenticated && (
+              <Button variant="default" onClick={handleWebSocketToggle}>
+                {isConnected ? "WebSocketを切断" : "WebSocketに接続"}
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
 
-      {/* 警告ダイアログ */}
+      {/* 精度の低い緊急地震速報有効化確認ダイアログ */}
       <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>本当に有効にしますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              再度ご確認ください。<br/>
-              緊急地震速報の1点観測では、観測された揺れが地震によるものとは限りません。<br/>
-              例えば、事故や落雷による振動、または観測機器の不具合などが原因で、<br/>
-              誤った情報が発信される場合があります。<br/>
+              再度ご確認ください。
+              <br />
+              緊急地震速報の1点観測では、観測された揺れが地震によるものとは限りません。
+              <br />
+              例えば、事故や落雷による振動、または観測機器の不具合などが原因で、
+              <br />
+              誤った情報が発信される場合があります。
+              <br />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmLowAccuracyEEW}>有効にする</AlertDialogAction>
+            <AlertDialogAction onClick={confirmLowAccuracyEEW}>
+              有効にする
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* アカウント連携解除確認ダイアログ */}
+      <AlertDialog
+        open={showDisconnectAlert}
+        onOpenChange={setShowDisconnectAlert}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              本当にアカウントとの連携を解除しますか？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              アカウントとの連携を解除すると、保存されていた認証トークンが削除されます。
+              <br />
+              続行しますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDisconnectAuthentication}>
+              連携を解除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
