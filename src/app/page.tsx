@@ -163,6 +163,9 @@ function PageContent() {
           <Button variant="outline" onClick={() => setHomePosition()}>
             <LocateFixed />
           </Button>
+          <Button variant="outline" onClick={handleTest} className="hidden">
+            <FlaskConical />
+          </Button>
           <div className="flex flex-col">
             <p className="pr-1">{currentTime}</p>
             {isConnected && (
