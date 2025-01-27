@@ -169,7 +169,7 @@ function PageContent() {
           <div className="flex flex-col">
             <p className="pr-1">{currentTime}</p>
             {isConnected && (
-              <div className="flex items-center text-xs text-gray-500 space-x-1 text-right">
+              <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
                 <Gauge size={16} />
                 <p>DM-D.S.S</p>
               </div>
