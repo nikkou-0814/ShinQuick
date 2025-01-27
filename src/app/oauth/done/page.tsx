@@ -1,9 +1,9 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 
-export default function OAuthDonePage() {
+function OAuthDoneContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -20,5 +20,13 @@ export default function OAuthDonePage() {
 
   return (
     <h1>認証が完了しました。少々お待ちください...</h1>
+  );
+}
+
+export default function OAuthDonePage() {
+  return (
+    <Suspense fallback={<h1>Loading...</h1>}>
+      <OAuthDoneContent />
+    </Suspense>
   );
 }
