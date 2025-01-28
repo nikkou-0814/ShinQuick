@@ -93,7 +93,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     if (isAuthenticated) {
       setShowDisconnectAlert(true);
     } else {
-      window.location.href = "/api/oauth/authorize";
+      if (typeof window !== 'undefined') {
+        window.location.href = "/api/oauth/authorize";
+      }
     }
   };
 
@@ -259,7 +261,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
           {/* 認証とWebSocket接続 */}
           <div className="space-y-2">
-          <p className="text-sm">DM-D.S.S</p>
+          <p className="text-sm">Project DM-D.S.S</p>
             <Button
               variant={isAuthenticated ? "destructive" : "outline"}
               onClick={handleAuthenticationClick}

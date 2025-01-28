@@ -5,12 +5,20 @@ import { MapContainer, GeoJSON, useMapEvents, useMap } from "react-leaflet";
 import L, { LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useTheme } from "next-themes";
-
 import { FeatureCollection } from "geojson";
+
 import rawCountriesData from "../../public/mapdata/Countries.json";
 import rawJapanData from "../../public/mapdata/Japan.json";
 import rawSaibunData from "../../public/mapdata/Saibun.json";
 import rawCitiesData from "../../public/mapdata/Cities.json";
+
+type EpicenterInfo = {
+  eventId: string;
+  lat: number;
+  lng: number;
+  icon: string;
+  startTime?: number;
+};
 
 const CountriesData = rawCountriesData as FeatureCollection;
 const JapanData = rawJapanData as FeatureCollection;
@@ -46,13 +54,16 @@ const colorList: Record<string, string> = {
   z: "#993333",
 };
 
+function ConvertStringToColor(ch: string): string {
+  return colorList[ch.toLowerCase()] || "#b00201";
+}
+
 type PsWaveItem = {
   latitude: string;
   longitude: string;
   pRadius: string;
   sRadius: string;
 };
-
 type HypoInfoItem = {
   reportTime: string;
   regionCode: string;
@@ -69,7 +80,6 @@ type HypoInfoItem = {
   reportNum: string;
   reportId: string;
 };
-
 type KyoshinMonitorJson = {
   realTimeData?: {
     intensity: string;
@@ -86,18 +96,13 @@ type KyoshinMonitorJson = {
   [key: string]: unknown;
 };
 
-function ConvertStringToColor(ch: string): string {
-  return colorList[ch.toLowerCase()] || "#b00201";
-}
-
 if (typeof window !== "undefined") {
-  L.Map.mergeOptions({
+  (L.Map as typeof L.Map & { SmoothWheelZoom?: unknown }).mergeOptions({
     smoothWheelZoom: true,
     smoothSensitivity: 5,
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (L.Map as any).SmoothWheelZoom = L.Handler.extend({
+  (L.Map as typeof L.Map & { SmoothWheelZoom?: unknown }).SmoothWheelZoom = L.Handler.extend({
     addHooks: function () {
       L.DomEvent.on(this._map._container, "wheel", this._onWheelScroll, this);
     },
@@ -138,7 +143,6 @@ if (typeof window !== "undefined") {
     },
     _onWheeling: function (e: WheelEvent) {
       const map = this._map;
-
       this._goalZoom =
         this._goalZoom +
         L.DomEvent.getWheelDelta(e) * 0.003 * map.options.smoothSensitivity;
@@ -201,20 +205,21 @@ if (typeof window !== "undefined") {
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (L.Map as any).addInitHook(
+  (L.Map as typeof L.Map & { SmoothWheelZoom?: unknown }).addInitHook(
     "addHandler",
     "smoothWheelZoom",
-    (L.Map as typeof L.Map & { SmoothWheelZoom: typeof L.Handler }).SmoothWheelZoom
+    (L.Map as typeof L.Map & { SmoothWheelZoom?: unknown }).SmoothWheelZoom
   );
 }
 
 function KyoshinMonitor({
   enableKyoshinMonitor,
   onTimeUpdate,
+  isConnected,
 }: {
   enableKyoshinMonitor: boolean;
   onTimeUpdate?: (time: string) => void;
+  isConnected: boolean;
 }) {
   const map = useMap();
   const [pointList, setPointList] = useState<Array<[number, number]>>([]);
@@ -239,7 +244,7 @@ function KyoshinMonitor({
     return 0.3;
   };
 
-  // Fetch SiteList
+  // SiteList
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
 
@@ -266,7 +271,7 @@ function KyoshinMonitor({
     fetchSiteList();
   }, [enableKyoshinMonitor]);
 
-  // Fetch KyoshinMonitor
+  // KyoshinMonitor
   useEffect(() => {
     if (!enableKyoshinMonitor) {
       if (layerRef.current) {
@@ -279,18 +284,13 @@ function KyoshinMonitor({
       }
       return;
     }
-
-    const anyMin = 0;
-
     let isMounted = true;
 
     const fetchKyoshinMonitorData = async () => {
       try {
         const date = new Date();
-        date.setSeconds(date.getSeconds() - 3);
-        date.setMinutes(date.getMinutes() - anyMin);
-
-        const NowTime =
+        date.setSeconds(date.getSeconds() - 3); // 3秒前のデータを取得
+        const nowTime =
           date.getFullYear().toString() +
           ("0" + (date.getMonth() + 1)).slice(-2) +
           ("0" + date.getDate()).slice(-2) +
@@ -298,13 +298,12 @@ function KyoshinMonitor({
           ("0" + date.getMinutes()).slice(-2) +
           ("0" + date.getSeconds()).slice(-2);
 
-        const NowDay =
+        const nowDay =
           date.getFullYear().toString() +
           ("0" + (date.getMonth() + 1)).slice(-2) +
           ("0" + date.getDate()).slice(-2);
 
-        // TestData https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/20250127/20250127132045.json
-        const url = `https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/${NowDay}/${NowTime}.json`;
+        const url = `https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/${nowDay}/${nowTime}.json`;
 
         const res = await fetch(url);
         if (!res.ok) {
@@ -312,7 +311,6 @@ function KyoshinMonitor({
           return;
         }
         const data: KyoshinMonitorJson = await res.json();
-
         if (isMounted) {
           setKmoniData(data);
           if (onTimeUpdate) {
@@ -338,17 +336,18 @@ function KyoshinMonitor({
 
     fetchKyoshinMonitorData();
     const intervalId = setInterval(fetchKyoshinMonitorData, 1000);
-
     return () => {
       isMounted = false;
       clearInterval(intervalId);
       if (layerRef.current) {
         map.removeLayer(layerRef.current);
       }
+      if (waveLayerRef.current) {
+        map.removeLayer(waveLayerRef.current);
+      }
     };
   }, [map, enableKyoshinMonitor, onTimeUpdate]);
 
-  // UpdateLayer
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
     if (!kmoniData?.realTimeData?.intensity) return;
@@ -376,8 +375,16 @@ function KyoshinMonitor({
     layerRef.current.addTo(map);
   }, [map, kmoniData, zoomLevel, pointList, enableKyoshinMonitor]);
 
+  // PS波 & 震源
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
+    if (isConnected) {
+      if (waveLayerRef.current) {
+        waveLayerRef.current.clearLayers();
+        map.removeLayer(waveLayerRef.current);
+      }
+      return;
+    }
 
     if (!kmoniData?.psWave?.items || kmoniData.psWave.items.length === 0) {
       if (waveLayerRef.current) {
@@ -397,7 +404,8 @@ function KyoshinMonitor({
     });
 
     kmoniData.psWave.items.forEach((item) => {
-      const { latitude: latStr, longitude: lngStr } = item;
+      const latStr = item.latitude;
+      const lngStr = item.longitude;
       const pRadius = parseFloat(item.pRadius);
       const sRadius = parseFloat(item.sRadius);
 
@@ -406,12 +414,13 @@ function KyoshinMonitor({
       const lngVal =
         (lngStr.startsWith("E") ? 1 : -1) * parseFloat(lngStr.slice(1));
 
+      // 震源
       const epicenterMarker = L.marker([latVal, lngVal], {
         icon: epicenterIcon,
       });
       waveLayerRef.current?.addLayer(epicenterMarker);
 
-      // PWave
+      // P波
       const pCircle = L.circle([latVal, lngVal], {
         radius: pRadius * 1000,
         color: "#0066FF",
@@ -419,19 +428,19 @@ function KyoshinMonitor({
       });
       waveLayerRef.current?.addLayer(pCircle);
 
-      // SWave
+      // S波
       const sCircle = L.circle([latVal, lngVal], {
         radius: sRadius * 1000,
         color: "#FF0000",
         fill: true,
         fillColor: "#FFCCCC",
-        fillOpacity: 0.5
+        fillOpacity: 0.5,
       });
       waveLayerRef.current?.addLayer(sCircle);
     });
 
     waveLayerRef.current.addTo(map);
-  }, [enableKyoshinMonitor, kmoniData, map]);
+  }, [enableKyoshinMonitor, kmoniData, map, isConnected]);
 
   return null;
 }
@@ -453,117 +462,145 @@ function MapInner({
   useEffect(() => {
     if (!map) return;
     map.options.scrollWheelZoom = false;
-    (
-      map.options as L.MapOptions & {
-        smoothWheelZoom?: boolean | string;
-        smoothSensitivity?: number;
-      }
-    ).smoothWheelZoom = true;
-    (
-      map.options as L.MapOptions & {
-        smoothWheelZoom?: boolean | string;
-        smoothSensitivity?: number;
-      }
-    ).smoothSensitivity = 5;
+    (map.options as L.MapOptions & { smoothWheelZoom?: boolean }).smoothWheelZoom = true;
+    (map.options as L.MapOptions & { smoothSensitivity?: number }).smoothSensitivity = 5;
   }, [map]);
 
   return null;
 }
 
-//MapMain
 const Map = forwardRef<
   L.Map,
   {
     homePosition: { center: [number, number]; zoom: number };
     enableKyoshinMonitor: boolean;
     onTimeUpdate?: (time: string) => void;
+    isConnected: boolean;
+    epicenters: EpicenterInfo[];
   }
->(( { homePosition, enableKyoshinMonitor, onTimeUpdate }, ref) => {
-  const [currentZoom, setCurrentZoom] = useState(homePosition.zoom);
-  const { resolvedTheme } = useTheme();
-  const theme = resolvedTheme || "light";
+>(
+  (
+    {
+      homePosition,
+      enableKyoshinMonitor,
+      onTimeUpdate,
+      isConnected,
+      epicenters,
+    },
+    ref
+  ) => {
+    const [currentZoom, setCurrentZoom] = useState(homePosition.zoom);
+    const { resolvedTheme } = useTheme();
+    const theme = resolvedTheme || "light";
 
-  useEffect(() => {
-    const mapElement = document.querySelector(".leaflet-container");
-    if (mapElement) {
-      (mapElement as HTMLElement).style.backgroundColor =
-        theme === "dark" ? "#18181C" : "#AAD3DF";
-    }
-  }, [theme]);
+    const epicenterLayerRef = useRef<LayerGroup | null>(null);
 
-  const handleZoomChange = useCallback((zoom: number) => {
-    setCurrentZoom(zoom);
-  }, []);
+    useEffect(() => {
+      if (typeof window !== "undefined") {
+        const mapElement = document.querySelector(".leaflet-container");
+        if (mapElement) {
+          (mapElement as HTMLElement).style.backgroundColor =
+            theme === "dark" ? "#18181C" : "#AAD3DF";
+        }
+      }
+    }, [theme]);    
 
-  const shouldShowCities = currentZoom >= 10;
-  const shouldShowSaibun = currentZoom >= 5;
+    const handleZoomChange = useCallback((zoom: number) => {
+      setCurrentZoom(zoom);
+    }, []);
 
-  return (
-    <MapContainer
-      ref={ref}
-      center={homePosition.center}
-      zoom={homePosition.zoom}
-      style={{ width: "100%", height: "100vh", zIndex: 0 }}
-      scrollWheelZoom={false}
-      preferCanvas
-      zoomControl={false}
-    >
-      <MapInner onZoomChange={handleZoomChange} homePosition={homePosition} />
+    const shouldShowCities = currentZoom >= 10;
+    const shouldShowSaibun = currentZoom >= 5;
 
-      {/* KyoshinMonitor */}
-      <KyoshinMonitor
-        enableKyoshinMonitor={enableKyoshinMonitor}
-        onTimeUpdate={onTimeUpdate}
-      />
+    useEffect(() => {
+      if (!ref || !(ref as React.MutableRefObject<L.Map | null>).current) return;
+      const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
+      if (!mapInstance) return;
 
-      {/* 世界 */}
-      <GeoJSON
-        data={CountriesData}
-        style={{
-          color: theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
-          fillColor: theme === "dark" ? "#252525" : "#737A8A",
-          fillOpacity: 0.6,
-          weight: 0.8,
-        }}
-      />
+      if (!epicenterLayerRef.current) {
+        epicenterLayerRef.current = L.layerGroup().addTo(mapInstance);
+      }
+      epicenterLayerRef.current.clearLayers();
 
-      {/* 日本 */}
-      <GeoJSON
-        data={JapanData}
-        style={{
-          color: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
-          fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
-          fillOpacity: 0.9,
-          weight: 0.6,
-        }}
-      />
+      epicenters.forEach((epi) => {
+        const iconObj = L.icon({
+          iconUrl: epi.icon,
+          iconSize: [48, 48],
+          iconAnchor: [24, 24],
+        });
+        const marker = L.marker([epi.lat, epi.lng], { icon: iconObj });
+        epicenterLayerRef.current?.addLayer(marker);
+      });
+    }, [epicenters, ref]);
 
-      {/* 細分区域 */}
-      {shouldShowSaibun && (
+    return (
+      <MapContainer
+        ref={ref}
+        center={homePosition.center}
+        zoom={homePosition.zoom}
+        style={{ width: "100%", height: "100vh", zIndex: 0 }}
+        scrollWheelZoom={false}
+        preferCanvas
+        zoomControl={false}
+      >
+        <MapInner onZoomChange={handleZoomChange} homePosition={homePosition} />
+
+        {/* Kyoshin Monitor */}
+        <KyoshinMonitor
+          enableKyoshinMonitor={enableKyoshinMonitor}
+          onTimeUpdate={onTimeUpdate}
+          isConnected={isConnected}
+        />
+
+        {/* 世界 */}
         <GeoJSON
-          data={SaibunData}
+          data={CountriesData}
           style={{
-            color: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
-            fillOpacity: 0,
-            weight: 0.5,
+            color: theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
+            fillColor: theme === "dark" ? "#252525" : "#737A8A",
+            fillOpacity: 0.6,
+            weight: 0.8,
           }}
         />
-      )}
 
-      {/* 市区町村 */}
-      {shouldShowCities && (
+        {/* 日本 */}
         <GeoJSON
-          data={CitiesData}
+          data={JapanData}
           style={{
-            color: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
-            fillOpacity: 0,
-            weight: theme === "dark" ? 0.3 : 0.4,
+            color: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
+            fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
+            fillOpacity: 0.9,
+            weight: 0.6,
           }}
         />
-      )}
-    </MapContainer>
-  );
-});
+
+        {/* 細分区域 */}
+        {shouldShowSaibun && (
+          <GeoJSON
+            data={SaibunData}
+            style={{
+              color: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
+              fillOpacity: 0,
+              weight: 0.5,
+            }}
+          />
+        )}
+
+        {/* 市区町村 */}
+        {shouldShowCities && (
+          <GeoJSON
+            data={CitiesData}
+            style={{
+              color: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+              fillOpacity: 0,
+              weight: theme === "dark" ? 0.3 : 0.4,
+            }}
+          />
+        )}
+      </MapContainer>
+    );
+  }
+);
 
 Map.displayName = "Map";
 

@@ -5,12 +5,12 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
-import { Map } from "leaflet";
+import { Map, LatLngBounds } from "leaflet";
 import { Settings, LocateFixed, Gauge, FlaskConical } from "lucide-react";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
 import EewDisplay from "@/components/eew-display";
-import { EewData } from "@/types/eewdata";
+import { EewInformation } from "@dmdata/telegram-json-types";
 
 interface Settings {
   theme: "system" | "dark" | "light";
@@ -32,20 +32,46 @@ const DynamicMap = dynamic(() => import("@/components/map"), {
   ssr: false,
 });
 
+type EpicenterInfo = {
+  eventId: string;
+  lat: number;
+  lng: number;
+  icon: string;
+  startTime: number;
+};
+
 function PageContent() {
   const [ShowSettings, setShowSettings] = useState<boolean>(false);
   const { setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
   const mapRef = useRef<Map | null>(null);
-  const { isConnected, receivedData, connectWebSocket, disconnectWebSocket, injectTestData } = useWebSocket();
+
+  const {
+    isConnected,
+    receivedData,
+    connectWebSocket,
+    disconnectWebSocket,
+    injectTestData,
+  } = useWebSocket();
+
+  const [displayData, setDisplayData] = useState<EewInformation.Latest.Main | null>(null);
+
+  useEffect(() => {
+    setDisplayData(receivedData as EewInformation.Latest.Main | null);
+  }, [receivedData]);
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
+    const isBrowser = typeof window !== "undefined";
+    if (!isBrowser) return;
+
     const savedSettings = localStorage.getItem("settings");
     if (savedSettings) {
       setSettings(JSON.parse(savedSettings));
     }
+
     const token = localStorage.getItem("dmdata_access_token");
     if (token) {
       setIsAuthenticated(true);
@@ -75,15 +101,25 @@ function PageContent() {
     return () => clearInterval(interval);
   }, [settings.enable_kyoshin_monitor]);
 
+  useEffect(() => {
+    const isBrowser = typeof window !== "undefined";
+    console.log("Running in:", isBrowser ? "Browser" : "Server");
+  }, []);
+
   const updateSettings = (newSettings: Partial<Settings>) => {
     setSettings((prevSettings) => {
       const updatedSettings = { ...prevSettings, ...newSettings };
-      localStorage.setItem("settings", JSON.stringify(updatedSettings));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("settings", JSON.stringify(updatedSettings));
+      }
       return updatedSettings;
     });
   };
 
-  const handleSettingChange = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+  const handleSettingChange = <K extends keyof Settings>(
+    key: K,
+    value: Settings[K]
+  ) => {
     if (key === "theme") {
       if (value === "dark" || value === "light" || value === "system") {
         setTheme(value);
@@ -123,7 +159,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch('/testdata3.json');
+      const response = await fetch("/testdata.json");
       if (!response.ok) {
         throw new Error(`テストデータの取得に失敗しました: ${response.statusText}`);
       }
@@ -135,6 +171,79 @@ function PageContent() {
     }
   };
 
+  const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEpicenters((prev) => {
+        const now = Date.now();
+        const filtered = prev.filter((e) => now - e.startTime < 3 * 60 * 1000);
+        if (filtered.length === 0 && prev.length > 0) {
+          if (mapRef.current) {
+            mapRef.current.setView([35, 136], 5);
+          }
+          setDisplayData(null);
+        }
+        return filtered;
+      });
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleEpicenterUpdate = useCallback(
+    ({
+      eventId,
+      lat,
+      lng,
+      icon,
+    }: {
+      eventId: string;
+      serialNo: string;
+      lat: number;
+      lng: number;
+      icon: string;
+    }) => {
+      if (!eventId) return;
+
+      setEpicenters((prev) => {
+        const existing = prev.find((p) => p.eventId === eventId);
+        if (!existing) {
+          const newEpi: EpicenterInfo = {
+            eventId,
+            lat,
+            lng,
+            icon,
+            startTime: Date.now(),
+          };
+          const updated = [...prev, newEpi];
+          zoomToEpicenters(updated);
+          return updated;
+        } else {
+          const updated = prev.map((p) => {
+            if (p.eventId === eventId) {
+              return { ...p, lat, lng, icon };
+            }
+            return p;
+          });
+          zoomToEpicenters(updated);
+          return updated;
+        }
+      });
+    },
+    []
+  );
+
+  const zoomToEpicenters = (epList: EpicenterInfo[]) => {
+    if (!mapRef.current || epList.length === 0) return;
+    if (epList.length === 1) {
+      mapRef.current.setView([epList[0].lat, epList[0].lng], 8);
+      return;
+    }
+    const latlngs = epList.map((epi) => [epi.lat, epi.lng]) as [number, number][];
+    const bounds: LatLngBounds = new LatLngBounds(latlngs);
+    mapRef.current.fitBounds(bounds, { maxZoom: 10 });
+  };
+
   return (
     <main className="h-full w-full">
       <DynamicMap
@@ -142,6 +251,8 @@ function PageContent() {
         homePosition={{ center: [35, 136], zoom: 5 }}
         enableKyoshinMonitor={settings.enable_kyoshin_monitor}
         onTimeUpdate={handleTimeUpdate}
+        isConnected={isConnected}
+        epicenters={epicenters}
       />
 
       <SettingsDialog
@@ -163,7 +274,7 @@ function PageContent() {
           <Button variant="outline" onClick={() => setHomePosition()}>
             <LocateFixed />
           </Button>
-          <Button variant="outline" onClick={handleTest} className="hidden">
+          <Button variant="outline" onClick={handleTest} className="">
             <FlaskConical />
           </Button>
           <div className="flex flex-col">
@@ -179,9 +290,10 @@ function PageContent() {
       </div>
 
       <EewDisplay
-        parsedData={receivedData as EewData | null}
+        parsedData={displayData}
         isAccuracy={settings.enable_accuracy_info}
         isLowAccuracy={settings.enable_low_accuracy_eew}
+        onEpicenterUpdate={handleEpicenterUpdate}
       />
     </main>
   );

@@ -1,42 +1,47 @@
 "use client";
 
-import React, { createContext, useContext, useState, useRef, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { toast } from "sonner";
 import pako from "pako";
-import { EewData } from "@/types/eewdata";
+import { EewInformation } from "@dmdata/telegram-json-types";
 
-const isEarthquakeData = (data: unknown): data is EewData => {
+const isEewInformationMain = (
+  data: unknown
+): data is EewInformation.Latest.Main => {
   return (
     typeof data === "object" &&
     data !== null &&
-    "body" in data &&
-    typeof (data as EewData).body.earthquake.hypocenter.name === "string"
+    "_schema" in data &&
+    (data as EewInformation.Latest.Main)._schema.type === "eew-information" &&
+    (data as EewInformation.Latest.Main)._schema.version === "1.0.0"
   );
 };
 
 // Gzip Base64 Decode
-const decodeAndDecompress = (base64Body: string): EewData | null => {
+const decodeAndDecompress = (
+  base64Body: string
+): EewInformation.Latest.Main | null => {
   try {
     const binaryString = atob(base64Body);
-    console.log("Base64デコード完了:", binaryString);
-
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-    console.log("Uint8Arrayの内容:", bytes);
-
     const decompressed = pako.ungzip(bytes, { to: "string" });
-    console.log("Gzip解凍完了:", decompressed);
-
     const jsonData = JSON.parse(decompressed);
-    console.log("JSON解析完了:", jsonData);
+    console.log("data:", jsonData);
 
-    if (isEarthquakeData(jsonData)) {
+    if (isEewInformationMain(jsonData)) {
       return jsonData;
     } else {
-      console.warn("解析したデータがEarthquakeDataの形式と一致しません。");
+      console.warn("データが形式と一致しません。");
       return null;
     }
   } catch (error) {
@@ -48,7 +53,7 @@ const decodeAndDecompress = (base64Body: string): EewData | null => {
 
 interface WebSocketContextType {
   isConnected: boolean;
-  receivedData: EewData | null;
+  receivedData: EewInformation.Latest.Main | null;
   connectWebSocket: (token: string) => Promise<void>;
   disconnectWebSocket: () => Promise<void>;
   injectTestData: (data: { body: string }) => void;
@@ -56,16 +61,22 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
-export const WebSocketProvider = ({ children }: { children: React.ReactNode }) => {
+export const WebSocketProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
   const [isConnected, setIsConnected] = useState(false);
-  const [receivedData, setReceivedData] = useState<EewData | null>(null);
+  const [receivedData, setReceivedData] =
+    useState<EewInformation.Latest.Main | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const socketIdRef = useRef<number | null>(null);
 
   const connectWebSocket = async (token: string) => {
     if (
       wsRef.current &&
-      (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)
+      (wsRef.current.readyState === WebSocket.OPEN ||
+        wsRef.current.readyState === WebSocket.CONNECTING)
     ) {
       toast.warning("WebSocketはすでに接続されています。");
       return;
@@ -106,7 +117,7 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
 
       ws.addEventListener("open", () => {
         setIsConnected(true);
-        console.log("WebSocket接続完了");
+        console.log("WebSocket connected");
         toast.success("WebSocketに接続しました！");
       });
 
@@ -148,7 +159,9 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
 
   const disconnectWebSocket = async () => {
     if (!socketIdRef.current) {
-      toast.warning("WebSocket IDが見つかりません。すでに切断されている可能性があります。");
+      toast.warning(
+        "WebSocket IDが見つかりません。すでに切断されている可能性があります。"
+      );
       return;
     }
 
@@ -158,7 +171,9 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
       const response = await fetch(socketCloseUrl, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("dmdata_access_token") || ""}`,
+          Authorization: `Bearer ${
+            localStorage.getItem("dmdata_access_token") || ""
+          }`,
         },
       });
 
@@ -169,14 +184,21 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
         }
         socketIdRef.current = null;
         setReceivedData(null);
+        setIsConnected(false);
         toast.info("WebSocketを正常に切断しました。");
       } else {
         const errorData = await response.json();
-        throw new Error(`WebSocket切断エラー: ${errorData.error.message} (コード: ${errorData.error.code})`);
+        throw new Error(
+          `WebSocket切断エラー: ${errorData.error.message} (コード: ${errorData.error.code})`
+        );
       }
     } catch (err) {
       console.error("WebSocket切断に失敗しました:", err);
-      toast.error(`WebSocketの切断に失敗しました: ${(err as Error).message}`);
+      toast.error(
+        `WebSocketの切断に失敗しました: ${
+          (err as Error).message
+        }`
+      );
     }
   };
 
@@ -184,15 +206,21 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
     const decodedData = decodeAndDecompress(testData.body);
     if (decodedData) {
       setReceivedData(decodedData);
-      toast.success("テストデータが正常に挿入されました。");
+      toast.success("テストデータOK");
     } else {
-      toast.error("テストデータの形式が無効です。");
+      toast.error("形式が無効");
     }
-  }, []);  
+  }, []);
 
   return (
     <WebSocketContext.Provider
-      value={{ isConnected, receivedData, connectWebSocket, disconnectWebSocket, injectTestData }}
+      value={{
+        isConnected,
+        receivedData,
+        connectWebSocket,
+        disconnectWebSocket,
+        injectTestData,
+      }}
     >
       {children}
     </WebSocketContext.Provider>
