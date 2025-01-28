@@ -5,7 +5,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
-import { Map, LatLngBounds } from "leaflet";
 import { Settings, LocateFixed, Gauge, FlaskConical } from "lucide-react";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
@@ -45,7 +44,7 @@ function PageContent() {
   const { setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
 
   const {
     isConnected,
@@ -198,7 +197,6 @@ function PageContent() {
       icon,
     }: {
       eventId: string;
-      serialNo: string;
       lat: number;
       lng: number;
       icon: string;
@@ -216,7 +214,6 @@ function PageContent() {
             startTime: Date.now(),
           };
           const updated = [...prev, newEpi];
-          zoomToEpicenters(updated);
           return updated;
         } else {
           const updated = prev.map((p) => {
@@ -225,24 +222,12 @@ function PageContent() {
             }
             return p;
           });
-          zoomToEpicenters(updated);
           return updated;
         }
       });
     },
     []
   );
-
-  const zoomToEpicenters = (epList: EpicenterInfo[]) => {
-    if (!mapRef.current || epList.length === 0) return;
-    if (epList.length === 1) {
-      mapRef.current.setView([epList[0].lat, epList[0].lng], 8);
-      return;
-    }
-    const latlngs = epList.map((epi) => [epi.lat, epi.lng]) as [number, number][];
-    const bounds: LatLngBounds = new LatLngBounds(latlngs);
-    mapRef.current.fitBounds(bounds, { maxZoom: 10 });
-  };
 
   return (
     <main className="h-full w-full">

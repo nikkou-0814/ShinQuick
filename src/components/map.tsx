@@ -2,7 +2,7 @@
 
 import React, { forwardRef, useEffect, useCallback, useState, useRef } from "react";
 import { MapContainer, GeoJSON, useMapEvents, useMap } from "react-leaflet";
-import L, { LayerGroup } from "leaflet";
+import L, { LayerGroup, LatLngBounds } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useTheme } from "next-themes";
 import { FeatureCollection } from "geojson";
@@ -64,6 +64,7 @@ type PsWaveItem = {
   pRadius: string;
   sRadius: string;
 };
+
 type HypoInfoItem = {
   reportTime: string;
   regionCode: string;
@@ -80,6 +81,7 @@ type HypoInfoItem = {
   reportNum: string;
   reportId: string;
 };
+
 type KyoshinMonitorJson = {
   realTimeData?: {
     intensity: string;
@@ -503,7 +505,7 @@ const Map = forwardRef<
             theme === "dark" ? "#18181C" : "#AAD3DF";
         }
       }
-    }, [theme]);    
+    }, [theme]);
 
     const handleZoomChange = useCallback((zoom: number) => {
       setCurrentZoom(zoom);
@@ -531,6 +533,18 @@ const Map = forwardRef<
         const marker = L.marker([epi.lat, epi.lng], { icon: iconObj });
         epicenterLayerRef.current?.addLayer(marker);
       });
+
+      if (epicenters.length > 0) {
+        if (epicenters.length === 1) {
+          mapInstance.setView([epicenters[0].lat, epicenters[0].lng], 8);
+        } else {
+          const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
+          const bounds: LatLngBounds = L.latLngBounds(latlngs);
+          mapInstance.fitBounds(bounds, { maxZoom: 10 });
+        }
+      } else {
+        mapInstance.setView([35, 136], 5);
+      }
     }, [epicenters, ref]);
 
     return (
