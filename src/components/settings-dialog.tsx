@@ -146,6 +146,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 onCheckedChange={(checked) =>
                   handleSettingChange("enable_dynamic_zoom", checked)
                 }
+                disabled
               />
             </div>
             <p className="text-sm text-gray-500">
