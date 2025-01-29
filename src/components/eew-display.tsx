@@ -32,12 +32,74 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   isLowAccuracy = false,
   onEpicenterUpdate,
 }) => {
+
+  useEffect(() => {
+    if (!parsedData || !onEpicenterUpdate) return;
+  
+    const { eventId = "", serialNo = "", body } = parsedData;
+    const { isCanceled = false } = body;
+  
+    if (!("earthquake" in body)) return;
+  
+    const { earthquake } = body;
+    const { hypocenter } = earthquake;
+    const { coordinate, accuracy: hypocenterAccuracy } = hypocenter;
+  
+    const method = (() => {
+      const condition = earthquake.condition || "不明";
+      const accuracyEpicenters = hypocenterAccuracy?.epicenters || [];
+  
+      if (condition === "仮定震源要素") {
+        return "PLUM法";
+      } else if (accuracyEpicenters.length > 0) {
+        const epicVal = accuracyEpicenters[0];
+        const epicValInt = parseInt(epicVal, 10);
+  
+        if (epicValInt === 1) {
+          return earthquake.originTime ? "IPF法 (1点)" : "レベル法";
+        } else if (epicValInt === 2) {
+          return "IPF法 (2点)";
+        } else if (epicValInt === 3 || epicValInt === 4) {
+          return "IPF法 (3点以上)";
+        } else {
+          return earthquake.originTime ? "不明" : "レベル法";
+        }
+      } else {
+        return earthquake.originTime ? "不明" : "レベル法";
+      }
+    })();
+  
+    const icon =
+      method === "PLUM法" || method === "レベル法"
+        ? "/assumed.png"
+        : "/shingen.png";
+  
+    if (
+      isCanceled ||
+      !coordinate?.latitude?.value ||
+      !coordinate.longitude?.value
+    )
+      return;
+  
+    const latVal = Number(coordinate.latitude.value);
+    const lngVal = Number(coordinate.longitude.value);
+  
+    if (isNaN(latVal) || isNaN(lngVal)) return;
+  
+    onEpicenterUpdate({
+      eventId,
+      serialNo,
+      lat: latVal,
+      lng: lngVal,
+      icon,
+    });
+  }, [parsedData, onEpicenterUpdate]);  
+
   if (!parsedData) {
     return null;
   }
 
   const {
-    eventId = "",
     serialNo = "",
     status = "",
     body,
@@ -64,7 +126,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   const {
     name: hypName = "不明",
     depth: hypocenterDepth,
-    coordinate,
     accuracy: hypocenterAccuracy,
   } = hypocenter;
 
@@ -151,11 +212,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   ) {
     return null;
   }
-
-  const icon =
-    method === "PLUM法" || method === "レベル法"
-      ? "/assumed.png"
-      : "/shingen.png";
 
   const intensityColors: Record<string, { background: string; text: string }> = {
     "0": { background: "#62626B", text: "white" },
@@ -475,35 +531,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
 
   const eventType =
     method !== "PLUM法" && method !== "レベル法" ? "地震" : "揺れ";
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffect(() => {
-    if (
-      onEpicenterUpdate &&
-      !isCanceled &&
-      coordinate?.latitude?.value != null &&
-      coordinate?.longitude?.value != null
-    ) {
-      const latVal = Number(coordinate.latitude.value);
-      const lngVal = Number(coordinate.longitude.value);
-      if (!Number.isNaN(latVal) && !Number.isNaN(lngVal)) {
-        onEpicenterUpdate({
-          eventId,
-          serialNo: serialNo || "",
-          lat: latVal,
-          lng: lngVal,
-          icon,
-        });
-      }
-    }
-  }, [
-    onEpicenterUpdate,
-    isCanceled,
-    eventId,
-    serialNo,
-    coordinate,
-    icon,
-  ]);
 
   const isTest = status === "訓練" || status === "試験";
 
