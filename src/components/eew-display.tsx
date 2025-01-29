@@ -23,6 +23,7 @@ export interface EewDisplayProps {
     lat: number;
     lng: number;
     icon: string;
+    depthval: number;
   }) => void;
 }
 
@@ -77,14 +78,16 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     if (
       isCanceled ||
       !coordinate?.latitude?.value ||
-      !coordinate.longitude?.value
+      !coordinate.longitude?.value ||
+      !hypocenter.depth?.value
     )
       return;
   
     const latVal = Number(coordinate.latitude.value);
     const lngVal = Number(coordinate.longitude.value);
+    const depthVal = Number(hypocenter.depth.value);
   
-    if (isNaN(latVal) || isNaN(lngVal)) return;
+    if (isNaN(latVal) || isNaN(lngVal) || isNaN(depthVal)) return;
   
     onEpicenterUpdate({
       eventId,
@@ -92,8 +95,9 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       lat: latVal,
       lng: lngVal,
       icon,
+      depthval: depthVal,
     });
-  }, [parsedData, onEpicenterUpdate]);  
+  }, [parsedData, onEpicenterUpdate]);
 
   if (!parsedData) {
     return null;

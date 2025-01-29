@@ -18,6 +18,7 @@ type EpicenterInfo = {
   lng: number;
   icon: string;
   startTime?: number;
+  depthval: number;
 };
 
 const CountriesData = rawCountriesData as FeatureCollection;
@@ -71,7 +72,7 @@ type HypoInfoItem = {
   regionName: string;
   longitude: string;
   isCancel: string;
-  depth: string;
+  depthval: string;
   calcintensity: string;
   isFinal: string;
   isTraining: string;
@@ -534,13 +535,17 @@ const Map = forwardRef<
         epicenterLayerRef.current?.addLayer(marker);
       });
 
+      const hasDeepEpicenter = epicenters.some(epi => epi.depthval > 150);
+
       if (epicenters.length > 0) {
         if (epicenters.length === 1) {
-          mapInstance.setView([epicenters[0].lat, epicenters[0].lng], 8);
+          const zoom = hasDeepEpicenter ? 6 : 8;
+          mapInstance.setView([epicenters[0].lat, epicenters[0].lng], zoom);
         } else {
           const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
           const bounds: LatLngBounds = L.latLngBounds(latlngs);
-          mapInstance.fitBounds(bounds, { maxZoom: 10 });
+          const options = hasDeepEpicenter ? { maxZoom: 6 } : { maxZoom: 10 };
+          mapInstance.fitBounds(bounds, options);
         }
       } else {
         mapInstance.setView([35, 136], 5);

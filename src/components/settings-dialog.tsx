@@ -150,7 +150,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               />
             </div>
             <p className="text-sm text-gray-500">
-              地図の表示が自動的に拡大・縮小・移動されるようになります。
+              地図の表示が自動的に拡大・縮小・移動されるようになります。<br />
+              （この機能は現在開発中です。）
             </p>
           </div>
 

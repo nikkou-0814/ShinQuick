@@ -37,6 +37,7 @@ type EpicenterInfo = {
   lng: number;
   icon: string;
   startTime: number;
+  depthval: number;
 };
 
 function PageContent() {
@@ -158,7 +159,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata.json");
+      const response = await fetch("/testdata7.json");
       if (!response.ok) {
         throw new Error(`テストデータの取得に失敗しました: ${response.statusText}`);
       }
@@ -195,11 +196,13 @@ function PageContent() {
       lat,
       lng,
       icon,
+      depthval,
     }: {
       eventId: string;
       lat: number;
       lng: number;
       icon: string;
+      depthval: number;
     }) => {
       if (!eventId) return;
 
@@ -212,6 +215,7 @@ function PageContent() {
             lng,
             icon,
             startTime: Date.now(),
+            depthval,
           };
           const updated = [...prev, newEpi];
           return updated;
