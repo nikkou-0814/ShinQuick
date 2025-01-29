@@ -8,7 +8,7 @@ type RootLayoutProps = {
 };
 
 export const metadata = {
-  title: "震-Quick",
+  title: "震Quick",
   description: "緊急地震速報を、見やすく、リアルタイムに。",
 };
 

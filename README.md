@@ -1,36 +1,15 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 震Quick
 
-## Getting Started
+## 概要
 
-First, run the development server:
+震Quickは「緊急地震速報を、見やすく、リアルタイムに」をモットーに制作している緊急地震速報を表示できるアプリです。
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### WebSocketによる通信
+Project DM-D.S.Sを使用したWebSocketによる情報受信を行うため、気象庁が発表する情報を即時で受け取ることができます。（※使用するには各自で契約が必須です）
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 情報の取得元
+- 強震モニタ（リアルタイム震度）と緊急地震速報（緊急地震速報はDM-D.S.Sを使用した場合には自動的に無効となります。）
+[Yahoo強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 緊急地震速報
+[Project DM(Disaster Mitigation)-Data Send Service](https://dmdata.jp/docs/telegrams/)
