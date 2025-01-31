@@ -292,7 +292,7 @@ function KyoshinMonitor({
     const fetchKyoshinMonitorData = async () => {
       try {
         const date = new Date();
-        date.setSeconds(date.getSeconds() - 3); // 3秒前のデータを取得
+        date.setSeconds(date.getSeconds() - 2); // 2秒前のデータを取得
         const nowTime =
           date.getFullYear().toString() +
           ("0" + (date.getMonth() + 1)).slice(-2) +

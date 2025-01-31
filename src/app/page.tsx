@@ -159,7 +159,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata7.json");
+      const response = await fetch("/testdata.json");
       if (!response.ok) {
         throw new Error(`テストデータの取得に失敗しました: ${response.statusText}`);
       }
@@ -263,7 +263,7 @@ function PageContent() {
           <Button variant="outline" onClick={() => setHomePosition()}>
             <LocateFixed />
           </Button>
-          <Button variant="outline" onClick={handleTest} className="">
+          <Button variant="outline" onClick={handleTest} className="hidden">
             <FlaskConical />
           </Button>
           <div className="flex flex-col">

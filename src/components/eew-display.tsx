@@ -375,11 +375,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       } else {
         displayIntensity =
           forecastMaxInt?.to === "over"
-            ? `推定最大震度: ${convertIntensity(
+            ? `推定最大震度 ${convertIntensity(
                 forecastMaxInt.from || "不明",
                 true
               )}`
-            : `推定最大震度: ${convertIntensity(
+            : `推定最大震度 ${convertIntensity(
                 (forecastMaxInt?.to || "不明")
               )}`;
       }
@@ -394,7 +394,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     } else {
       const fromInt = forecastMaxInt?.from || "不明";
       if (fromInt !== "不明") {
-        displayIntensity = `推定最大震度: ${convertIntensity(
+        displayIntensity = `推定最大震度 ${convertIntensity(
           fromInt,
           true
         )}`;
@@ -413,11 +413,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     } else {
       displayIntensity =
         forecastMaxInt?.to === "over"
-          ? `推定最大震度: ${convertIntensity(
+          ? `推定最大震度 ${convertIntensity(
               forecastMaxInt.from || "不明",
               true
             )}`
-          : `推定最大震度: ${convertIntensity(
+          : `推定最大震度 ${convertIntensity(
               (forecastMaxInt?.to || "不明")
             )}`;
     }
@@ -588,7 +588,9 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                 className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
                 style={{ backgroundColor, color: textColor }}
               >
-                {displayIntensity}
+                <h1 className="text-lg">
+                  {displayIntensity}
+                </h1>
               </div>
               {maxLgInt !== "不明" && maxLgInt !== "0" && (
                 <div
