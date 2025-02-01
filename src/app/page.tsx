@@ -27,6 +27,7 @@ interface Settings {
   enable_dynamic_zoom: boolean;
   enable_low_accuracy_eew: boolean;
   enable_accuracy_info: boolean;
+  enable_drill_test_info: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -35,6 +36,7 @@ const DEFAULT_SETTINGS: Settings = {
   enable_dynamic_zoom: true,
   enable_low_accuracy_eew: false,
   enable_accuracy_info: false,
+  enable_drill_test_info: false,
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -134,13 +136,14 @@ function PageContent() {
     }
     updateSettings({ [key]: value });
   };
+
   const handleConnectWebSocket = () => {
     const token = localStorage.getItem("dmdata_access_token");
     if (!token) {
       toast.error("アカウントを認証してください。");
       return;
     }
-    connectWebSocket(token);
+    connectWebSocket(token, settings.enable_drill_test_info);
   };
 
   const handleDisconnectAuthentication = () => {
@@ -189,7 +192,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/ishikawa2.json");
+      const response = await fetch("/testdata/testdata7.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);

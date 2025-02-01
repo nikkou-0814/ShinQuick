@@ -54,7 +54,7 @@ const decodeAndDecompress = (
 interface WebSocketContextType {
   isConnected: boolean;
   receivedData: EewInformation.Latest.Main | null;
-  connectWebSocket: (token: string) => Promise<void>;
+  connectWebSocket: (token: string, enableDrillTestInfo: boolean) => Promise<void>;
   disconnectWebSocket: () => Promise<void>;
   injectTestData: (data: { body: string }) => void;
 }
@@ -72,7 +72,7 @@ export const WebSocketProvider = ({
   const wsRef = useRef<WebSocket | null>(null);
   const socketIdRef = useRef<number | null>(null);
 
-  const connectWebSocket = async (token: string) => {
+  const connectWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
     if (
       wsRef.current &&
       (wsRef.current.readyState === WebSocket.OPEN ||
@@ -86,7 +86,7 @@ export const WebSocketProvider = ({
     const requestBody = {
       classifications: ["eew.forecast"],
       types: ["VXSE45"],
-      test: "including",
+      test: enableDrillTestInfo ? "including" : "no",
       appName: "Shin-Quick",
       formatMode: "json",
     };
@@ -195,9 +195,7 @@ export const WebSocketProvider = ({
     } catch (err) {
       console.error("WebSocket切断に失敗しました:", err);
       toast.error(
-        `WebSocketの切断に失敗しました: ${
-          (err as Error).message
-        }`
+        `WebSocketの切断に失敗しました: ${(err as Error).message}`
       );
     }
   };

@@ -41,6 +41,7 @@ interface Settings {
   enable_dynamic_zoom: boolean;
   enable_low_accuracy_eew: boolean;
   enable_accuracy_info: boolean;
+  enable_drill_test_info: boolean;
 }
 
 interface SettingsDialogProps {
@@ -74,6 +75,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
+  const [showDrillTestAlert, setShowDrillTestAlert] = useState(false);
   const { isConnected } = useWebSocket();
 
   const handleToggleLowAccuracyEEW = (checked: boolean) => {
@@ -87,6 +89,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const confirmLowAccuracyEEW = () => {
     handleSettingChange("enable_low_accuracy_eew", true);
     setShowAlert(false);
+  };
+
+  const handleToggleDrillTestInfo = (checked: boolean) => {
+    if (checked) {
+      setShowDrillTestAlert(true);
+    } else {
+      handleSettingChange("enable_drill_test_info", false);
+    }
+  };
+
+  const confirmDrillTestInfo = () => {
+    handleSettingChange("enable_drill_test_info", true);
+    setShowDrillTestAlert(false);
   };
 
   const handleAuthenticationClick = () => {
@@ -203,6 +218,19 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </p>
           </div>
 
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>訓練報・テスト報の受信をする</span>
+              <Switch
+                checked={settings.enable_drill_test_info}
+                onCheckedChange={handleToggleDrillTestInfo}
+              />
+            </div>
+            <p className="text-sm text-gray-500">
+              反映には一度WebSocketを切断する必要があります。
+            </p>
+          </div>
+
           {/* テーマ */}
           <div className="space-y-2">
             <p className="text-sm">テーマ</p>
@@ -312,10 +340,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       </AlertDialog>
 
       {/* アカウント連携解除確認ダイアログ */}
-      <AlertDialog
-        open={showDisconnectAlert}
-        onOpenChange={setShowDisconnectAlert}
-      >
+      <AlertDialog open={showDisconnectAlert} onOpenChange={setShowDisconnectAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -332,6 +357,23 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             <AlertDialogAction onClick={confirmDisconnectAuthentication}>
               連携を解除
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDrillTestAlert} onOpenChange={setShowDrillTestAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>本当に有効にしますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              訓練報やテスト報を受信すると、実際の地震とは
+              <br />
+              無関係の通知やバグが発生する場合があります。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDrillTestInfo}>有効にする</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
