@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   Card,
   CardHeader,
@@ -8,13 +8,11 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, AlertTriangle, Info } from "lucide-react";
+import { AlertCircle, AlertTriangle, Info, XCircle } from "lucide-react";
 import { EewInformation } from "@dmdata/telegram-json-types";
 
-type EewData = EewInformation.Latest.Main;
-
 export interface EewDisplayProps {
-  parsedData: EewData | null;
+  parsedData: EewInformation.Latest.Main | null;
   isAccuracy?: boolean;
   isLowAccuracy?: boolean;
   onEpicenterUpdate?: (info: {
@@ -25,6 +23,7 @@ export interface EewDisplayProps {
     icon: string;
     depthval: number;
   }) => void;
+  onOriginDtUpdate?: (originDt: Date | null) => void;
 }
 
 const EewDisplay: React.FC<EewDisplayProps> = ({
@@ -32,10 +31,56 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   isAccuracy = false,
   isLowAccuracy = false,
   onEpicenterUpdate,
+  onOriginDtUpdate,
 }) => {
+
+  const getJstTime = (timestamp: string | undefined): Date | null => {
+    try {
+      if (!timestamp) return null;
+      const date = new Date(timestamp);
+      return new Date(date.getTime() + 9 * 60 * 60 * 1000);
+    } catch {
+      return null;
+    }
+  };
+
+  const computedOriginDt = useMemo(() => {
+    if (parsedData) {
+      const { body } = parsedData;
+      const { originTime, arrivalTime } =
+        (body as EewInformation.Latest.PublicCommonBody).earthquake || {};
+      if (originTime) {
+        return getJstTime(originTime);
+      } else if (arrivalTime) {
+        return getJstTime(arrivalTime);
+      }
+      return null;
+    }
+    return null;
+  }, [parsedData]);
+
+  let originDt: Date | null = null;
+  if (parsedData) {
+    const { body } = parsedData;
+    const { originTime, arrivalTime } = (body as EewInformation.Latest.PublicCommonBody).earthquake || {};
+    if (originTime) {
+      originDt = getJstTime(originTime);
+    } else if (arrivalTime) {
+      originDt = getJstTime(arrivalTime);
+    } else {
+      originDt = new Date();
+    }
+  }
+
+  useEffect(() => {
+    if (onOriginDtUpdate) {
+      onOriginDtUpdate(computedOriginDt);
+    }
+  }, [computedOriginDt, onOriginDtUpdate]);
 
   useEffect(() => {
     if (!parsedData || !onEpicenterUpdate) return;
+    if (!isLowAccuracy) return;
   
     const { eventId = "", serialNo = "", body } = parsedData;
     const { isCanceled = false } = body;
@@ -97,7 +142,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       icon,
       depthval: depthVal,
     });
-  }, [parsedData, onEpicenterUpdate]);
+  }, [parsedData, onEpicenterUpdate, isLowAccuracy]);
 
   if (!parsedData) {
     return null;
@@ -121,17 +166,16 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
 
   const {
     originTime,
-    arrivalTime,
     condition: earthquakeCondition,
     hypocenter,
     magnitude,
-  } = earthquake;
+  } = earthquake ?? {};
 
   const {
     name: hypName = "不明",
     depth: hypocenterDepth,
     accuracy: hypocenterAccuracy,
-  } = hypocenter;
+  } = hypocenter ?? {};
 
   const depthValue = hypocenterDepth?.value || "不明";
   const magnitudeValue = magnitude?.value || "不明";
@@ -325,26 +369,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     return mapping[category]?.[String(value)] || "未知の値";
   };
 
-  const getJstTime = (timestamp: string | undefined): Date | null => {
-    try {
-      if (!timestamp) return null;
-      const date = new Date(timestamp);
-      const jstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-      return jstDate;
-    } catch {
-      return null;
-    }
-  };
-
-  let originDt: Date | null = null;
-  if (originTime) {
-    originDt = getJstTime(originTime);
-  } else if (arrivalTime) {
-    originDt = getJstTime(arrivalTime);
-  } else {
-    originDt = new Date();
-  }
-
   let formattedTimeDisplay = "不明";
   if (originDt) {
     formattedTimeDisplay = `${
@@ -533,79 +557,74 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     </>
   );
 
-  const eventType =
-    method !== "PLUM法" && method !== "レベル法" ? "地震" : "揺れ";
+  const eventType = method !== "PLUM法" && method !== "レベル法" ? "地震" : "揺れ";
 
   const isTest = status === "訓練" || status === "試験";
 
   return (
-    <Card className="fixed top-4 left-4 w-96 shadow-xl bg-white/90 dark:bg-black/75 border-2">
-      <CardHeader className="pb-2">
+    <Card className="w-96 shadow-xl bg-white/90 dark:bg-black/75 border">
+      <CardHeader className="pb-4">
         <CardTitle
-          className={`flex items-center gap-2 text-lg ${
-            isWarning
+          className={`flex items-center gap-2 text-lg p-2 rounded-lg ${
+            isCanceled
+              ? "bg-gray-200 dark:bg-gray-600/20"
+              : isWarning
               ? "bg-red-100 dark:bg-red-600/10"
               : "bg-yellow-100 dark:bg-yellow-950/30"
-          } p-2 rounded-lg`}
+          }`}
         >
-          {isWarning ? (
+          {isCanceled ? (
+            <XCircle className="h-5 w-5 text-gray-500" />
+          ) : isWarning ? (
             <AlertCircle className="h-5 w-5 text-red-500" />
           ) : (
             <AlertTriangle className="h-5 w-5 text-yellow-500" />
           )}
           {`${isTest ? "訓練・試験報" : ""} 緊急地震速報（${
-            isWarning ? "警報" : "予報"
-          }）${isLastInfo ? "最終報" : `第${serialNo}報`}`}
+            isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
+          }）${isCanceled ? "" : (isLastInfo ? " 最終報" : ` 第${serialNo}報`)}`}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {isCanceled && (
-          <div className="fixed top-4 left-4 bg-gray-100 dark:bg-gray-800 p-4 rounded-xl shadow-lg max-w-md overflow-auto">
-            <h2 className="text-lg font-bold">緊急地震速報キャンセル</h2>
-            <p className="text-sm font-medium">
-              先程の緊急地震速報は取り消されました。
-            </p>
-          </div>
-        )}
-
-        {!isCanceled && (
-          <>
+        {!isCanceled &&(
             <div
-              className={`rounded-lg border-2 p-4 ${
-                isWarning
-                  ? "border-red-500/50 bg-red-200/30 dark:bg-red-950/30"
-                  : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
-              }`}
+            className={`rounded-lg border-2 p-4 ${
+              isWarning
+                ? "border-red-500/50 bg-red-200/30 dark:bg-red-950/30"
+                : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
+            }`}
+          >
+            <h1 className="text-2xl font-bold mb-2">
+              {hypName}で{eventType}
+            </h1>
+            <p className="text-sm text-gray-800 dark:text-gray-300">
+              {formattedTimeDisplay}
+              {detectionOrOccurrence}
+            </p>
+            <div
+              className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
+              style={{ backgroundColor, color: textColor }}
             >
-              <div className="text-2xl font-bold mb-2">
-                {hypName}で{eventType}
-              </div>
-              <div className="text-sm text-gray-800 dark:text-gray-300">
-                {formattedTimeDisplay}
-                {detectionOrOccurrence}
-              </div>
+              <h1 className="text-lg">
+                {displayIntensity}
+              </h1>
+            </div>
+            {maxLgInt !== "不明" && maxLgInt !== "0" && (
               <div
                 className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
-                style={{ backgroundColor, color: textColor }}
+                style={{
+                  backgroundColor: lgint_backgroundColor,
+                  color: lgint_textColor,
+                }}
               >
                 <h1 className="text-lg">
-                  {displayIntensity}
+                  推定最大長周期地震動階級: {maxLgInt}
                 </h1>
               </div>
-              {maxLgInt !== "不明" && maxLgInt !== "0" && (
-                <div
-                  className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
-                  style={{
-                    backgroundColor: lgint_backgroundColor,
-                    color: lgint_textColor,
-                  }}
-                >
-                  推定最大長周期地震動階級: {maxLgInt}
-                </div>
-              )}
-            </div>
-
-            {description && (
+            )}
+          </div>
+        )}
+            {description && !isCanceled && (
               <div
                 className={`rounded-lg p-4 border-2 ${
                   isWarning
@@ -616,30 +635,41 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                 <p className="text-sm font-medium">{description}</p>
               </div>
             )}
-
-            {method === "PLUM法" || method === "レベル法" ? (
-              <div className="space-y-1 w-full">
-                <p className="font-medium text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
-                  {method === "PLUM法"
-                    ? "PLUM法による仮定震源"
-                    : "レベル法による仮定震源"}
-                </p>
+            {isCanceled && (
+              <div
+                className={`rounded-lg p-4 border-2 bg-gray-200/30 dark:bg-gray-950/30`}
+              >
+                <p className="text-sm font-medium">この緊急地震速報は取り消されました。</p>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1 p-2">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    マグニチュード
+            )}
+            
+            {!isCanceled && (
+              <>
+              {method === "PLUM法" || method === "レベル法" ? (
+                <div className="space-y-1 w-full">
+                  <p className="font-medium text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
+                    {method === "PLUM法"
+                      ? "PLUM法による仮定震源"
+                      : "レベル法による仮定震源"}
                   </p>
-                  <p className="font-medium">{magnitudeDisplay}</p>
                 </div>
-                <div className="space-y-1 p-2">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    深さ
-                  </p>
-                  <p className="font-medium">{depthValue} km</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1 p-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      マグニチュード
+                    </p>
+                    <p className="font-medium">{magnitudeDisplay}</p>
+                  </div>
+                  <div className="space-y-1 p-2">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      深さ
+                    </p>
+                    <p className="font-medium">{depthValue} km</p>
+                  </div>
                 </div>
-              </div>
+              )}
+              </>
             )}
 
             {isAccuracy && (
@@ -716,8 +746,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                 </div>
               </>
             )}
-          </>
-        )}
       </CardContent>
     </Card>
   );

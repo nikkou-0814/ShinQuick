@@ -5,11 +5,21 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
-import { Settings, LocateFixed, Gauge, FlaskConical } from "lucide-react";
+import {
+  Settings as SettingsIcon,
+  LocateFixed,
+  Gauge,
+  FlaskConical,
+} from "lucide-react";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
 import EewDisplay from "@/components/eew-display";
 import { EewInformation } from "@dmdata/telegram-json-types";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
 
 interface Settings {
   theme: "system" | "dark" | "light";
@@ -41,11 +51,13 @@ type EpicenterInfo = {
 };
 
 function PageContent() {
-  const [ShowSettings, setShowSettings] = useState<boolean>(false);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
   const { setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
   const mapRef = useRef<L.Map | null>(null);
+  const [displayDataList, setDisplayDataList] = useState<EewInformation.Latest.Main[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   const {
     isConnected,
@@ -55,34 +67,31 @@ function PageContent() {
     injectTestData,
   } = useWebSocket();
 
-  const [displayData, setDisplayData] = useState<EewInformation.Latest.Main | null>(null);
-
   useEffect(() => {
-    setDisplayData(receivedData as EewInformation.Latest.Main | null);
+    if (receivedData) {
+      const newData = receivedData as EewInformation.Latest.Main;
+      setDisplayDataList((prevList) => {
+        const filtered = prevList.filter((data) => data.eventId !== newData.eventId);
+        return [newData, ...filtered];
+      });
+    }
   }, [receivedData]);
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-
   useEffect(() => {
-    const isBrowser = typeof window !== "undefined";
-    if (!isBrowser) return;
-
-    const savedSettings = localStorage.getItem("settings");
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    }
-
-    const token = localStorage.getItem("dmdata_access_token");
-    if (token) {
-      setIsAuthenticated(true);
+    if (typeof window !== "undefined") {
+      const savedSettings = localStorage.getItem("settings");
+      if (savedSettings) {
+        setSettings(JSON.parse(savedSettings));
+      }
+      const token = localStorage.getItem("dmdata_access_token");
+      if (token) {
+        setIsAuthenticated(true);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (settings.enable_kyoshin_monitor) {
-      return;
-    }
-
+    if (settings.enable_kyoshin_monitor) return;
     const updateCurrentTime = () => {
       const now = new Date();
       const formattedTime = now.toLocaleString("ja-JP", {
@@ -95,15 +104,13 @@ function PageContent() {
       });
       setCurrentTime(formattedTime);
     };
-
     updateCurrentTime();
     const interval = setInterval(updateCurrentTime, 1000);
     return () => clearInterval(interval);
   }, [settings.enable_kyoshin_monitor]);
 
   useEffect(() => {
-    const isBrowser = typeof window !== "undefined";
-    console.log("Running in:", isBrowser ? "Browser" : "Server");
+    console.log("Running in:", typeof window !== "undefined" ? "Browser" : "Server");
   }, []);
 
   const updateSettings = (newSettings: Partial<Settings>) => {
@@ -127,7 +134,6 @@ function PageContent() {
     }
     updateSettings({ [key]: value });
   };
-
   const handleConnectWebSocket = () => {
     const token = localStorage.getItem("dmdata_access_token");
     if (!token) {
@@ -159,30 +165,48 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata.json");
-      if (!response.ok) {
-        throw new Error(`テストデータの取得に失敗しました: ${response.statusText}`);
-      }
+      const response = await fetch("/testdata/testdata.json");
+      if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
     } catch (error) {
-      console.error("テストデータの挿入に失敗しました:", error);
+      console.error("テストデータの挿入失敗:", error);
+      toast.error("テストデータの読み込みに失敗しました。");
+    }
+  };
+
+  const handleTest2 = async () => {
+    try {
+      const response = await fetch("/testdata/ishikawa.json");
+      if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
+      const testData = await response.json();
+      injectTestData(testData);
+    } catch (error) {
+      console.error("テストデータの挿入失敗:", error);
+      toast.error("テストデータの読み込みに失敗しました。");
+    }
+  };
+
+  const handleTest3 = async () => {
+    try {
+      const response = await fetch("/testdata/ishikawa2.json");
+      if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
+      const testData = await response.json();
+      injectTestData(testData);
+    } catch (error) {
+      console.error("テストデータの挿入失敗:", error);
       toast.error("テストデータの読み込みに失敗しました。");
     }
   };
 
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
-
   useEffect(() => {
     const timer = setInterval(() => {
       setEpicenters((prev) => {
         const now = Date.now();
-        const filtered = prev.filter((e) => now - e.startTime < 3 * 60 * 1000);
+        const filtered = prev.filter(e => now - e.startTime < 3 * 60 * 1000);
         if (filtered.length === 0 && prev.length > 0) {
-          if (mapRef.current) {
-            mapRef.current.setView([35, 136], 5);
-          }
-          setDisplayData(null);
+          setDisplayDataList([]);
         }
         return filtered;
       });
@@ -191,61 +215,27 @@ function PageContent() {
   }, []);
 
   const handleEpicenterUpdate = useCallback(
-    ({
-      eventId,
-      lat,
-      lng,
-      icon,
-      depthval,
-    }: {
-      eventId: string;
-      lat: number;
-      lng: number;
-      icon: string;
-      depthval: number;
-    }) => {
+    ({ eventId, lat, lng, icon, depthval }: { eventId: string; lat: number; lng: number; icon: string; depthval: number; }) => {
       if (!eventId) return;
-
       setEpicenters((prev) => {
-        const existing = prev.find((p) => p.eventId === eventId);
+        const existing = prev.find(p => p.eventId === eventId);
         if (!existing) {
-          const newEpi: EpicenterInfo = {
-            eventId,
-            lat,
-            lng,
-            icon,
-            startTime: Date.now(),
-            depthval,
-          };
-          const updated = [...prev, newEpi];
-          return updated;
+          const newEpi: EpicenterInfo = { eventId, lat, lng, icon, startTime: Date.now(), depthval };
+          return [...prev, newEpi];
         } else {
-          const updated = prev.map((p) => {
-            if (p.eventId === eventId) {
-              return { ...p, lat, lng, icon };
-            }
-            return p;
-          });
-          return updated;
+          return prev.map(p => p.eventId === eventId ? { ...p, lat, lng, icon } : p);
         }
       });
     },
     []
   );
 
-  return (
-    <main className="h-full w-full">
-      <DynamicMap
-        ref={mapRef}
-        homePosition={{ center: [35, 136], zoom: 5 }}
-        enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-        onTimeUpdate={handleTimeUpdate}
-        isConnected={isConnected}
-        epicenters={epicenters}
-      />
+  const [originDt, setOriginDt] = useState<Date | null>(null);
 
+  return (
+    <>
       <SettingsDialog
-        showSettings={ShowSettings}
+        showSettings={showSettings}
         setShowSettings={setShowSettings}
         settings={settings}
         handleSettingChange={handleSettingChange}
@@ -255,36 +245,70 @@ function PageContent() {
         onDisconnectWebSocket={handleWebSocketDisconnect}
       />
 
-      <div className="fixed bottom-4 left-4 shadow-lg bg-white dark:bg-black rounded-lg space-x-4 border">
-        <div className="flex space-x-3 p-3 justify-start items-center">
-          <Button variant="outline" onClick={() => setShowSettings(true)}>
-            <Settings />
-          </Button>
-          <Button variant="outline" onClick={() => setHomePosition()}>
-            <LocateFixed />
-          </Button>
-          <Button variant="outline" onClick={handleTest} className="hidden">
-            <FlaskConical />
-          </Button>
-          <div className="flex flex-col">
-            <p className="pr-1">{currentTime}</p>
-            {isConnected && (
-              <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
-                <Gauge size={16} />
-                <p>DM-D.S.S</p>
-              </div>
-            )}
-          </div>
+      <main className="h-full w-full flex">
+        <div className="flex-1 relative">
+          <DynamicMap
+            ref={mapRef}
+            homePosition={{ center: [35, 136], zoom: 5 }}
+            enableKyoshinMonitor={settings.enable_kyoshin_monitor}
+            onTimeUpdate={handleTimeUpdate}
+            isConnected={isConnected}
+            epicenters={epicenters}
+            originDt={originDt}
+          />
         </div>
-      </div>
 
-      <EewDisplay
-        parsedData={displayData}
-        isAccuracy={settings.enable_accuracy_info}
-        isLowAccuracy={settings.enable_low_accuracy_eew}
-        onEpicenterUpdate={handleEpicenterUpdate}
-      />
-    </main>
+        <div className="fixed bottom-4 left-4 shadow-lg bg-white dark:bg-black rounded-lg space-x-4 border">
+          <div className="flex space-x-3 p-3 justify-start items-center">
+            <Button variant="outline" onClick={() => setShowSettings(true)}>
+              <SettingsIcon />
+            </Button>
+            <Button variant="outline" onClick={setHomePosition}>
+              <LocateFixed />
+            </Button>
+            <Button variant="outline" onClick={handleTest}>
+              <FlaskConical />
+            </Button>
+            <Button variant="outline" onClick={handleTest2}>
+              <FlaskConical />
+            </Button>
+            <Button variant="outline" onClick={handleTest3}>
+              <FlaskConical />
+            </Button>
+            <div className="flex flex-col">
+              <p className="pr-1">{currentTime}</p>
+                {isConnected && (
+                  <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
+                    <Gauge size={16} />
+                    <p>DM-D.S.S</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+        {displayDataList.length > 0 && (
+          <div className="w-[400px]">
+            <SidebarProvider>
+              <Sidebar variant="sidebar" side="right" className="w-fit">
+                <SidebarContent className="overflow-y-auto p-2">
+                  {displayDataList.map((data) => (
+                    <EewDisplay
+                      key={data.eventId}
+                      parsedData={data}
+                      isAccuracy={settings.enable_accuracy_info}
+                      isLowAccuracy={settings.enable_low_accuracy_eew}
+                      onEpicenterUpdate={handleEpicenterUpdate}
+                      onOriginDtUpdate={setOriginDt}
+                    />
+                  ))}
+                </SidebarContent>
+              </Sidebar>
+            </SidebarProvider>
+          </div>
+        )}
+      </main>
+    </>
   );
 }
 

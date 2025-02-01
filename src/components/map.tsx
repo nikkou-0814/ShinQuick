@@ -1,8 +1,14 @@
 "use client";
 
-import React, { forwardRef, useEffect, useCallback, useState, useRef } from "react";
+import React, {
+  forwardRef,
+  useEffect,
+  useCallback,
+  useState,
+  useRef
+} from "react";
 import { MapContainer, GeoJSON, useMapEvents, useMap } from "react-leaflet";
-import L, { LayerGroup, LatLngBounds } from "leaflet";
+import L, { LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useTheme } from "next-themes";
 import { FeatureCollection } from "geojson";
@@ -124,9 +130,7 @@ if (typeof window !== "undefined") {
       this._wheelMousePosition = map.mouseEventToContainerPoint(e);
       this._centerPoint = map.getSize()._divideBy(2);
       this._startLatLng = map.containerPointToLatLng(this._centerPoint);
-      this._wheelStartLatLng = map.containerPointToLatLng(
-        this._wheelMousePosition
-      );
+      this._wheelStartLatLng = map.containerPointToLatLng(this._wheelMousePosition);
       this._startZoom = map.getZoom();
       this._moved = false;
       this._zooming = true;
@@ -140,9 +144,7 @@ if (typeof window !== "undefined") {
       this._prevCenter = map.getCenter();
       this._prevZoom = map.getZoom();
 
-      this._zoomAnimationId = requestAnimationFrame(
-        this._updateWheelZoom.bind(this)
-      );
+      this._zoomAnimationId = requestAnimationFrame(this._updateWheelZoom.bind(this));
     },
     _onWheeling: function (e: WheelEvent) {
       const map = this._map;
@@ -150,10 +152,7 @@ if (typeof window !== "undefined") {
         this._goalZoom +
         L.DomEvent.getWheelDelta(e) * 0.003 * map.options.smoothSensitivity;
 
-      if (
-        this._goalZoom < map.getMinZoom() ||
-        this._goalZoom > map.getMaxZoom()
-      ) {
+      if (this._goalZoom < map.getMinZoom() || this._goalZoom > map.getMaxZoom()) {
         this._goalZoom = map._limitZoom(this._goalZoom);
       }
       this._wheelMousePosition = map.mouseEventToContainerPoint(e);
@@ -171,10 +170,7 @@ if (typeof window !== "undefined") {
     },
     _updateWheelZoom: function () {
       const map = this._map;
-      if (
-        !map.getCenter().equals(this._prevCenter) ||
-        map.getZoom() !== this._prevZoom
-      ) {
+      if (!map.getCenter().equals(this._prevCenter) || map.getZoom() !== this._prevZoom) {
         return;
       }
 
@@ -202,9 +198,7 @@ if (typeof window !== "undefined") {
       this._prevCenter = map.getCenter();
       this._prevZoom = map.getZoom();
 
-      this._zoomAnimationId = requestAnimationFrame(
-        this._updateWheelZoom.bind(this)
-      );
+      this._zoomAnimationId = requestAnimationFrame(this._updateWheelZoom.bind(this));
     },
   });
 
@@ -215,14 +209,28 @@ if (typeof window !== "undefined") {
   );
 }
 
+function UserInteractionDetector({
+  onUserInteraction
+}: {
+  onUserInteraction: () => void;
+}) {
+  useMapEvents({
+    dragstart: onUserInteraction,
+    zoomstart: onUserInteraction,
+  });
+  return null;
+}
+
 function KyoshinMonitor({
   enableKyoshinMonitor,
   onTimeUpdate,
   isConnected,
+  autoZoomEnabled,
 }: {
   enableKyoshinMonitor: boolean;
   onTimeUpdate?: (time: string) => void;
   isConnected: boolean;
+  autoZoomEnabled: boolean;
 }) {
   const map = useMap();
   const [pointList, setPointList] = useState<Array<[number, number]>>([]);
@@ -230,6 +238,7 @@ function KyoshinMonitor({
   const [zoomLevel, setZoomLevel] = useState<number>(map.getZoom());
   const layerRef = useRef<LayerGroup | null>(null);
   const waveLayerRef = useRef<LayerGroup | null>(null);
+  const kyoshinMonitorAutoZoomViewRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
 
   useMapEvents({
     zoomend: () => {
@@ -378,7 +387,7 @@ function KyoshinMonitor({
     layerRef.current.addTo(map);
   }, [map, kmoniData, zoomLevel, pointList, enableKyoshinMonitor]);
 
-  // PS波 & 震源
+  // PS波 & 震源 & 自動ズーム
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
     if (isConnected) {
@@ -404,6 +413,7 @@ function KyoshinMonitor({
       iconUrl: "/shingen.png",
       iconSize: [48, 48],
       iconAnchor: [24, 24],
+      className: "blink",
     });
 
     kmoniData.psWave.items.forEach((item) => {
@@ -437,13 +447,49 @@ function KyoshinMonitor({
         color: "#FF0000",
         fill: true,
         fillColor: "#FFCCCC",
-        fillOpacity: 0.5,
+        fillOpacity: 0.3,
       });
       waveLayerRef.current?.addLayer(sCircle);
     });
 
     waveLayerRef.current.addTo(map);
-  }, [enableKyoshinMonitor, kmoniData, map, isConnected]);
+
+    if (autoZoomEnabled) {
+      const epicenterPositions = kmoniData.psWave.items.map((item) => {
+        const latVal =
+          (item.latitude.startsWith("N") ? 1 : -1) * parseFloat(item.latitude.slice(1));
+        const lngVal =
+          (item.longitude.startsWith("E") ? 1 : -1) * parseFloat(item.longitude.slice(1));
+        return [latVal, lngVal] as [number, number];
+      });
+
+      if (epicenterPositions.length > 0) {
+        if (epicenterPositions.length === 1) {
+          map.setView(epicenterPositions[0], 8);
+          kyoshinMonitorAutoZoomViewRef.current = {
+            center: new L.LatLng(epicenterPositions[0][0], epicenterPositions[0][1]),
+            zoom: 8,
+          };
+        } else {
+          const bounds: L.LatLngBounds = L.latLngBounds(epicenterPositions);
+          map.fitBounds(bounds, { maxZoom: 10 });
+          setTimeout(() => {
+            kyoshinMonitorAutoZoomViewRef.current = {
+              center: map.getCenter(),
+              zoom: map.getZoom(),
+            };
+          }, 500);
+        }
+      }
+    }
+  }, [enableKyoshinMonitor, kmoniData, map, isConnected, autoZoomEnabled]);
+
+  useEffect(() => {
+    if (autoZoomEnabled && kyoshinMonitorAutoZoomViewRef.current) {
+      const { center, zoom } = kyoshinMonitorAutoZoomViewRef.current;
+      map.setView(center, zoom);
+    }
+  }, [autoZoomEnabled, map]);
 
   return null;
 }
@@ -472,16 +518,16 @@ function MapInner({
   return null;
 }
 
-const Map = forwardRef<
-  L.Map,
-  {
-    homePosition: { center: [number, number]; zoom: number };
-    enableKyoshinMonitor: boolean;
-    onTimeUpdate?: (time: string) => void;
-    isConnected: boolean;
-    epicenters: EpicenterInfo[];
-  }
->(
+interface MapProps {
+  homePosition: { center: [number, number]; zoom: number };
+  enableKyoshinMonitor: boolean;
+  onTimeUpdate?: (time: string) => void;
+  isConnected: boolean;
+  epicenters: EpicenterInfo[];
+  originDt?: Date | null;
+}
+
+const Map = forwardRef<L.Map, MapProps>(
   (
     {
       homePosition,
@@ -495,6 +541,19 @@ const Map = forwardRef<
     const [currentZoom, setCurrentZoom] = useState(homePosition.zoom);
     const { resolvedTheme } = useTheme();
     const theme = resolvedTheme || "light";
+    const [autoZoomEnabled, setAutoZoomEnabled] = useState(true);
+    const autoZoomTimeoutRef = useRef<number | null>(null);
+    const autoZoomViewRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
+
+    const disableAutoZoomTemporarily = () => {
+      setAutoZoomEnabled(false);
+      if (autoZoomTimeoutRef.current !== null) {
+        clearTimeout(autoZoomTimeoutRef.current);
+      }
+      autoZoomTimeoutRef.current = window.setTimeout(() => {
+        setAutoZoomEnabled(true);
+      });
+    };
 
     const epicenterLayerRef = useRef<LayerGroup | null>(null);
 
@@ -508,49 +567,82 @@ const Map = forwardRef<
       }
     }, [theme]);
 
-    const handleZoomChange = useCallback((zoom: number) => {
-      setCurrentZoom(zoom);
-    }, []);
-
-    const shouldShowCities = currentZoom >= 10;
-    const shouldShowSaibun = currentZoom >= 5;
-
     useEffect(() => {
       if (!ref || !(ref as React.MutableRefObject<L.Map | null>).current) return;
       const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
-      if (!mapInstance) return;
-
       if (!epicenterLayerRef.current) {
-        epicenterLayerRef.current = L.layerGroup().addTo(mapInstance);
+        if (mapInstance) {
+          epicenterLayerRef.current = L.layerGroup().addTo(mapInstance);
+        }
       }
-      epicenterLayerRef.current.clearLayers();
+      epicenterLayerRef.current?.clearLayers();
 
       epicenters.forEach((epi) => {
         const iconObj = L.icon({
           iconUrl: epi.icon,
           iconSize: [48, 48],
           iconAnchor: [24, 24],
+          className: "blink",
         });
         const marker = L.marker([epi.lat, epi.lng], { icon: iconObj });
         epicenterLayerRef.current?.addLayer(marker);
       });
 
-      const hasDeepEpicenter = epicenters.some(epi => epi.depthval > 150);
-
-      if (epicenters.length > 0) {
-        if (epicenters.length === 1) {
-          const zoom = hasDeepEpicenter ? 6 : 8;
-          mapInstance.setView([epicenters[0].lat, epicenters[0].lng], zoom);
-        } else {
-          const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
-          const bounds: LatLngBounds = L.latLngBounds(latlngs);
-          const options = hasDeepEpicenter ? { maxZoom: 6 } : { maxZoom: 10 };
-          mapInstance.fitBounds(bounds, options);
-        }
+      if (epicenters.length === 1) {
+        const zoom = epicenters[0].depthval > 150 ? 6 : 8;
+        mapInstance?.setView([epicenters[0].lat, epicenters[0].lng], zoom);
+        autoZoomViewRef.current = {
+          center: new L.LatLng(epicenters[0].lat, epicenters[0].lng),
+          zoom,
+        };
+      } else if (epicenters.length > 1) {
+        const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
+        const bounds = L.latLngBounds(latlngs);
+        mapInstance?.fitBounds(bounds, { padding: [50, 50], maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10 });
+        setTimeout(() => {
+          autoZoomViewRef.current = {
+            center: mapInstance?.getCenter() ?? new L.LatLng(0, 0),
+            zoom: mapInstance?.getZoom() ?? 0,
+          };
+        }, 500);
+        mapInstance?.fitBounds(bounds, {
+          padding: [50, 50],
+          maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10
+        });
+        mapInstance?.once("moveend", () => {
+          autoZoomViewRef.current = {
+            center: mapInstance.getCenter(),
+            zoom: mapInstance.getZoom(),
+          };
+        });
       } else {
-        mapInstance.setView([35, 136], 5);
+        mapInstance?.setView([35, 136], 5);
+        autoZoomViewRef.current = {
+          center: new L.LatLng(35, 136),
+          zoom: 5,
+        };
       }
     }, [epicenters, ref]);
+
+    useEffect(() => {
+      if (
+        autoZoomEnabled &&
+        ref &&
+        (ref as React.MutableRefObject<L.Map | null>).current &&
+        autoZoomViewRef.current
+      ) {
+        const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
+        const { center, zoom } = autoZoomViewRef.current;
+        mapInstance?.setView(center, zoom);
+      }
+    }, [autoZoomEnabled, ref]);
+
+    const handleZoomChange = useCallback((zoom: number) => {
+      setCurrentZoom(zoom);
+    }, []);
+
+    const shouldShowCities = currentZoom >= 10;
+    const shouldShowSaibun = currentZoom >= 5;
 
     return (
       <MapContainer
@@ -562,16 +654,16 @@ const Map = forwardRef<
         preferCanvas
         zoomControl={false}
       >
+        <UserInteractionDetector onUserInteraction={disableAutoZoomTemporarily} />
         <MapInner onZoomChange={handleZoomChange} homePosition={homePosition} />
 
-        {/* Kyoshin Monitor */}
         <KyoshinMonitor
           enableKyoshinMonitor={enableKyoshinMonitor}
           onTimeUpdate={onTimeUpdate}
           isConnected={isConnected}
+          autoZoomEnabled={autoZoomEnabled}
         />
 
-        {/* 世界 */}
         <GeoJSON
           data={CountriesData}
           style={{
@@ -582,7 +674,6 @@ const Map = forwardRef<
           }}
         />
 
-        {/* 日本 */}
         <GeoJSON
           data={JapanData}
           style={{
@@ -593,7 +684,6 @@ const Map = forwardRef<
           }}
         />
 
-        {/* 細分区域 */}
         {shouldShowSaibun && (
           <GeoJSON
             data={SaibunData}
@@ -605,7 +695,6 @@ const Map = forwardRef<
           />
         )}
 
-        {/* 市区町村 */}
         {shouldShowCities && (
           <GeoJSON
             data={CitiesData}
@@ -622,5 +711,4 @@ const Map = forwardRef<
 );
 
 Map.displayName = "Map";
-
 export default Map;

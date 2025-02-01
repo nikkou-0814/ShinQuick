@@ -41,12 +41,5 @@ yarn-error.log*
 next-env.d.ts
 
 .env
-public/testdata.json
-public/testdata1.json
-public/testdata2.json
-public/testdata3.json
-public/testdata4.json
-public/testdata5.json
-public/testdata6.json
-public/testdata7.json
-public/testdata8.json
+public/testdata
+public/tjma2001.txt
