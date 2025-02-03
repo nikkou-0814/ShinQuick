@@ -168,7 +168,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </div>
             <p className="text-sm text-gray-500">
               地図の表示が自動的に拡大・縮小・移動されるようになります。<br />
-              （この機能は現在開発中です。）
+              （この機能は現在開発中なので、不安定です。）
             </p>
           </div>
 
@@ -248,7 +248,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </div>
             <p className="text-sm text-gray-500">
               細分化地域における震度予測がされた場合に対象の地域を塗りつぶします。<br />
-              （この機能は現在開発中です。）
+              （この機能は現在開発中なので、不安定です。）
             </p>
           </div>
 
