@@ -369,13 +369,13 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest}>
+            <Button variant="outline" onClick={handleTest} className="hidden">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest2}>
+            <Button variant="outline" onClick={handleTest2} className="hidden">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest3}>
+            <Button variant="outline" onClick={handleTest3} className="hidden">
               <FlaskConical />
             </Button>
             <div className="flex flex-col">
