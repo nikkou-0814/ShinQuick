@@ -43,6 +43,7 @@ interface Settings {
   enable_accuracy_info: boolean;
   enable_drill_test_info: boolean;
   enable_map_intensity_fill: boolean;
+  world_map_resolution: "10m" | "50m" | "110m";
 }
 
 interface SettingsDialogProps {
@@ -72,7 +73,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onDisconnectAuthentication,
   onDisconnectWebSocket,
 }) => {
-  const [open, setOpen] = useState(false);
+  const [openTheme, setOpenTheme] = useState(false);
+  const [openWorldMapRes, setOpenWorldMapRes] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
@@ -109,7 +111,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     if (isAuthenticated) {
       setShowDisconnectAlert(true);
     } else {
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         window.location.href = "/api/oauth/authorize";
       }
     }
@@ -130,7 +132,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
   return (
     <Dialog open={showSettings} onOpenChange={setShowSettings}>
-      <DialogContent style={{ maxHeight: "80vh" }}>
+      <DialogContent style={{ maxHeight: "80vh", overflow: "scroll" }}>
         <DialogHeader>
           <DialogTitle>設定</DialogTitle>
           <DialogDescription>設定を変更することができます</DialogDescription>
@@ -203,6 +205,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             )}
           </div>
 
+          {/* 緊急地震速報の精度情報 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span>緊急地震速報の精度情報を表示する</span>
@@ -218,6 +221,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </p>
           </div>
 
+          {/* 訓練報・テスト報 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span>訓練報・テスト報の受信をする</span>
@@ -231,6 +235,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </p>
           </div>
 
+          {/* 細分化地域の予想震度 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span>細分化地域の予想震度を表示する</span>
@@ -239,7 +244,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 onCheckedChange={(checked) =>
                   handleSettingChange("enable_map_intensity_fill", checked)
                 }
-                
               />
             </div>
             <p className="text-sm text-gray-500">
@@ -251,12 +255,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           {/* テーマ */}
           <div className="space-y-2">
             <p className="text-sm">テーマ</p>
-            <Popover open={open} onOpenChange={setOpen}>
+            <Popover open={openTheme} onOpenChange={setOpenTheme}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
-                  aria-expanded={open}
+                  aria-expanded={openTheme}
                   className="w-full justify-between"
                 >
                   {settings.theme
@@ -280,7 +284,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                               "theme",
                               currentValue as "system" | "dark" | "light"
                             );
-                            setOpen(false);
+                            setOpenTheme(false);
                           }}
                         >
                           <Check
@@ -306,9 +310,60 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </p>
           </div>
 
+          {/* 世界地図の解像度 */}
+          <div className="space-y-2">
+            <p className="text-sm">世界地図の解像度</p>
+            <Popover open={openWorldMapRes} onOpenChange={setOpenWorldMapRes}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openWorldMapRes}
+                  className="w-full justify-between"
+                >
+                  {settings.world_map_resolution}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandList>
+                    <CommandGroup>
+                      {["10m", "50m", "110m"].map((res) => (
+                        <CommandItem
+                          key={res}
+                          value={res}
+                          onSelect={(currentValue) => {
+                            handleSettingChange(
+                              "world_map_resolution",
+                              currentValue as "10m" | "50m" | "110m"
+                            );
+                            setOpenWorldMapRes(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              settings.world_map_resolution === res ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {res}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <p className="text-sm text-gray-500">
+              世界地図（日本以外）の読み込み解像度を変更できます。<br />
+              （10m: 高解像度, 50m: 中解像度, 110m: 低解像度）
+            </p>
+          </div>
+
           {/* 認証とWebSocket接続 */}
           <div className="space-y-2">
-          <p className="text-sm">Project DM-D.S.S</p>
+            <p className="text-sm">Project DM-D.S.S</p>
             <Button
               variant={isAuthenticated ? "destructive" : "outline"}
               onClick={handleAuthenticationClick}
@@ -390,7 +445,9 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDrillTestInfo}>有効にする</AlertDialogAction>
+            <AlertDialogAction onClick={confirmDrillTestInfo}>
+              有効にする
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

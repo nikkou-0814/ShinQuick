@@ -8,7 +8,7 @@ import { useTheme } from "next-themes";
 import {
   Settings as SettingsIcon,
   LocateFixed,
-  Gauge,
+  Send,
   FlaskConical,
 } from "lucide-react";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
@@ -29,6 +29,7 @@ interface Settings {
   enable_accuracy_info: boolean;
   enable_drill_test_info: boolean;
   enable_map_intensity_fill: boolean;
+  world_map_resolution: "10m" | "50m" | "110m";
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -39,6 +40,7 @@ const DEFAULT_SETTINGS: Settings = {
   enable_accuracy_info: false,
   enable_drill_test_info: false,
   enable_map_intensity_fill: true,
+  world_map_resolution: "50m"
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -69,7 +71,6 @@ function PageContent() {
   const allRegionMapsRef = useRef<Record<string, RegionIntensityMap>>({});
   const [mergedRegionMap, setMergedRegionMap] = useState<RegionIntensityMap>({});
   const [, setMultiRegionMap] = useState<Record<string, string[]>>({});
-
   const {
     isConnected,
     receivedData,
@@ -175,7 +176,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata9.json");
+      const response = await fetch("/testdata/testdata2.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -199,7 +200,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/testdata7.json");
+      const response = await fetch("/testdata/testdata6.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -211,77 +212,6 @@ function PageContent() {
 
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setEpicenters((prev) => {
-        const now = Date.now();
-        const filtered = prev.filter(e => now - e.startTime < 3 * 60 * 1000);
-        if (filtered.length === 0 && prev.length > 0) {
-          setDisplayDataList([]);
-        }
-        return filtered;
-      });
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [displayDataList]);
-
-  useEffect(() => {
-    displayDataList.forEach((data) => {
-      if (!data.body?.isCanceled) return;
-      if (canceledRemoveScheduledRef.current.has(data.eventId)) return;
-
-      canceledRemoveScheduledRef.current.add(data.eventId);
-
-      setTimeout(() => {
-        setDisplayDataList((prev) =>
-          prev.filter((x) => x.eventId !== data.eventId)
-        );
-        canceledRemoveScheduledRef.current.delete(data.eventId);
-      }, 10000);
-    });
-  }, [displayDataList]);
-
-  const handleEpicenterUpdate = useCallback(
-    ({
-      eventId,
-      lat,
-      lng,
-      icon,
-      depthval,
-    }: {
-      eventId: string;
-      lat: number;
-      lng: number;
-      icon: string;
-      depthval: number;
-    }) => {
-      if (!eventId) return;
-      setEpicenters((prev) => {
-        const existing = prev.find((p) => p.eventId === eventId);
-        if (!existing) {
-          const newEpi: EpicenterInfo = {
-            eventId,
-            lat,
-            lng,
-            icon,
-            startTime: Date.now(),
-            depthval,
-          };
-          return [...prev, newEpi];
-        } else {
-          return prev.map((p) =>
-            p.eventId === eventId
-              ? { ...p, lat, lng, icon }
-              : p
-          );
-        }
-      });
-    },
-    []
-  );
-
-  const [originDt, setOriginDt] = useState<Date | null>(null);
-
   const onRegionIntensityUpdate = useCallback(
     (regionMap: Record<string, string>, eventId: string) => {
       if (Object.keys(regionMap).length === 0) {
@@ -289,7 +219,6 @@ function PageContent() {
       } else {
         allRegionMapsRef.current[eventId] = regionMap;
       }
-
       const merged: Record<string, string> = {};
       const multi: Record<string, string[]> = {};
 
@@ -325,12 +254,84 @@ function PageContent() {
     []
   );
 
-  const handleRegionIntensityUpdate = useCallback(
-    (regionMap: Record<string, string>, eventId: string) => {
-      onRegionIntensityUpdate(regionMap, eventId);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setEpicenters((prev) => {
+        const now = Date.now();
+        const filtered = prev.filter(e => now - e.startTime < 3 * 60 * 1000);
+        const removed = prev.filter(e => now - e.startTime >= 3 * 60 * 1000);
+
+        removed.forEach(e => {
+          onRegionIntensityUpdate({}, e.eventId);
+        });
+
+        if (filtered.length === 0 && prev.length > 0) {
+          setDisplayDataList([]);
+        }
+        return filtered;
+      });
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [displayDataList, onRegionIntensityUpdate]);  
+
+  useEffect(() => {
+    displayDataList.forEach((data) => {
+      if (!data.body?.isCanceled) return;
+      if (canceledRemoveScheduledRef.current.has(data.eventId)) return;
+
+      canceledRemoveScheduledRef.current.add(data.eventId);
+
+      setTimeout(() => {
+        setDisplayDataList((prev) =>
+          prev.filter((x) => x.eventId !== data.eventId)
+        );
+        onRegionIntensityUpdate({}, data.eventId);
+
+        canceledRemoveScheduledRef.current.delete(data.eventId);
+      }, 10000);
+    });
+  }, [displayDataList, onRegionIntensityUpdate]);
+
+  const handleEpicenterUpdate = useCallback(
+    ({
+      eventId,
+      lat,
+      lng,
+      icon,
+      depthval,
+    }: {
+      eventId: string;
+      lat: number;
+      lng: number;
+      icon: string;
+      depthval: number;
+    }) => {
+      if (!eventId) return;
+      setEpicenters((prev) => {
+        const existing = prev.find((p) => p.eventId === eventId);
+        if (!existing) {
+          const newEpi: EpicenterInfo = {
+            eventId,
+            lat,
+            lng,
+            icon,
+            startTime: Date.now(),
+            depthval,
+          };
+          return [...prev, newEpi];
+        } else {
+          return prev.map((p) =>
+            p.eventId === eventId
+              ? { ...p, lat, lng, icon, depthval }
+              : p
+          );
+        }
+      });
     },
-    [onRegionIntensityUpdate]
+    []
   );
+
+  const [originDt, setOriginDt] = useState<Date | null>(null);
 
   return (
     <>
@@ -358,6 +359,7 @@ function PageContent() {
             regionIntensityMap={mergedRegionMap}
             enableMapIntensityFill={settings.enable_map_intensity_fill}
             enableDynamicZoom={settings.enable_dynamic_zoom}
+            mapResolution={settings.world_map_resolution}
           />
         </div>
 
@@ -382,7 +384,7 @@ function PageContent() {
               <p className="pr-1">{currentTime}</p>
               {isConnected && (
                 <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
-                  <Gauge size={16} />
+                  <Send size={16} />
                   <p>DM-D.S.S</p>
                 </div>
               )}
@@ -404,7 +406,7 @@ function PageContent() {
                       onEpicenterUpdate={handleEpicenterUpdate}
                       onOriginDtUpdate={setOriginDt}
                       onRegionIntensityUpdate={(regionMap) =>
-                        handleRegionIntensityUpdate(regionMap, data.eventId)
+                        onRegionIntensityUpdate(regionMap, data.eventId)
                       }
                     />
                   ))}

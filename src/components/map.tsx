@@ -13,7 +13,9 @@ import "leaflet/dist/leaflet.css";
 import { useTheme } from "next-themes";
 import { FeatureCollection } from "geojson";
 
-import rawCountriesData from "../../public/mapdata/Countries.json";
+import rawCountriesData10 from "../../public/mapdata/10mCountries.json";
+import rawCountriesData50 from "../../public/mapdata/50mCountries.json";
+import rawCountriesData110 from "../../public/mapdata/110mCountries.json";
 import rawJapanData from "../../public/mapdata/Japan.json";
 import rawSaibunData from "../../public/mapdata/Saibun.json";
 import rawCitiesData from "../../public/mapdata/Cities.json";
@@ -27,7 +29,6 @@ type EpicenterInfo = {
   depthval: number;
 };
 
-const CountriesData = rawCountriesData as FeatureCollection;
 const JapanData = rawJapanData as FeatureCollection;
 const SaibunData = rawSaibunData as FeatureCollection;
 const CitiesData = rawCitiesData as FeatureCollection;
@@ -224,13 +225,17 @@ if (typeof window !== "undefined") {
 }
 
 function UserInteractionDetector({
-  onUserInteraction
+  onUserInteractionStart,
+  onUserInteractionEnd,
 }: {
-  onUserInteraction: () => void;
+  onUserInteractionStart: () => void;
+  onUserInteractionEnd: () => void;
 }) {
   useMapEvents({
-    dragstart: onUserInteraction,
-    zoomstart: onUserInteraction,
+    dragstart: onUserInteractionStart,
+    zoomstart: onUserInteractionStart,
+    dragend: onUserInteractionEnd,
+    zoomend: onUserInteractionEnd,
   });
   return null;
 }
@@ -467,10 +472,8 @@ function KyoshinMonitor({
 
     if (autoZoomEnabled) {
       const epicenterPositions = kmoniData.psWave.items.map((item) => {
-        const latVal =
-          (item.latitude.startsWith("N") ? 1 : -1) * parseFloat(item.latitude.slice(1));
-        const lngVal =
-          (item.longitude.startsWith("E") ? 1 : -1) * parseFloat(item.longitude.slice(1));
+        const latVal = (item.latitude.startsWith("N") ? 1 : -1) * parseFloat(item.latitude.slice(1));
+        const lngVal = (item.longitude.startsWith("E") ? 1 : -1) * parseFloat(item.longitude.slice(1));
         return [latVal, lngVal] as [number, number];
       });
 
@@ -484,12 +487,12 @@ function KyoshinMonitor({
         } else {
           const bounds: L.LatLngBounds = L.latLngBounds(epicenterPositions);
           map.fitBounds(bounds, { maxZoom: 10 });
-          setTimeout(() => {
+          map.once("moveend", () => {
             kyoshinMonitorAutoZoomViewRef.current = {
               center: map.getCenter(),
               zoom: map.getZoom(),
             };
-          }, 500);
+          });
         }
       }
     }
@@ -539,6 +542,7 @@ interface MapProps {
   regionIntensityMap: Record<string, string>;
   enableMapIntensityFill: boolean;
   enableDynamicZoom: boolean;
+  mapResolution: "10m" | "50m" | "110m";
 }
 
 const Map = forwardRef<L.Map, MapProps>(
@@ -552,26 +556,56 @@ const Map = forwardRef<L.Map, MapProps>(
       regionIntensityMap,
       enableMapIntensityFill,
       enableDynamicZoom,
+      mapResolution,
     },
     ref
   ) => {
     const [currentZoom, setCurrentZoom] = useState(homePosition.zoom);
     const { resolvedTheme } = useTheme();
     const theme = resolvedTheme || "light";
+    const countriesData =
+      mapResolution === "10m"
+        ? {
+            type: "FeatureCollection" as const,
+            features: (rawCountriesData10 as { geometries: GeoJSON.Geometry[] }).geometries.map(
+              (geometry: GeoJSON.Geometry) => ({
+                type: "Feature",
+                geometry,
+                properties: {},
+              })
+            ),
+          }
+        : mapResolution === "50m"
+        ? (rawCountriesData50 as unknown as FeatureCollection)
+        : (rawCountriesData110 as unknown as FeatureCollection);  
     const [autoZoomEnabled, setAutoZoomEnabled] = useState(enableDynamicZoom);
     const autoZoomTimeoutRef = useRef<number | null>(null);
     const autoZoomViewRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
+    const autoZoomActionTimeoutRef = useRef<number | null>(null);
 
-    const disableAutoZoomTemporarily = () => {
-      if (!enableDynamicZoom) return;
+    useEffect(() => {
+      return () => {
+        if (autoZoomTimeoutRef.current) {
+          clearTimeout(autoZoomTimeoutRef.current);
+        }
+      };
+    }, []);
+
+    const handleUserInteractionStart = useCallback(() => {
+      if (autoZoomTimeoutRef.current) {
+        clearTimeout(autoZoomTimeoutRef.current);
+      }
       setAutoZoomEnabled(false);
-      if (autoZoomTimeoutRef.current !== null) {
+    }, []);
+
+    const handleUserInteractionEnd = useCallback(() => {
+      if (autoZoomTimeoutRef.current) {
         clearTimeout(autoZoomTimeoutRef.current);
       }
       autoZoomTimeoutRef.current = window.setTimeout(() => {
         setAutoZoomEnabled(true);
-      }, 3000);
-    };
+      }, 10000);
+    }, []);
 
     const epicenterLayerRef = useRef<LayerGroup | null>(null);
 
@@ -588,6 +622,7 @@ const Map = forwardRef<L.Map, MapProps>(
     useEffect(() => {
       if (!ref || !(ref as React.MutableRefObject<L.Map | null>).current) return;
       const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
+
       if (!epicenterLayerRef.current) {
         if (mapInstance) {
           epicenterLayerRef.current = L.layerGroup().addTo(mapInstance);
@@ -606,7 +641,7 @@ const Map = forwardRef<L.Map, MapProps>(
         epicenterLayerRef.current?.addLayer(marker);
       });
 
-      if (enableDynamicZoom) {
+      if (autoZoomEnabled) {
         if (epicenters.length === 1) {
           const zoom = epicenters[0].depthval > 150 ? 6 : 8;
           mapInstance?.setView([epicenters[0].lat, epicenters[0].lng], zoom);
@@ -617,17 +652,13 @@ const Map = forwardRef<L.Map, MapProps>(
         } else if (epicenters.length > 1) {
           const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
           const bounds = L.latLngBounds(latlngs);
-          mapInstance?.fitBounds(bounds, { padding: [50, 50], maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10 });
-          setTimeout(() => {
-            autoZoomViewRef.current = {
-              center: mapInstance?.getCenter() ?? new L.LatLng(0, 0),
-              zoom: mapInstance?.getZoom() ?? 0,
-            };
-          }, 500);
+          const maxZoom = epicenters.some(epi => epi.depthval > 150) ? 6 : 10;
+
           mapInstance?.fitBounds(bounds, {
             padding: [50, 50],
-            maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10
+            maxZoom,
           });
+
           mapInstance?.once("moveend", () => {
             autoZoomViewRef.current = {
               center: mapInstance.getCenter(),
@@ -642,19 +673,15 @@ const Map = forwardRef<L.Map, MapProps>(
           };
         }
       }
-    }, [epicenters, ref, enableDynamicZoom, homePosition]);
+    }, [epicenters, ref, autoZoomEnabled]);
 
     useEffect(() => {
-      if (
-        autoZoomEnabled &&
-        ref &&
-        (ref as React.MutableRefObject<L.Map | null>).current &&
-        autoZoomViewRef.current
-      ) {
-        const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
-        const { center, zoom } = autoZoomViewRef.current;
-        mapInstance?.setView(center, zoom);
-      }
+      const timeoutId = autoZoomActionTimeoutRef.current;
+      return () => {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+      };
     }, [autoZoomEnabled, ref]);
 
     const handleZoomChange = useCallback((zoom: number) => {
@@ -664,7 +691,9 @@ const Map = forwardRef<L.Map, MapProps>(
     const shouldShowCities = currentZoom >= 10;
     const shouldShowSaibun = currentZoom >= 5;
 
-    const saibunStyle = (feature?: GeoJSON.Feature<GeoJSON.Geometry, { code?: string }>) => {
+    const saibunStyle = (
+      feature?: GeoJSON.Feature<GeoJSON.Geometry, { code?: string }>
+    ) => {
       const defaultStyle = {
         color: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
         weight: 0.5,
@@ -700,7 +729,10 @@ const Map = forwardRef<L.Map, MapProps>(
         preferCanvas
         zoomControl={false}
       >
-        <UserInteractionDetector onUserInteraction={disableAutoZoomTemporarily} />
+        <UserInteractionDetector
+          onUserInteractionStart={handleUserInteractionStart}
+          onUserInteractionEnd={handleUserInteractionEnd}
+        />
         <MapInner onZoomChange={handleZoomChange} homePosition={homePosition} />
 
         <KyoshinMonitor
@@ -710,8 +742,12 @@ const Map = forwardRef<L.Map, MapProps>(
           autoZoomEnabled={autoZoomEnabled}
         />
 
+        <h1 className="absolute text-9xl">テスト < br /> EEW TEST</h1>
+
+        {/* 世界図 */}
         <GeoJSON
-          data={CountriesData}
+          key={`worldMap-${mapResolution}`}
+          data={countriesData}
           style={{
             color: theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
             fillColor: theme === "dark" ? "#252525" : "#737A8A",
@@ -720,6 +756,7 @@ const Map = forwardRef<L.Map, MapProps>(
           }}
         />
 
+        {/* 日本図 */}
         <GeoJSON
           data={JapanData}
           style={{
@@ -730,6 +767,7 @@ const Map = forwardRef<L.Map, MapProps>(
           }}
         />
 
+        {/* 細分区（5ズーム以上で表示） */}
         {shouldShowSaibun && (
           <GeoJSON
             data={SaibunData}
@@ -737,6 +775,7 @@ const Map = forwardRef<L.Map, MapProps>(
           />
         )}
 
+        {/* 市町村界（10ズーム以上で表示） */}
         {shouldShowCities && (
           <GeoJSON
             data={CitiesData}
