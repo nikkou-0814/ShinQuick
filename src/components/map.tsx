@@ -742,7 +742,7 @@ const Map = forwardRef<L.Map, MapProps>(
           autoZoomEnabled={autoZoomEnabled}
         />
 
-        <h1 className="absolute text-9xl">テスト < br /> EEW TEST</h1>
+        {/*<h1 className="absolute text-9xl">テスト < br /> EEW TEST</h1> */}
 
         {/* 世界図 */}
         <GeoJSON
