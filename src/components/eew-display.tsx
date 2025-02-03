@@ -24,6 +24,7 @@ export interface EewDisplayProps {
     depthval: number;
   }) => void;
   onOriginDtUpdate?: (originDt: Date | null) => void;
+  onRegionIntensityUpdate?: (regionMap: Record<string, string>) => void;
 }
 
 const EewDisplay: React.FC<EewDisplayProps> = ({
@@ -32,6 +33,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   isLowAccuracy = false,
   onEpicenterUpdate,
   onOriginDtUpdate,
+  onRegionIntensityUpdate,
 }) => {
 
   const getJstTime = (timestamp: string | undefined): Date | null => {
@@ -143,6 +145,37 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       depthval: depthVal,
     });
   }, [parsedData, onEpicenterUpdate, isLowAccuracy]);
+
+  useEffect(() => {
+    if (!parsedData || !onRegionIntensityUpdate) return;
+    const { body } = parsedData;
+    if (body.isCanceled) {
+      onRegionIntensityUpdate({});
+      return;
+    }
+    if (!("intensity" in body)) {
+      onRegionIntensityUpdate({});
+      return;
+    }
+    const intensityData = (body as EewInformation.Latest.PublicCommonBody).intensity;
+    if (!intensityData || !intensityData.regions) {
+      onRegionIntensityUpdate({});
+      return;
+    }
+    const newMap: Record<string, string> = {};
+    intensityData.regions.forEach((region) => {
+      const code = region.code;
+      if (!region.forecastMaxInt) return;
+      const { from = "不明", to = "不明" } = region.forecastMaxInt;
+      let final = to;
+      if (to === "over") {
+        final = from;
+      }
+      newMap[code] = final;
+    });
+
+    onRegionIntensityUpdate(newMap);
+  }, [parsedData, onRegionIntensityUpdate]);
 
   if (!parsedData) {
     return null;
@@ -618,7 +651,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                 }}
               >
                 <h1 className="text-lg">
-                  推定最大長周期地震動階級: {maxLgInt}
+                  推定最大長周期地震動階級 {maxLgInt}
                 </h1>
               </div>
             )}

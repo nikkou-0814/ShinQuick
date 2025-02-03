@@ -42,6 +42,7 @@ interface Settings {
   enable_low_accuracy_eew: boolean;
   enable_accuracy_info: boolean;
   enable_drill_test_info: boolean;
+  enable_map_intensity_fill: boolean;
 }
 
 interface SettingsDialogProps {
@@ -161,7 +162,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 onCheckedChange={(checked) =>
                   handleSettingChange("enable_dynamic_zoom", checked)
                 }
-                disabled
               />
             </div>
             <p className="text-sm text-gray-500">
@@ -228,6 +228,23 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             </div>
             <p className="text-sm text-gray-500">
               反映には一度WebSocketを切断する必要があります。
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>細分化地域の予想震度を表示する</span>
+              <Switch
+                checked={settings.enable_map_intensity_fill}
+                onCheckedChange={(checked) =>
+                  handleSettingChange("enable_map_intensity_fill", checked)
+                }
+                
+              />
+            </div>
+            <p className="text-sm text-gray-500">
+              細分化地域における震度予測がされた場合に対象の地域を塗りつぶします。<br />
+              （この機能は現在開発中です。）
             </p>
           </div>
 

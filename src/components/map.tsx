@@ -65,6 +65,20 @@ function ConvertStringToColor(ch: string): string {
   return colorList[ch.toLowerCase()] || "#b00201";
 }
 
+const intensityFillColors: Record<string, string> = {
+  "0": "#62626B",
+  "1": "#2B8EB2",
+  "2": "#4CD0A7",
+  "3": "#F6CB51",
+  "4": "#FF9939",
+  "5-": "#E52A18",
+  "5+": "#C31B1B",
+  "6-": "#A50C6B",
+  "6+": "#930A7A",
+  "7": "#5F0CA2",
+  "不明": "#62626B",
+};
+
 type PsWaveItem = {
   latitude: string;
   longitude: string;
@@ -301,7 +315,7 @@ function KyoshinMonitor({
     const fetchKyoshinMonitorData = async () => {
       try {
         const date = new Date();
-        date.setSeconds(date.getSeconds() - 2); // 2秒前のデータを取得
+        date.setSeconds(date.getSeconds() - 2);
         const nowTime =
           date.getFullYear().toString() +
           ("0" + (date.getMonth() + 1)).slice(-2) +
@@ -427,13 +441,11 @@ function KyoshinMonitor({
       const lngVal =
         (lngStr.startsWith("E") ? 1 : -1) * parseFloat(lngStr.slice(1));
 
-      // 震源
       const epicenterMarker = L.marker([latVal, lngVal], {
         icon: epicenterIcon,
       });
       waveLayerRef.current?.addLayer(epicenterMarker);
 
-      // P波
       const pCircle = L.circle([latVal, lngVal], {
         radius: pRadius * 1000,
         color: "#0066FF",
@@ -441,7 +453,6 @@ function KyoshinMonitor({
       });
       waveLayerRef.current?.addLayer(pCircle);
 
-      // S波
       const sCircle = L.circle([latVal, lngVal], {
         radius: sRadius * 1000,
         color: "#FF0000",
@@ -525,6 +536,9 @@ interface MapProps {
   isConnected: boolean;
   epicenters: EpicenterInfo[];
   originDt?: Date | null;
+  regionIntensityMap: Record<string, string>;
+  enableMapIntensityFill: boolean;
+  enableDynamicZoom: boolean;
 }
 
 const Map = forwardRef<L.Map, MapProps>(
@@ -535,24 +549,28 @@ const Map = forwardRef<L.Map, MapProps>(
       onTimeUpdate,
       isConnected,
       epicenters,
+      regionIntensityMap,
+      enableMapIntensityFill,
+      enableDynamicZoom,
     },
     ref
   ) => {
     const [currentZoom, setCurrentZoom] = useState(homePosition.zoom);
     const { resolvedTheme } = useTheme();
     const theme = resolvedTheme || "light";
-    const [autoZoomEnabled, setAutoZoomEnabled] = useState(true);
+    const [autoZoomEnabled, setAutoZoomEnabled] = useState(enableDynamicZoom);
     const autoZoomTimeoutRef = useRef<number | null>(null);
     const autoZoomViewRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
 
     const disableAutoZoomTemporarily = () => {
+      if (!enableDynamicZoom) return;
       setAutoZoomEnabled(false);
       if (autoZoomTimeoutRef.current !== null) {
         clearTimeout(autoZoomTimeoutRef.current);
       }
       autoZoomTimeoutRef.current = window.setTimeout(() => {
         setAutoZoomEnabled(true);
-      });
+      }, 3000);
     };
 
     const epicenterLayerRef = useRef<LayerGroup | null>(null);
@@ -588,41 +606,43 @@ const Map = forwardRef<L.Map, MapProps>(
         epicenterLayerRef.current?.addLayer(marker);
       });
 
-      if (epicenters.length === 1) {
-        const zoom = epicenters[0].depthval > 150 ? 6 : 8;
-        mapInstance?.setView([epicenters[0].lat, epicenters[0].lng], zoom);
-        autoZoomViewRef.current = {
-          center: new L.LatLng(epicenters[0].lat, epicenters[0].lng),
-          zoom,
-        };
-      } else if (epicenters.length > 1) {
-        const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
-        const bounds = L.latLngBounds(latlngs);
-        mapInstance?.fitBounds(bounds, { padding: [50, 50], maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10 });
-        setTimeout(() => {
+      if (enableDynamicZoom) {
+        if (epicenters.length === 1) {
+          const zoom = epicenters[0].depthval > 150 ? 6 : 8;
+          mapInstance?.setView([epicenters[0].lat, epicenters[0].lng], zoom);
           autoZoomViewRef.current = {
-            center: mapInstance?.getCenter() ?? new L.LatLng(0, 0),
-            zoom: mapInstance?.getZoom() ?? 0,
+            center: new L.LatLng(epicenters[0].lat, epicenters[0].lng),
+            zoom,
           };
-        }, 500);
-        mapInstance?.fitBounds(bounds, {
-          padding: [50, 50],
-          maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10
-        });
-        mapInstance?.once("moveend", () => {
+        } else if (epicenters.length > 1) {
+          const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
+          const bounds = L.latLngBounds(latlngs);
+          mapInstance?.fitBounds(bounds, { padding: [50, 50], maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10 });
+          setTimeout(() => {
+            autoZoomViewRef.current = {
+              center: mapInstance?.getCenter() ?? new L.LatLng(0, 0),
+              zoom: mapInstance?.getZoom() ?? 0,
+            };
+          }, 500);
+          mapInstance?.fitBounds(bounds, {
+            padding: [50, 50],
+            maxZoom: epicenters.some(epi => epi.depthval > 150) ? 6 : 10
+          });
+          mapInstance?.once("moveend", () => {
+            autoZoomViewRef.current = {
+              center: mapInstance.getCenter(),
+              zoom: mapInstance.getZoom(),
+            };
+          });
+        } else {
+          mapInstance?.setView([35, 136], 5);
           autoZoomViewRef.current = {
-            center: mapInstance.getCenter(),
-            zoom: mapInstance.getZoom(),
+            center: new L.LatLng(35, 136),
+            zoom: 5,
           };
-        });
-      } else {
-        mapInstance?.setView([35, 136], 5);
-        autoZoomViewRef.current = {
-          center: new L.LatLng(35, 136),
-          zoom: 5,
-        };
+        }
       }
-    }, [epicenters, ref]);
+    }, [epicenters, ref, enableDynamicZoom, homePosition]);
 
     useEffect(() => {
       if (
@@ -643,6 +663,32 @@ const Map = forwardRef<L.Map, MapProps>(
 
     const shouldShowCities = currentZoom >= 10;
     const shouldShowSaibun = currentZoom >= 5;
+
+    const saibunStyle = (feature?: GeoJSON.Feature<GeoJSON.Geometry, { code?: string }>) => {
+      const defaultStyle = {
+        color: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
+        weight: 0.5,
+        fillColor: "rgba(0,0,0,0)",
+        fillOpacity: 0,
+      };
+      if (!enableMapIntensityFill) {
+        return defaultStyle;
+      }
+      if (!feature?.properties?.code) {
+        return defaultStyle;
+      }
+      const regionCode = String(feature.properties.code);
+      const intensity = regionIntensityMap[regionCode];
+      if (!intensity) {
+        return defaultStyle;
+      }
+      const fillColor = intensityFillColors[intensity] || "#62626B";
+      return {
+        ...defaultStyle,
+        fillColor,
+        fillOpacity: 0.6,
+      };
+    };
 
     return (
       <MapContainer
@@ -687,11 +733,7 @@ const Map = forwardRef<L.Map, MapProps>(
         {shouldShowSaibun && (
           <GeoJSON
             data={SaibunData}
-            style={{
-              color: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
-              fillOpacity: 0,
-              weight: 0.5,
-            }}
+            style={saibunStyle}
           />
         )}
 

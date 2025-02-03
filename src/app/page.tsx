@@ -28,6 +28,7 @@ interface Settings {
   enable_low_accuracy_eew: boolean;
   enable_accuracy_info: boolean;
   enable_drill_test_info: boolean;
+  enable_map_intensity_fill: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -37,6 +38,7 @@ const DEFAULT_SETTINGS: Settings = {
   enable_low_accuracy_eew: false,
   enable_accuracy_info: false,
   enable_drill_test_info: false,
+  enable_map_intensity_fill: true,
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -52,6 +54,10 @@ type EpicenterInfo = {
   depthval: number;
 };
 
+const INTENSITY_ORDER = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"];
+
+type RegionIntensityMap = Record<string, string>;
+
 function PageContent() {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const { setTheme } = useTheme();
@@ -60,6 +66,9 @@ function PageContent() {
   const mapRef = useRef<L.Map | null>(null);
   const [displayDataList, setDisplayDataList] = useState<EewInformation.Latest.Main[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const allRegionMapsRef = useRef<Record<string, RegionIntensityMap>>({});
+  const [mergedRegionMap, setMergedRegionMap] = useState<RegionIntensityMap>({});
+  const [, setMultiRegionMap] = useState<Record<string, string[]>>({});
 
   const {
     isConnected,
@@ -68,6 +77,8 @@ function PageContent() {
     disconnectWebSocket,
     injectTestData,
   } = useWebSocket();
+
+  const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (receivedData) {
@@ -110,10 +121,6 @@ function PageContent() {
     const interval = setInterval(updateCurrentTime, 1000);
     return () => clearInterval(interval);
   }, [settings.enable_kyoshin_monitor]);
-
-  useEffect(() => {
-    console.log("Running in:", typeof window !== "undefined" ? "Browser" : "Server");
-  }, []);
 
   const updateSettings = (newSettings: Partial<Settings>) => {
     setSettings((prevSettings) => {
@@ -168,7 +175,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata.json");
+      const response = await fetch("/testdata/testdata9.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -180,7 +187,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/ishikawa.json");
+      const response = await fetch("/testdata/ishikawa2.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -203,6 +210,7 @@ function PageContent() {
   };
 
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setEpicenters((prev) => {
@@ -215,18 +223,57 @@ function PageContent() {
       });
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [displayDataList]);
+
+  useEffect(() => {
+    displayDataList.forEach((data) => {
+      if (!data.body?.isCanceled) return;
+      if (canceledRemoveScheduledRef.current.has(data.eventId)) return;
+
+      canceledRemoveScheduledRef.current.add(data.eventId);
+
+      setTimeout(() => {
+        setDisplayDataList((prev) =>
+          prev.filter((x) => x.eventId !== data.eventId)
+        );
+        canceledRemoveScheduledRef.current.delete(data.eventId);
+      }, 10000);
+    });
+  }, [displayDataList]);
 
   const handleEpicenterUpdate = useCallback(
-    ({ eventId, lat, lng, icon, depthval }: { eventId: string; lat: number; lng: number; icon: string; depthval: number; }) => {
+    ({
+      eventId,
+      lat,
+      lng,
+      icon,
+      depthval,
+    }: {
+      eventId: string;
+      lat: number;
+      lng: number;
+      icon: string;
+      depthval: number;
+    }) => {
       if (!eventId) return;
       setEpicenters((prev) => {
-        const existing = prev.find(p => p.eventId === eventId);
+        const existing = prev.find((p) => p.eventId === eventId);
         if (!existing) {
-          const newEpi: EpicenterInfo = { eventId, lat, lng, icon, startTime: Date.now(), depthval };
+          const newEpi: EpicenterInfo = {
+            eventId,
+            lat,
+            lng,
+            icon,
+            startTime: Date.now(),
+            depthval,
+          };
           return [...prev, newEpi];
         } else {
-          return prev.map(p => p.eventId === eventId ? { ...p, lat, lng, icon } : p);
+          return prev.map((p) =>
+            p.eventId === eventId
+              ? { ...p, lat, lng, icon }
+              : p
+          );
         }
       });
     },
@@ -234,6 +281,56 @@ function PageContent() {
   );
 
   const [originDt, setOriginDt] = useState<Date | null>(null);
+
+  const onRegionIntensityUpdate = useCallback(
+    (regionMap: Record<string, string>, eventId: string) => {
+      if (Object.keys(regionMap).length === 0) {
+        delete allRegionMapsRef.current[eventId];
+      } else {
+        allRegionMapsRef.current[eventId] = regionMap;
+      }
+
+      const merged: Record<string, string> = {};
+      const multi: Record<string, string[]> = {};
+
+      Object.entries(allRegionMapsRef.current).forEach(([, map]) => {
+        Object.entries(map).forEach(([code, intensity]) => {
+          if (!multi[code]) {
+            multi[code] = [];
+          }
+          multi[code].push(intensity);
+        });
+      });
+
+      Object.entries(multi).forEach(([code, intensities]) => {
+        let maxRank = -1;
+        let maxIntensity = "0";
+        intensities.forEach((val) => {
+          const idx = INTENSITY_ORDER.indexOf(val);
+          if (idx > maxRank) {
+            maxRank = idx;
+            maxIntensity = val;
+          }
+        });
+        merged[code] = maxIntensity;
+      });
+
+      setMultiRegionMap((prev) => {
+        return JSON.stringify(prev) !== JSON.stringify(multi) ? multi : prev;
+      });
+      setMergedRegionMap((prev) => {
+        return JSON.stringify(prev) !== JSON.stringify(merged) ? merged : prev;
+      });
+    },
+    []
+  );
+
+  const handleRegionIntensityUpdate = useCallback(
+    (regionMap: Record<string, string>, eventId: string) => {
+      onRegionIntensityUpdate(regionMap, eventId);
+    },
+    [onRegionIntensityUpdate]
+  );
 
   return (
     <>
@@ -258,6 +355,9 @@ function PageContent() {
             isConnected={isConnected}
             epicenters={epicenters}
             originDt={originDt}
+            regionIntensityMap={mergedRegionMap}
+            enableMapIntensityFill={settings.enable_map_intensity_fill}
+            enableDynamicZoom={settings.enable_dynamic_zoom}
           />
         </div>
 
@@ -280,15 +380,15 @@ function PageContent() {
             </Button>
             <div className="flex flex-col">
               <p className="pr-1">{currentTime}</p>
-                {isConnected && (
-                  <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
-                    <Gauge size={16} />
-                    <p>DM-D.S.S</p>
-                  </div>
-                )}
-              </div>
+              {isConnected && (
+                <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
+                  <Gauge size={16} />
+                  <p>DM-D.S.S</p>
+                </div>
+              )}
             </div>
           </div>
+        </div>
 
         {displayDataList.length > 0 && (
           <div className="w-[400px]">
@@ -303,6 +403,9 @@ function PageContent() {
                       isLowAccuracy={settings.enable_low_accuracy_eew}
                       onEpicenterUpdate={handleEpicenterUpdate}
                       onOriginDtUpdate={setOriginDt}
+                      onRegionIntensityUpdate={(regionMap) =>
+                        handleRegionIntensityUpdate(regionMap, data.eventId)
+                      }
                     />
                   ))}
                 </SidebarContent>
