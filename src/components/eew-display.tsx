@@ -771,7 +771,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                     </div>
                     <div className="p-2">
                       <p className="text-gray-500 dark:text-gray-400">
-                        手法
+                        予測手法
                       </p>
                       <p className="mt-1">{method}</p>
                     </div>

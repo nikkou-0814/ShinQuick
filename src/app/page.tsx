@@ -404,12 +404,12 @@ function PageContent() {
           </div>
         </div>
 
-        {displayDataList.length > 0 && (
-          <div className="w-[400px]">
-            <SidebarProvider>
-              <Sidebar variant="sidebar" side="right" className="w-fit">
-                <SidebarContent className="overflow-y-auto p-2">
-                  {displayDataList.map((data) => (
+        <div className="w-[400px]">
+          <SidebarProvider>
+            <Sidebar variant="sidebar" side="right" className="w-fit">
+              <SidebarContent className="overflow-y-auto p-2">
+                {displayDataList && displayDataList.length > 0 ? (
+                  displayDataList.map((data) => (
                     <EewDisplay
                       key={data.eventId}
                       parsedData={data}
@@ -421,12 +421,18 @@ function PageContent() {
                         onRegionIntensityUpdate(regionMap, data.eventId)
                       }
                     />
-                  ))}
-                </SidebarContent>
-              </Sidebar>
-            </SidebarProvider>
-          </div>
-        )}
+                  ))
+                ) : (
+                  <div className="w-[385px] h-full flex justify-center items-center">
+                    <h1 className="text-xl">
+                      緊急地震速報受信待機中
+                    </h1>
+                  </div>
+                )}
+              </SidebarContent>
+            </Sidebar>
+          </SidebarProvider>
+        </div>
       </main>
     </>
   );

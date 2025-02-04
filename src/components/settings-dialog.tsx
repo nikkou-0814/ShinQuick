@@ -135,7 +135,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
       <DialogContent style={{ maxHeight: "80vh", overflow: "scroll" }}>
         <DialogHeader>
           <DialogTitle>設定</DialogTitle>
-          <DialogDescription>設定を変更することができます</DialogDescription>
+          <DialogDescription>アプリの設定を変更することができます</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -217,7 +217,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               />
             </div>
             <p className="text-sm text-gray-500">
-              震源やマグニチュードの精度情報を表示します。
+              イベント毎の情報が長くなるため、<br />
+              複数地震が発生した場合に見切れる場合があります。
             </p>
           </div>
 
@@ -247,7 +248,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               />
             </div>
             <p className="text-sm text-gray-500">
-              細分化地域における震度予測がされた場合に対象の地域を塗りつぶします。<br />
+              細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。<br />
               （この機能は現在開発中なので、不安定です。）
             </p>
           </div>
