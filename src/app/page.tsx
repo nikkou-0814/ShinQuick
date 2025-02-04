@@ -58,6 +58,19 @@ type EpicenterInfo = {
 
 const INTENSITY_ORDER = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"];
 
+const levelToIntensity: Record<string, string> = {
+  "不明": "不明",
+  "震度1": "1",
+  "震度2": "2",
+  "震度3": "3",
+  "震度4": "4",
+  "震度5弱": "5-",
+  "震度5強": "5+",
+  "震度6弱": "6-",
+  "震度6強": "6+",
+  "震度7": "7",
+};
+
 type RegionIntensityMap = Record<string, string>;
 
 function PageContent() {
@@ -82,6 +95,18 @@ function PageContent() {
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(true);
   const [forceAutoZoomTrigger, setForceAutoZoomTrigger] = useState<number>(0);
+
+  const shindoColors = [
+    { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
+    { level: "震度6強", bgcolor: "#930A7A", color: "white" },
+    { level: "震度6弱", bgcolor: "#A50C6B", color: "white" },
+    { level: "震度5強", bgcolor: "#C31B1B", color: "white" },
+    { level: "震度5弱", bgcolor: "#E52A18", color: "white" },
+    { level: "震度4", bgcolor: "#FF9939", color: "black" },
+    { level: "震度3", bgcolor: "#F6CB51", color: "black" },
+    { level: "震度2", bgcolor: "#4CD0A7", color: "black" },
+    { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
+  ];
 
 
   useEffect(() => {
@@ -179,7 +204,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata3.json");
+      const response = await fetch("/testdata/testdata8.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -191,7 +216,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/ishikawa2.json");
+      const response = await fetch("/testdata/testdata3.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -203,7 +228,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/testdata6.json");
+      const response = await fetch("/testdata/test/testmiyagi.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -212,6 +237,34 @@ function PageContent() {
       toast.error("テストデータの読み込みに失敗しました。");
     }
   };
+
+  const handleSendAllTests = async () => {
+    const urls = [
+      "/testdata/test/testtokachi.json",
+      "/testdata/test/testmiyagi.json",
+      "/testdata/test/testnagano.json",
+      "/testdata/test/testwakayama.json",
+      "/testdata/test/testhyuganada.json",
+      "/testdata/test/testokinawa.json",
+      "/testdata/test/testishigaki.json",
+    ];
+  
+    try {
+      for (const url of urls) {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`テストデータ取得失敗: ${response.statusText}`);
+        }
+        const testData = await response.json();
+        await injectTestData(testData);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      toast.success("全てのテストデータを送信しました。");
+    } catch (error) {
+      console.error("テストデータの挿入失敗:", error);
+      toast.error("テストデータの読み込みに失敗したよ。");
+    }
+  };  
 
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
 
@@ -343,6 +396,22 @@ function PageContent() {
 
   const [originDt, setOriginDt] = useState<Date | null>(null);
 
+  const maxIntensityIndex = displayDataList.reduce((max, event) => {
+    if (!event.body || !("intensity" in event.body)) return max;
+    const intensityData = (event.body as EewInformation.Latest.PublicCommonBody).intensity;
+    if (!intensityData || !intensityData.forecastMaxInt) return max;
+    const fm = intensityData.forecastMaxInt;
+    const intensityStr = fm.to === "over" ? fm.from || "0" : fm.to || "0";
+    const idx = INTENSITY_ORDER.indexOf(intensityStr);
+    return idx > max ? idx : max;
+  }, 0);
+
+  const filteredShindoColors = shindoColors.filter((item) => {
+    const intensityValue = levelToIntensity[item.level];
+    const idx = INTENSITY_ORDER.indexOf(intensityValue);
+    return idx <= maxIntensityIndex;
+  });
+
   return (
     <>
       <SettingsDialog
@@ -358,6 +427,33 @@ function PageContent() {
 
       <main className="h-full w-full flex">
         <div className="flex-1 relative">
+          <div
+            className={`absolute z-50 right-4 bottom-4 bg-white/80 dark:bg-black/80 rounded-lg shadow-lg border ${
+              displayDataList &&
+              displayDataList.length > 0 &&
+              displayDataList.some(data => {
+                const intensityData = (data.body as EewInformation.Latest.PublicCommonBody)?.intensity;
+                return intensityData?.forecastMaxInt?.from || intensityData?.forecastMaxInt?.to;
+              })
+                ? "visible"
+                : "hidden"
+            }`}
+          >
+            <h3 className="text-center font-bold mb-2 px-3 pt-3">震度の凡例</h3>
+            <div className="border-t my-2 w-full"></div>
+            <div className="space-y-1.5 px-3 pb-3">
+              {filteredShindoColors.map(({ level, bgcolor, color }) => (
+                <div key={level} className="flex items-center gap-2">
+                  <div
+                    className="w-full rounded shadow-sm text-left p-1"
+                    style={{ backgroundColor: bgcolor, color: color }}
+                  >
+                    <span className="text-xs font-medium">{level}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
           <DynamicMap
             ref={mapRef}
             homePosition={{ center: [35, 136], zoom: 5 }}
@@ -391,6 +487,9 @@ function PageContent() {
             </Button>
             <Button variant="outline" onClick={handleTest3} className="hidden">
               <FlaskConical />
+            </Button>
+            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
+              複数
             </Button>
             <div className="flex flex-col">
               <p className="pr-1">{currentTime}</p>

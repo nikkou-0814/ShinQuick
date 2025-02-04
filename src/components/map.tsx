@@ -266,6 +266,7 @@ function KyoshinMonitor({
   });
 
   const getRadiusForZoom = (zoom: number): number => {
+    console.log(zoom)
     if (zoom > 10) return 12;
     if (zoom > 9) return 10;
     if (zoom > 8) return 8;
@@ -406,7 +407,7 @@ function KyoshinMonitor({
     layerRef.current.addTo(map);
   }, [map, kmoniData, zoomLevel, pointList, enableKyoshinMonitor]);
 
-  // PS波 & 震源 & 自動ズーム
+  // P/S波 震源 自動ズーム
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
     if (isConnected) {
