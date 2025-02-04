@@ -543,6 +543,8 @@ interface MapProps {
   enableMapIntensityFill: boolean;
   enableDynamicZoom: boolean;
   mapResolution: "10m" | "50m" | "110m";
+  onAutoZoomChange?: (value: boolean) => void;
+  forceAutoZoomTrigger?: number;
 }
 
 const Map = forwardRef<L.Map, MapProps>(
@@ -557,6 +559,8 @@ const Map = forwardRef<L.Map, MapProps>(
       enableMapIntensityFill,
       enableDynamicZoom,
       mapResolution,
+      onAutoZoomChange,
+      forceAutoZoomTrigger,
     },
     ref
   ) => {
@@ -584,6 +588,15 @@ const Map = forwardRef<L.Map, MapProps>(
     const autoZoomActionTimeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
+      if (forceAutoZoomTrigger) {
+        setAutoZoomEnabled(true);
+        if (onAutoZoomChange) {
+          onAutoZoomChange(true);
+        }
+      }
+    }, [forceAutoZoomTrigger, onAutoZoomChange]);
+
+    useEffect(() => {
       return () => {
         if (autoZoomTimeoutRef.current) {
           clearTimeout(autoZoomTimeoutRef.current);
@@ -591,13 +604,19 @@ const Map = forwardRef<L.Map, MapProps>(
       };
     }, []);
 
+    useEffect(() => {
+      if (onAutoZoomChange) {
+        onAutoZoomChange(autoZoomEnabled);
+      }
+    }, [autoZoomEnabled, onAutoZoomChange]);
+    
     const handleUserInteractionStart = useCallback(() => {
       if (autoZoomTimeoutRef.current) {
         clearTimeout(autoZoomTimeoutRef.current);
       }
       setAutoZoomEnabled(false);
     }, []);
-
+    
     const handleUserInteractionEnd = useCallback(() => {
       if (autoZoomTimeoutRef.current) {
         clearTimeout(autoZoomTimeoutRef.current);
@@ -689,7 +708,6 @@ const Map = forwardRef<L.Map, MapProps>(
     }, []);
 
     const shouldShowCities = currentZoom >= 10;
-    const shouldShowSaibun = currentZoom >= 5;
 
     const saibunStyle = (
       feature?: GeoJSON.Feature<GeoJSON.Geometry, { code?: string }>
@@ -742,7 +760,7 @@ const Map = forwardRef<L.Map, MapProps>(
           autoZoomEnabled={autoZoomEnabled}
         />
 
-        {/*<h1 className="absolute text-9xl">テスト < br /> EEW TEST</h1> */}
+        <h1 className="absolute text-9xl">テスト < br /> TEST</h1>
 
         {/* 世界図 */}
         <GeoJSON
@@ -767,13 +785,11 @@ const Map = forwardRef<L.Map, MapProps>(
           }}
         />
 
-        {/* 細分区（5ズーム以上で表示） */}
-        {shouldShowSaibun && (
-          <GeoJSON
-            data={SaibunData}
-            style={saibunStyle}
-          />
-        )}
+        {/* 細分区 */}
+        <GeoJSON
+          data={SaibunData}
+          style={saibunStyle}
+        />
 
         {/* 市町村界（10ズーム以上で表示） */}
         {shouldShowCities && (

@@ -80,6 +80,9 @@ function PageContent() {
   } = useWebSocket();
 
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
+  const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(true);
+  const [forceAutoZoomTrigger, setForceAutoZoomTrigger] = useState<number>(0);
+
 
   useEffect(() => {
     if (receivedData) {
@@ -176,7 +179,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata2.json");
+      const response = await fetch("/testdata/testdata3.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -255,24 +258,27 @@ function PageContent() {
   );
 
   useEffect(() => {
+    const intervalTime = (settings.enable_dynamic_zoom && mapAutoZoomEnabled) ? 2000 : 10000;
+    
     const timer = setInterval(() => {
       setEpicenters((prev) => {
         const now = Date.now();
         const filtered = prev.filter(e => now - e.startTime < 3 * 60 * 1000);
         const removed = prev.filter(e => now - e.startTime >= 3 * 60 * 1000);
-
+  
         removed.forEach(e => {
           onRegionIntensityUpdate({}, e.eventId);
         });
-
+  
         if (filtered.length === 0 && prev.length > 0) {
           setDisplayDataList([]);
         }
         return filtered;
       });
-    }, 10000);
+    }, intervalTime);
+  
     return () => clearInterval(timer);
-  }, [displayDataList, onRegionIntensityUpdate]);  
+  }, [displayDataList, onRegionIntensityUpdate, settings.enable_dynamic_zoom, mapAutoZoomEnabled]);  
 
   useEffect(() => {
     displayDataList.forEach((data) => {
@@ -318,11 +324,15 @@ function PageContent() {
             startTime: Date.now(),
             depthval,
           };
+          setForceAutoZoomTrigger(Date.now());
           return [...prev, newEpi];
         } else {
           return prev.map((p) =>
             p.eventId === eventId
-              ? { ...p, lat, lng, icon, depthval }
+              ? (() => {
+                  setForceAutoZoomTrigger(Date.now());
+                  return { ...p, lat, lng, icon, depthval };
+                })()
               : p
           );
         }
@@ -360,6 +370,8 @@ function PageContent() {
             enableMapIntensityFill={settings.enable_map_intensity_fill}
             enableDynamicZoom={settings.enable_dynamic_zoom}
             mapResolution={settings.world_map_resolution}
+            onAutoZoomChange={setMapAutoZoomEnabled}
+            forceAutoZoomTrigger={forceAutoZoomTrigger} 
           />
         </div>
 
@@ -371,13 +383,13 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
+            <Button variant="outline" onClick={handleTest} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest2} className="hidden">
+            <Button variant="outline" onClick={handleTest2} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest3} className="hidden">
+            <Button variant="outline" onClick={handleTest3} className="">
               <FlaskConical />
             </Button>
             <div className="flex flex-col">
