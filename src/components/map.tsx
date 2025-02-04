@@ -661,38 +661,66 @@ const Map = forwardRef<L.Map, MapProps>(
       });
 
       if (autoZoomEnabled) {
+        const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
+
+        const polygonsBounds = L.latLngBounds([]);
+        SaibunData.features.forEach((feature) => {
+          const code = feature.properties?.code;
+          if (!code) return;
+          // 予想震度が設定されている細分区だけを対象
+          if (!(code in regionIntensityMap)) return;
+
+          const layer = L.geoJSON(feature as GeoJSON.GeoJsonObject);
+          const layerBounds = layer.getBounds();
+          polygonsBounds.extend(layerBounds);
+        });
+
+        const finalBounds = L.latLngBounds(latlngs);
+        finalBounds.extend(polygonsBounds);
+
         if (epicenters.length === 1) {
           const zoom = epicenters[0].depthval > 150 ? 6 : 8;
-          mapInstance?.setView([epicenters[0].lat, epicenters[0].lng], zoom);
-          autoZoomViewRef.current = {
-            center: new L.LatLng(epicenters[0].lat, epicenters[0].lng),
-            zoom,
-          };
+          if (finalBounds.isValid()) {
+            mapInstance?.fitBounds(finalBounds, {
+              maxZoom: zoom,
+              padding: [50, 50],
+            });
+          } else {
+            // 細分区の指定がないケース
+            mapInstance?.setView([epicenters[0].lat, epicenters[0].lng], zoom);
+          }
         } else if (epicenters.length > 1) {
-          const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
-          const bounds = L.latLngBounds(latlngs);
-          const maxZoom = epicenters.some(epi => epi.depthval > 150) ? 6 : 10;
-
-          mapInstance?.fitBounds(bounds, {
-            padding: [50, 50],
-            maxZoom,
-          });
-
-          mapInstance?.once("moveend", () => {
-            autoZoomViewRef.current = {
-              center: mapInstance.getCenter(),
-              zoom: mapInstance.getZoom(),
-            };
-          });
+          // 震源が複数
+          const maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 6 : 10;
+          if (finalBounds.isValid()) {
+            mapInstance?.fitBounds(finalBounds, {
+              padding: [50, 50],
+              maxZoom,
+            });
+          } else {
+            // 細分区 + 震源なし等の想定がある場合
+            mapInstance?.setView([35, 136], 5);
+          }
         } else {
-          mapInstance?.setView([35, 136], 5);
-          autoZoomViewRef.current = {
-            center: new L.LatLng(35, 136),
-            zoom: 5,
-          };
+          // 震源が空の場合でも、細分区にズーム
+          if (polygonsBounds.isValid()) {
+            mapInstance?.fitBounds(polygonsBounds, {
+              padding: [50, 50],
+              maxZoom: 10,
+            });
+          } else {
+            mapInstance?.setView([35, 136], 5);
+          }
         }
+
+        mapInstance?.once("moveend", () => {
+          autoZoomViewRef.current = {
+            center: mapInstance.getCenter(),
+            zoom: mapInstance.getZoom(),
+          };
+        });
       }
-    }, [epicenters, ref, autoZoomEnabled]);
+    }, [epicenters, ref, autoZoomEnabled, regionIntensityMap]);    
 
     useEffect(() => {
       const timeoutId = autoZoomActionTimeoutRef.current;
@@ -760,7 +788,7 @@ const Map = forwardRef<L.Map, MapProps>(
           autoZoomEnabled={autoZoomEnabled}
         />
 
-        {/*<h1 className="absolute text-[250px] text-center text-gray-400">TEST</h1>*/}
+        {/*<h1 className="absolute top-0 left-0 p-0 m-0 text-[250px] text-center text-gray-400">TEST</h1>*/}
 
         {/* 世界図 */}
         <GeoJSON
