@@ -169,6 +169,10 @@ function PageContent() {
     updateSettings({ [key]: value });
   };
 
+  const handleTimeUpdate = useCallback((newTime: string) => {
+    setCurrentTime(newTime);
+  }, []);
+
   const handleConnectWebSocket = () => {
     const token = localStorage.getItem("dmdata_access_token");
     if (!token) {
@@ -480,7 +484,7 @@ function PageContent() {
             ref={mapRef}
             homePosition={{ center: [35, 136], zoom: 5 }}
             enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-            onTimeUpdate={(newTime) => setCurrentTime(newTime)}
+            onTimeUpdate={handleTimeUpdate}
             isConnected={isConnected}
             epicenters={epicenters}
             originDt={originDt}
