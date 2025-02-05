@@ -488,7 +488,7 @@ function PageContent() {
             <Button variant="outline" onClick={handleTest3} className="hidden">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
+            <Button variant="outline" onClick={handleSendAllTests} className="">
               複数
             </Button>
             <div className="flex flex-col">

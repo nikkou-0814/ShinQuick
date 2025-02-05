@@ -16,7 +16,6 @@ import { FeatureCollection } from "geojson";
 import rawCountriesData10 from "../../public/mapdata/10mCountries.json";
 import rawCountriesData50 from "../../public/mapdata/50mCountries.json";
 import rawCountriesData110 from "../../public/mapdata/110mCountries.json";
-import rawJapanData from "../../public/mapdata/Japan.json";
 import rawSaibunData from "../../public/mapdata/Saibun.json";
 import rawCitiesData from "../../public/mapdata/Cities.json";
 
@@ -29,7 +28,6 @@ type EpicenterInfo = {
   depthval: number;
 };
 
-const JapanData = rawJapanData as FeatureCollection;
 const SaibunData = rawSaibunData as FeatureCollection;
 const CitiesData = rawCitiesData as FeatureCollection;
 
@@ -742,10 +740,10 @@ const Map = forwardRef<L.Map, MapProps>(
       feature?: GeoJSON.Feature<GeoJSON.Geometry, { code?: string }>
     ) => {
       const defaultStyle = {
-        color: theme === "dark" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
-        weight: 0.5,
-        fillColor: "rgba(0,0,0,0)",
-        fillOpacity: 0,
+        color: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
+        weight: 0.6,
+        fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
+        fillOpacity: 0.9,
       };
       if (!enableMapIntensityFill) {
         return defaultStyle;
@@ -803,18 +801,7 @@ const Map = forwardRef<L.Map, MapProps>(
           }}
         />
 
-        {/* 日本図 */}
-        <GeoJSON
-          data={JapanData}
-          style={{
-            color: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
-            fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
-            fillOpacity: 0.9,
-            weight: 0.6,
-          }}
-        />
-
-        {/* 細分区 */}
+        {/* 日本　細分区 */}
         <GeoJSON
           data={SaibunData}
           style={saibunStyle}
