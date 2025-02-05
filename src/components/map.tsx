@@ -544,6 +544,8 @@ interface MapProps {
   mapResolution: "10m" | "50m" | "110m";
   onAutoZoomChange?: (value: boolean) => void;
   forceAutoZoomTrigger?: number;
+  enableMapWarningArea: boolean;
+  warningRegionCodes: string[];
 }
 
 const Map = forwardRef<L.Map, MapProps>(
@@ -560,6 +562,8 @@ const Map = forwardRef<L.Map, MapProps>(
       mapResolution,
       onAutoZoomChange,
       forceAutoZoomTrigger,
+      enableMapWarningArea,
+      warningRegionCodes,
     },
     ref
   ) => {
@@ -745,6 +749,16 @@ const Map = forwardRef<L.Map, MapProps>(
         fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
         fillOpacity: 0.9,
       };
+      if (enableMapWarningArea && feature?.properties?.code) {
+        if (warningRegionCodes.includes(String(feature.properties.code))) {
+          return {
+            ...defaultStyle,
+            fillColor: "#FF0000",
+            fillOpacity: 0.8,
+          };
+        }
+      }    
+
       if (!enableMapIntensityFill) {
         return defaultStyle;
       }

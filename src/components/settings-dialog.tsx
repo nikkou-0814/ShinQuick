@@ -43,6 +43,7 @@ interface Settings {
   enable_accuracy_info: boolean;
   enable_drill_test_info: boolean;
   enable_map_intensity_fill: boolean;
+  enable_map_warning_area: boolean;
   world_map_resolution: "10m" | "50m" | "110m";
 }
 
@@ -250,6 +251,22 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             <p className="text-sm text-gray-500">
               細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。<br />
               （この機能は現在開発中なので、不安定です。）
+            </p>
+          </div>
+
+          {/* 発表地域 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span>警報発表地域の塗りつぶしを有効にする</span>
+              <Switch
+                checked={settings.enable_map_warning_area}
+                onCheckedChange={(checked) =>
+                  handleSettingChange("enable_map_warning_area", checked)
+                }
+              />
+            </div>
+            <p className="text-sm text-gray-500">
+              警報が発表されている、地域を塗りつぶします。
             </p>
           </div>
 

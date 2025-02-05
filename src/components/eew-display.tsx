@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   Card,
   CardHeader,
@@ -25,6 +25,7 @@ export interface EewDisplayProps {
   }) => void;
   onOriginDtUpdate?: (originDt: Date | null) => void;
   onRegionIntensityUpdate?: (regionMap: Record<string, string>) => void;
+  onWarningRegionUpdate?: (warningRegions: { code: string; name: string }[]) => void;
 }
 
 const EewDisplay: React.FC<EewDisplayProps> = ({
@@ -34,7 +35,29 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   onEpicenterUpdate,
   onOriginDtUpdate,
   onRegionIntensityUpdate,
+  onWarningRegionUpdate,
 }) => {
+  const prevWarningRegionsRef = useRef<{ code: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!parsedData || !onWarningRegionUpdate) return;
+  
+    const { body } = parsedData;
+    if (!("regions" in body)) {
+      return;
+    }
+  
+    const regions = body.regions as { code: string; name: string }[];
+  
+    if (!Array.isArray(regions) || regions.length === 0) {
+      return;
+    }
+  
+    if (JSON.stringify(prevWarningRegionsRef.current) !== JSON.stringify(regions)) {
+      onWarningRegionUpdate(regions);
+      prevWarningRegionsRef.current = regions;
+    }
+  }, [parsedData, onWarningRegionUpdate]);
 
   const getJstTime = (timestamp: string | undefined): Date | null => {
     try {

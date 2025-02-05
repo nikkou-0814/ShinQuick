@@ -29,6 +29,7 @@ interface Settings {
   enable_accuracy_info: boolean;
   enable_drill_test_info: boolean;
   enable_map_intensity_fill: boolean;
+  enable_map_warning_area: boolean;
   world_map_resolution: "10m" | "50m" | "110m";
 }
 
@@ -40,7 +41,8 @@ const DEFAULT_SETTINGS: Settings = {
   enable_accuracy_info: false,
   enable_drill_test_info: false,
   enable_map_intensity_fill: true,
-  world_map_resolution: "50m"
+  enable_map_warning_area: false,
+  world_map_resolution: "50m",
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -84,17 +86,15 @@ function PageContent() {
   const allRegionMapsRef = useRef<Record<string, RegionIntensityMap>>({});
   const [mergedRegionMap, setMergedRegionMap] = useState<RegionIntensityMap>({});
   const [, setMultiRegionMap] = useState<Record<string, string[]>>({});
-  const {
-    isConnected,
-    receivedData,
-    connectWebSocket,
-    disconnectWebSocket,
-    injectTestData,
-  } = useWebSocket();
-
+  const allWarningRegionsRef = useRef<Record<string, { code: string; name: string }[]>>({});
+  const [mergedWarningRegions, setMergedWarningRegions] = useState<{ code: string; name: string }[]>([]);
+  const { isConnected, receivedData, connectWebSocket, disconnectWebSocket, injectTestData } = useWebSocket();
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(true);
   const [forceAutoZoomTrigger, setForceAutoZoomTrigger] = useState<number>(0);
+  const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
+  const prevMultiRef = useRef<Record<string, string[]>>({});
+  const prevMergedRef = useRef<Record<string, string>>({});
 
   const shindoColors = [
     { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
@@ -107,7 +107,6 @@ function PageContent() {
     { level: "震度2", bgcolor: "#4CD0A7", color: "black" },
     { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
   ];
-
 
   useEffect(() => {
     if (receivedData) {
@@ -161,10 +160,7 @@ function PageContent() {
     });
   };
 
-  const handleSettingChange = <K extends keyof Settings>(
-    key: K,
-    value: Settings[K]
-  ) => {
+  const handleSettingChange = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     if (key === "theme") {
       if (value === "dark" || value === "light" || value === "system") {
         setTheme(value);
@@ -197,10 +193,6 @@ function PageContent() {
       mapRef.current.setView([35, 136], 5);
     }
   };
-
-  const handleTimeUpdate = useCallback((newTime: string) => {
-    setCurrentTime(newTime);
-  }, []);
 
   const handleTest = async () => {
     try {
@@ -248,7 +240,7 @@ function PageContent() {
       "/testdata/test/testokinawa.json",
       "/testdata/test/testishigaki.json",
     ];
-  
+
     try {
       for (const url of urls) {
         const response = await fetch(url);
@@ -264,10 +256,8 @@ function PageContent() {
       console.error("テストデータの挿入失敗:", error);
       toast.error("テストデータの読み込みに失敗したよ。");
     }
-  };  
-
-  const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
-
+  };
+  
   const onRegionIntensityUpdate = useCallback(
     (regionMap: Record<string, string>, eventId: string) => {
       if (Object.keys(regionMap).length === 0) {
@@ -275,9 +265,10 @@ function PageContent() {
       } else {
         allRegionMapsRef.current[eventId] = regionMap;
       }
+      
       const merged: Record<string, string> = {};
       const multi: Record<string, string[]> = {};
-
+  
       Object.entries(allRegionMapsRef.current).forEach(([, map]) => {
         Object.entries(map).forEach(([code, intensity]) => {
           if (!multi[code]) {
@@ -286,7 +277,7 @@ function PageContent() {
           multi[code].push(intensity);
         });
       });
-
+  
       Object.entries(multi).forEach(([code, intensities]) => {
         let maxRank = -1;
         let maxIntensity = "0";
@@ -300,38 +291,68 @@ function PageContent() {
         merged[code] = maxIntensity;
       });
 
-      setMultiRegionMap((prev) => {
-        return JSON.stringify(prev) !== JSON.stringify(multi) ? multi : prev;
-      });
-      setMergedRegionMap((prev) => {
-        return JSON.stringify(prev) !== JSON.stringify(merged) ? merged : prev;
-      });
+      if (JSON.stringify(prevMultiRef.current) !== JSON.stringify(multi)) {
+        setMultiRegionMap(multi);
+        prevMultiRef.current = multi;
+      }
+  
+      if (JSON.stringify(prevMergedRef.current) !== JSON.stringify(merged)) {
+        setMergedRegionMap(merged);
+        prevMergedRef.current = merged;
+      }
+    },
+    []
+  );  
+
+  const onWarningRegionUpdate = useCallback(
+    (warningRegions: { code: string; name: string }[], eventId: string) => {
+      if (!warningRegions || warningRegions.length === 0) {
+        delete allWarningRegionsRef.current[eventId];
+      } else {
+        allWarningRegionsRef.current[eventId] = warningRegions;
+      }
+      const merged = Object.values(allWarningRegionsRef.current).flat();
+
+      const unique = merged.reduce((acc, region) => {
+        if (!acc.find((r) => r.code === region.code)) {
+          acc.push(region);
+        }
+        return acc;
+      }, [] as { code: string; name: string }[]);
+      setMergedWarningRegions(unique);
     },
     []
   );
 
   useEffect(() => {
-    const intervalTime = (settings.enable_dynamic_zoom && mapAutoZoomEnabled) ? 2000 : 10000;
-    
+    const intervalTime = settings.enable_dynamic_zoom && mapAutoZoomEnabled ? 2000 : 10000;
+
     const timer = setInterval(() => {
       setEpicenters((prev) => {
         const now = Date.now();
-        const filtered = prev.filter(e => now - e.startTime < 3 * 60 * 1000);
-        const removed = prev.filter(e => now - e.startTime >= 3 * 60 * 1000);
-  
-        removed.forEach(e => {
+        const filtered = prev.filter((e) => now - e.startTime < 3 * 60 * 1000);
+        const removed = prev.filter((e) => now - e.startTime >= 3 * 60 * 1000);
+
+        removed.forEach((e) => {
           onRegionIntensityUpdate({}, e.eventId);
+          onWarningRegionUpdate([], e.eventId);
         });
-  
+
         if (filtered.length === 0 && prev.length > 0) {
           setDisplayDataList([]);
         }
         return filtered;
       });
     }, intervalTime);
-  
+
     return () => clearInterval(timer);
-  }, [displayDataList, onRegionIntensityUpdate, settings.enable_dynamic_zoom, mapAutoZoomEnabled]);  
+  }, [
+    displayDataList,
+    onRegionIntensityUpdate,
+    onWarningRegionUpdate,
+    settings.enable_dynamic_zoom,
+    mapAutoZoomEnabled,
+  ]);
 
   useEffect(() => {
     displayDataList.forEach((data) => {
@@ -341,15 +362,14 @@ function PageContent() {
       canceledRemoveScheduledRef.current.add(data.eventId);
 
       setTimeout(() => {
-        setDisplayDataList((prev) =>
-          prev.filter((x) => x.eventId !== data.eventId)
-        );
+        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== data.eventId));
         onRegionIntensityUpdate({}, data.eventId);
+        onWarningRegionUpdate([], data.eventId);
 
         canceledRemoveScheduledRef.current.delete(data.eventId);
       }, 10000);
     });
-  }, [displayDataList, onRegionIntensityUpdate]);
+  }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
   const handleEpicenterUpdate = useCallback(
     ({
@@ -431,8 +451,9 @@ function PageContent() {
             className={`absolute z-50 right-4 bottom-4 bg-white/80 dark:bg-black/80 rounded-lg shadow-lg border ${
               displayDataList &&
               displayDataList.length > 0 &&
-              displayDataList.some(data => {
-                const intensityData = (data.body as EewInformation.Latest.PublicCommonBody)?.intensity;
+              displayDataList.some((data) => {
+                const intensityData = (data.body as EewInformation.Latest.PublicCommonBody)
+                  ?.intensity;
                 return intensityData?.forecastMaxInt?.from || intensityData?.forecastMaxInt?.to;
               })
                 ? "visible"
@@ -454,11 +475,12 @@ function PageContent() {
               ))}
             </div>
           </div>
+
           <DynamicMap
             ref={mapRef}
             homePosition={{ center: [35, 136], zoom: 5 }}
             enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-            onTimeUpdate={handleTimeUpdate}
+            onTimeUpdate={(newTime) => setCurrentTime(newTime)}
             isConnected={isConnected}
             epicenters={epicenters}
             originDt={originDt}
@@ -467,7 +489,9 @@ function PageContent() {
             enableDynamicZoom={settings.enable_dynamic_zoom}
             mapResolution={settings.world_map_resolution}
             onAutoZoomChange={setMapAutoZoomEnabled}
-            forceAutoZoomTrigger={forceAutoZoomTrigger} 
+            forceAutoZoomTrigger={forceAutoZoomTrigger}
+            enableMapWarningArea={settings.enable_map_warning_area}
+            warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
           />
         </div>
 
@@ -519,13 +543,14 @@ function PageContent() {
                       onRegionIntensityUpdate={(regionMap) =>
                         onRegionIntensityUpdate(regionMap, data.eventId)
                       }
+                      onWarningRegionUpdate={(regions) =>
+                        onWarningRegionUpdate(regions, data.eventId)
+                      }
                     />
                   ))
                 ) : (
                   <div className="w-[385px] h-full flex justify-center items-center">
-                    <h1 className="text-xl">
-                      緊急地震速報受信待機中
-                    </h1>
+                    <h1 className="text-xl">緊急地震速報受信待機中</h1>
                   </div>
                 )}
               </SidebarContent>
