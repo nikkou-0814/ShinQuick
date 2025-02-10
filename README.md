@@ -40,9 +40,12 @@ Project DM-D.S.Sを使用したWebSocketによる情報受信を行うため、�
 - [Project DM(Disaster Mitigation)-Data Send Service](https://dmdata.jp/docs/telegrams/)（※各自の契約が必須）
 - [Yahoo強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)（※DM-D.S.S使用時には無効）
 
+### 走時表
+- [気象庁 走時表・射出角表・速度構造データファイル](https://www.data.jma.go.jp/eqev/data/bulletin/catalog/appendix/trtime/trt_j.html)
+
 ### 地図データ（世界）
-- [Natural Earth](https://www.naturalearthdata.com/)
+- [Natural Earth](https://www.naturalearthdata.com/)より一部改変
 
 ### 地図データ（日本）
-- [気象庁 予報区等GISデータ](https://www.data.jma.go.jp/developer/gis.html)
-- [国土数値情報](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-v3_1.html)
+- [気象庁 予報区等GISデータ](https://www.data.jma.go.jp/developer/gis.html)より一部改変
+- [国土数値情報](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-v3_1.html)より一部改変
