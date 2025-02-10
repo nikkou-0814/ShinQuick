@@ -55,6 +55,7 @@ type EpicenterInfo = {
   lng: number;
   icon: string;
   startTime: number;
+  originTime: number;
   depthval: number;
 };
 
@@ -200,7 +201,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata8.json");
+      const response = await fetch("/testdata/testdata0.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -375,6 +376,8 @@ function PageContent() {
     });
   }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
+  const [originDt, setOriginDt] = useState<Date | null>(null);
+
   const handleEpicenterUpdate = useCallback(
     ({
       eventId,
@@ -399,6 +402,7 @@ function PageContent() {
             lng,
             icon,
             startTime: Date.now(),
+            originTime: originDt ? originDt.getTime() : Date.now(),
             depthval,
           };
           setForceAutoZoomTrigger(Date.now());
@@ -408,17 +412,22 @@ function PageContent() {
             p.eventId === eventId
               ? (() => {
                   setForceAutoZoomTrigger(Date.now());
-                  return { ...p, lat, lng, icon, depthval };
+                  return {
+                    ...p,
+                    lat,
+                    lng,
+                    icon,
+                    depthval,
+                    originTime: originDt ? originDt.getTime() : p.originTime,
+                  };
                 })()
               : p
           );
         }
       });
     },
-    []
+    [originDt]
   );
-
-  const [originDt, setOriginDt] = useState<Date | null>(null);
 
   const maxIntensityIndex = displayDataList.reduce((max, event) => {
     if (!event.body || !("intensity" in event.body)) return max;
@@ -507,16 +516,16 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
+            <Button variant="outline" onClick={handleTest} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest2} className="hidden">
+            <Button variant="outline" onClick={handleTest2} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest3} className="hidden">
+            <Button variant="outline" onClick={handleTest3} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
+            <Button variant="outline" onClick={handleSendAllTests} className="">
               複数
             </Button>
             <div className="flex flex-col">

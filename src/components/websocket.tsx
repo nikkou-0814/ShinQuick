@@ -103,6 +103,9 @@ export const WebSocketProvider = ({
 
       if (!response.ok) {
         const text = await response.text();
+        if (response.status === 409) {
+          toast.error("同時接続数が上限に達しているため、WebSocketに接続できません。");
+        }
         throw new Error(`WebSocket接続エラー: ${response.status} / ${text}`);
       }
 
@@ -153,7 +156,6 @@ export const WebSocketProvider = ({
       });
     } catch (err) {
       console.error("WebSocket接続に失敗しました:", err);
-      toast.error("WebSocketへの接続に失敗しました。");
     }
   };
 

@@ -62,12 +62,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   const getJstTime = (timestamp: string | undefined): Date | null => {
     try {
       if (!timestamp) return null;
-      const date = new Date(timestamp);
-      return new Date(date.getTime() + 9 * 60 * 60 * 1000);
+      return new Date(timestamp);
     } catch {
       return null;
     }
-  };
+  };  
 
   const computedOriginDt = useMemo(() => {
     if (parsedData) {

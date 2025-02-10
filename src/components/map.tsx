@@ -25,6 +25,7 @@ type EpicenterInfo = {
   lng: number;
   icon: string;
   startTime?: number;
+  originTime: number;
   depthval: number;
 };
 
@@ -222,6 +223,72 @@ if (typeof window !== "undefined") {
   );
 }
 
+async function importTable(): Promise<Array<{ p: number; s: number; depth: number; distance: number }>> {
+  const res = await fetch("/tjma2001.txt");
+  const text = await res.text();
+  const lines = text.trim().split("\n").map(line => line.trim().replace(/\s+/g, " "));
+  return lines.map(line => {
+    const s = line.split(" ");
+    return {
+      p: parseFloat(s[1]),
+      s: parseFloat(s[3]),
+      depth: parseInt(s[4], 10),
+      distance: parseInt(s[5], 10),
+    };
+  });
+}
+
+function getValue(
+  table: Array<{ p: number; s: number; depth: number; distance: number }>,
+  depth: number,
+  time: number
+): [number, number] {
+  if (depth > 700 || time > 2000) {
+    console.log("しきい値超え", { depth, time });
+    return [NaN, NaN];
+  }
+
+
+  const values = table.filter(x => x.depth === depth);
+  console.log("対象のテーブルの行", values);
+  if (values.length === 0) {
+    console.log("該当するレコードがありません");
+    return [NaN, NaN];
+  }
+
+  // P波
+  const pCandidatesBefore = values.filter(x => x.p <= time);
+  const pCandidatesAfter = values.filter(x => x.p >= time);
+  console.log("P波の候補(前)", pCandidatesBefore);
+  console.log("P波の候補(後)", pCandidatesAfter);
+  const p1 = pCandidatesBefore[pCandidatesBefore.length - 1];
+  const p2 = pCandidatesAfter[0];
+  if (!p1 || !p2) {
+    console.log("P波候補が足りません", { p1, p2 });
+    return [NaN, NaN];
+  }
+  console.log("P波の補間に使う値", { p1, p2 });
+  const pDistance = ((time - p1.p) / (p2.p - p1.p)) * (p2.distance - p1.distance) + p1.distance;
+  console.log("計算したP波の距離", pDistance);
+
+  // S波
+  const sCandidatesBefore = values.filter(x => x.s <= time);
+  const sCandidatesAfter = values.filter(x => x.s >= time);
+  console.log("S波の候補(前)", sCandidatesBefore);
+  console.log("S波の候補(後)", sCandidatesAfter);
+  const s1 = sCandidatesBefore[sCandidatesBefore.length - 1];
+  const s2 = sCandidatesAfter[0];
+  if (!s1 || !s2) {
+    console.log("S波候補が足りません", { s1, s2 });
+    return [pDistance, NaN];
+  }
+  console.log("S波の補間に使う値", { s1, s2 });
+  const sDistance = ((time - s1.s) / (s2.s - s1.s)) * (s2.distance - s1.distance) + s1.distance;
+  console.log("計算したS波の距離", sDistance);
+
+  return [pDistance, sDistance];
+}
+
 function UserInteractionDetector({
   onUserInteractionStart,
   onUserInteractionEnd,
@@ -264,7 +331,6 @@ function KyoshinMonitor({
   });
 
   const getRadiusForZoom = (zoom: number): number => {
-    console.log(zoom)
     if (zoom > 10) return 12;
     if (zoom > 9) return 10;
     if (zoom > 8) return 8;
@@ -589,6 +655,7 @@ const Map = forwardRef<L.Map, MapProps>(
     const autoZoomTimeoutRef = useRef<number | null>(null);
     const autoZoomViewRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
     const autoZoomActionTimeoutRef = useRef<number | null>(null);
+    const [travelTable, setTravelTable] = useState<Array<{ p: number; s: number; depth: number; distance: number }>>([]);
 
     useEffect(() => {
       if (forceAutoZoomTrigger) {
@@ -642,6 +709,63 @@ const Map = forwardRef<L.Map, MapProps>(
     }, [theme]);
 
     useEffect(() => {
+      importTable()
+        .then(table => setTravelTable(table))
+        .catch(err => console.error("走時表の読み込み失敗", err));
+    }, []);
+    
+    // P/S波の円を描画するためのLayerGroup用ref
+    const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
+    
+    // 0.5秒ごとに円を更新するuseEffect
+    useEffect(() => {
+      if (!(ref as React.MutableRefObject<L.Map | null>).current) return;
+      const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
+    
+      if (!waveCirclesLayerRef.current && mapInstance) {
+        waveCirclesLayerRef.current = L.layerGroup().addTo(mapInstance);
+      }
+    
+      const intervalId = setInterval(() => {
+        if (!travelTable || travelTable.length === 0 || epicenters.length === 0) {
+          waveCirclesLayerRef.current?.clearLayers();
+          return;
+        }
+    
+        waveCirclesLayerRef.current?.clearLayers();
+        epicenters.forEach(epi => {
+          const elapsedTime = (Date.now() - epi.originTime) / 1000;
+          const [pDistance, sDistance] = getValue(travelTable, epi.depthval, elapsedTime);
+          console.log(epi.originTime)
+          console.log(pDistance)
+          console.log(sDistance)
+          
+          if (!isNaN(pDistance)) {
+            L.circle([epi.lat, epi.lng], {
+              radius: pDistance * 1000,
+              color: "#0000ff",
+              weight: 3,
+              opacity: 1,
+              fillOpacity: 0,
+            })?.addTo(waveCirclesLayerRef.current!);
+          }
+          if (!isNaN(sDistance)) {
+            L.circle([epi.lat, epi.lng], {
+              radius: sDistance * 1000,
+              color: "#ff0000",
+              weight: 6,
+              opacity: 1,
+              fillColor: "#ff0000",
+              fillOpacity: 0.2,
+            }).addTo(waveCirclesLayerRef.current!);
+          }
+        });
+      }, 500);
+    
+      return () => clearInterval(intervalId);
+    }, [epicenters, travelTable, ref]);
+
+    useEffect(() => {
       if (!ref || !(ref as React.MutableRefObject<L.Map | null>).current) return;
       const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
 
@@ -670,7 +794,6 @@ const Map = forwardRef<L.Map, MapProps>(
         SaibunData.features.forEach((feature) => {
           const code = feature.properties?.code;
           if (!code) return;
-          // 予想震度が設定されている細分区だけを対象
           if (!(code in regionIntensityMap)) return;
 
           const layer = L.geoJSON(feature as GeoJSON.GeoJsonObject);
@@ -754,7 +877,7 @@ const Map = forwardRef<L.Map, MapProps>(
           return {
             ...defaultStyle,
             fillColor: "#FF0000",
-            fillOpacity: 0.8,
+            fillOpacity: 0.9,
           };
         }
       }    
@@ -774,7 +897,7 @@ const Map = forwardRef<L.Map, MapProps>(
       return {
         ...defaultStyle,
         fillColor,
-        fillOpacity: 0.6,
+        fillOpacity: 1,
       };
     };
 
