@@ -156,6 +156,7 @@ export const WebSocketProvider = ({
       });
     } catch (err) {
       console.error("WebSocket接続に失敗しました:", err);
+      toast.error("WebSocket接続に失敗しました。");
     }
   };
 
