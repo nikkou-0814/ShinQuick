@@ -452,6 +452,7 @@ function PageContent() {
         setShowSettings={setShowSettings}
         settings={settings}
         handleSettingChange={handleSettingChange}
+        isConnected={isConnected}
         onConnectWebSocket={handleConnectWebSocket}
         isAuthenticated={isAuthenticated}
         onDisconnectAuthentication={handleDisconnectAuthentication}
