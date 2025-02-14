@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Card,
   CardHeader,
@@ -22,8 +22,8 @@ export interface EewDisplayProps {
     lng: number;
     icon: string;
     depthval: number;
+    originTime: number;
   }) => void;
-  onOriginDtUpdate?: (originDt: Date | null) => void;
   onRegionIntensityUpdate?: (regionMap: Record<string, string>) => void;
   onWarningRegionUpdate?: (warningRegions: { code: string; name: string }[]) => void;
 }
@@ -33,7 +33,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   isAccuracy = false,
   isLowAccuracy = false,
   onEpicenterUpdate,
-  onOriginDtUpdate,
   onRegionIntensityUpdate,
   onWarningRegionUpdate,
 }) => {
@@ -68,21 +67,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     }
   };  
 
-  const computedOriginDt = useMemo(() => {
-    if (parsedData) {
-      const { body } = parsedData;
-      const { originTime, arrivalTime } =
-        (body as EewInformation.Latest.PublicCommonBody).earthquake || {};
-      if (originTime) {
-        return getJstTime(originTime);
-      } else if (arrivalTime) {
-        return getJstTime(arrivalTime);
-      }
-      return null;
-    }
-    return null;
-  }, [parsedData]);
-
   let originDt: Date | null = null;
   if (parsedData) {
     const { body } = parsedData;
@@ -95,12 +79,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       originDt = new Date();
     }
   }
-
-  useEffect(() => {
-    if (onOriginDtUpdate) {
-      onOriginDtUpdate(computedOriginDt);
-    }
-  }, [computedOriginDt, onOriginDtUpdate]);
 
   useEffect(() => {
     if (!parsedData || !onEpicenterUpdate) return;
@@ -143,7 +121,18 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       method === "PLUM法" || method === "レベル法"
         ? "/assumed.png"
         : "/shingen.png";
-  
+
+    let quakeOriginTime = 0;
+    if (earthquake.originTime) {
+      const dt = getJstTime(earthquake.originTime);
+      quakeOriginTime = dt ? dt.getTime() : Date.now();
+    } else if (earthquake.arrivalTime) {
+      const dt = getJstTime(earthquake.arrivalTime);
+      quakeOriginTime = dt ? dt.getTime() : Date.now();
+    } else {
+      quakeOriginTime = Date.now();
+    }
+
     if (
       isCanceled ||
       !coordinate?.latitude?.value ||
@@ -165,6 +154,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       lng: lngVal,
       icon,
       depthval: depthVal,
+      originTime: quakeOriginTime,
     });
   }, [parsedData, onEpicenterUpdate, isLowAccuracy]);
 

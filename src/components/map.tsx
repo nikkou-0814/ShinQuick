@@ -656,6 +656,8 @@ const Map = forwardRef<L.Map, MapProps>(
     const autoZoomViewRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
     const autoZoomActionTimeoutRef = useRef<number | null>(null);
     const [travelTable, setTravelTable] = useState<Array<{ p: number; s: number; depth: number; distance: number }>>([]);
+    const epicenterLayerRef = useRef<LayerGroup | null>(null);
+    const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
 
     useEffect(() => {
       if (forceAutoZoomTrigger) {
@@ -696,8 +698,6 @@ const Map = forwardRef<L.Map, MapProps>(
       }, 10000);
     }, []);
 
-    const epicenterLayerRef = useRef<LayerGroup | null>(null);
-
     useEffect(() => {
       if (typeof window !== "undefined") {
         const mapElement = document.querySelector(".leaflet-container");
@@ -714,32 +714,27 @@ const Map = forwardRef<L.Map, MapProps>(
         .catch(err => console.error("走時表の読み込み失敗", err));
     }, []);
     
-    // P/S波の円を描画するためのLayerGroup用ref
-    const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
-    
-    // 0.5秒ごとに円を更新するuseEffect
+    // 円を更新
     useEffect(() => {
       if (!(ref as React.MutableRefObject<L.Map | null>).current) return;
       const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
-    
+
       if (!waveCirclesLayerRef.current && mapInstance) {
         waveCirclesLayerRef.current = L.layerGroup().addTo(mapInstance);
       }
-    
+
       const intervalId = setInterval(() => {
         if (!travelTable || travelTable.length === 0 || epicenters.length === 0) {
           waveCirclesLayerRef.current?.clearLayers();
           return;
         }
-    
+
         waveCirclesLayerRef.current?.clearLayers();
-        epicenters.forEach(epi => {
+
+        epicenters.forEach((epi) => {
           const elapsedTime = (Date.now() - epi.originTime) / 1000;
           const [pDistance, sDistance] = getValue(travelTable, epi.depthval, elapsedTime);
-          console.log(epi.originTime)
-          console.log(pDistance)
-          console.log(sDistance)
-          
+
           if (!isNaN(pDistance)) {
             L.circle([epi.lat, epi.lng], {
               radius: pDistance * 1000,
@@ -747,8 +742,9 @@ const Map = forwardRef<L.Map, MapProps>(
               weight: 3,
               opacity: 1,
               fillOpacity: 0,
-            })?.addTo(waveCirclesLayerRef.current!);
+            }).addTo(waveCirclesLayerRef.current!);
           }
+
           if (!isNaN(sDistance)) {
             L.circle([epi.lat, epi.lng], {
               radius: sDistance * 1000,
@@ -760,10 +756,10 @@ const Map = forwardRef<L.Map, MapProps>(
             }).addTo(waveCirclesLayerRef.current!);
           }
         });
-      }, 500);
-    
+      }, 10);
+
       return () => clearInterval(intervalId);
-    }, [epicenters, travelTable, ref]);
+    }, [epicenters, travelTable, ref]);    
 
     useEffect(() => {
       if (!ref || !(ref as React.MutableRefObject<L.Map | null>).current) return;

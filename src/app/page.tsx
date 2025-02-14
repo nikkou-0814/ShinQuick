@@ -201,7 +201,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata0.json");
+      const response = await fetch("/testdata/testnow/test.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -213,7 +213,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/testdata3.json");
+      const response = await fetch("/testdata/testnow/test2.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -225,7 +225,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/test/testmiyagi.json");
+      const response = await fetch("/testdata/testnow/test3.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -376,8 +376,6 @@ function PageContent() {
     });
   }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
-  const [originDt, setOriginDt] = useState<Date | null>(null);
-
   const handleEpicenterUpdate = useCallback(
     ({
       eventId,
@@ -385,12 +383,14 @@ function PageContent() {
       lng,
       icon,
       depthval,
+      originTime,
     }: {
       eventId: string;
       lat: number;
       lng: number;
       icon: string;
       depthval: number;
+      originTime: number;
     }) => {
       if (!eventId) return;
       setEpicenters((prev) => {
@@ -402,7 +402,7 @@ function PageContent() {
             lng,
             icon,
             startTime: Date.now(),
-            originTime: originDt ? originDt.getTime() : Date.now(),
+            originTime,
             depthval,
           };
           setForceAutoZoomTrigger(Date.now());
@@ -418,7 +418,7 @@ function PageContent() {
                     lng,
                     icon,
                     depthval,
-                    originTime: originDt ? originDt.getTime() : p.originTime,
+                    originTime: originTime,
                   };
                 })()
               : p
@@ -426,7 +426,7 @@ function PageContent() {
         }
       });
     },
-    [originDt]
+    []
   );
 
   const maxIntensityIndex = displayDataList.reduce((max, event) => {
@@ -462,7 +462,7 @@ function PageContent() {
       <main className="h-full w-full flex">
         <div className="flex-1 relative">
           <div
-            className={`absolute z-50 right-4 bottom-4 bg-white/80 dark:bg-black/80 rounded-lg shadow-lg border ${
+            className={`absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border ${
               displayDataList &&
               displayDataList.length > 0 &&
               displayDataList.some((data) => {
@@ -497,7 +497,6 @@ function PageContent() {
             onTimeUpdate={handleTimeUpdate}
             isConnected={isConnected}
             epicenters={epicenters}
-            originDt={originDt}
             regionIntensityMap={mergedRegionMap}
             enableMapIntensityFill={settings.enable_map_intensity_fill}
             enableDynamicZoom={settings.enable_dynamic_zoom}
@@ -553,7 +552,6 @@ function PageContent() {
                       isAccuracy={settings.enable_accuracy_info}
                       isLowAccuracy={settings.enable_low_accuracy_eew}
                       onEpicenterUpdate={handleEpicenterUpdate}
-                      onOriginDtUpdate={setOriginDt}
                       onRegionIntensityUpdate={(regionMap) =>
                         onRegionIntensityUpdate(regionMap, data.eventId)
                       }
