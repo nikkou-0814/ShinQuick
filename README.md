@@ -66,20 +66,41 @@ Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊�
 * [国土数値情報](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-v3_1.html) (一部改変)
 
 ## 謝辞
+
 本アプリの開発にあたり、データ提供者および関係者の皆様に深く感謝申し上げます。
 
 ### 気象庁 / 国土交通省（国土数値情報）
+
 * 走時表、GISデータ、緊急地震速報に関する情報提供
 * 地理情報の提供
 
 ### Yahoo! JAPAN
+
 * 強震モニタと緊急地震速報の提供
 
 ### [リアルタイム地震ビューアー](https://github.com/kotoho7/scratch-realtime-earthquake-viewer-page)
-* アプリ全体の仕様を参考にしています。
 
-### [JQuake](https://jquake.net) / [KyoshinEewViewer for ingen](https://github.com/ingen084/KyoshinEewViewerIngen)
-* 一部のUIや機能を参考にしています。
+* アプリ全体の仕様を参考にしています。
+* 震度配色を利用しています。
+
+### [EarthQuicklyForWeb](https://github.com/Ameuma773/EarthQuicklyForWeb)
+
+* ソースコードを参考に強震モニタを実装しています。
+
+### [JQuake](https://jquake.net)
+
+* 設定や緊急地震速報のUIを参考にしています。
+
+### [KyoshinEewViewer for ingen](https://github.com/ingen084/KyoshinEewViewerIngen)
+
+* 設定のDM-D.S.SタブのUIなどを参考にしています。
+
+### Leaflet無段階ズーム
+
+* [Leaflet.SmoothWheelZoom](https://github.com/mutsuyuki/Leaflet.SmoothWheelZoom)
+* [Leaflet.jsのマウスホイールZoomを、Googlemap的な無段階ズームにする](https://qiita.com/mutsuyuki/items/18750a8a73675604c4d8)
+
+TypeScript用に改変して使用しています。
 
 ## ライセンス
 
@@ -109,9 +130,9 @@ Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊�
 
 ### コードの貢献
 
-- **バグ修正**: 既知のバグや不具合の修正を行う
-- **機能追加**: 新しい機能や改善提案を実装する
-- **パフォーマンス最適化**: 処理の軽量化や高速化に取り組む
+* **バグ修正**: 既知のバグや不具合の修正を行う
+* **機能追加**: 新しい機能や改善提案を実装する
+* **パフォーマンス最適化**: 処理の軽量化や高速化に取り組む
 
 ### ドキュメントの改善
 * **READMEの改善**
