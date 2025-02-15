@@ -801,7 +801,7 @@ const Map = forwardRef<L.Map, MapProps>(
         finalBounds.extend(polygonsBounds);
 
         if (epicenters.length === 1) {
-          const zoom = epicenters[0].depthval > 150 ? 6 : 8;
+          const zoom = epicenters[0].depthval > 150 ? 5 : 7;
           if (finalBounds.isValid()) {
             mapInstance?.fitBounds(finalBounds, {
               maxZoom: zoom,
@@ -813,7 +813,7 @@ const Map = forwardRef<L.Map, MapProps>(
           }
         } else if (epicenters.length > 1) {
           // 震源が複数
-          const maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 6 : 10;
+          const maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 5 : 9;
           if (finalBounds.isValid()) {
             mapInstance?.fitBounds(finalBounds, {
               padding: [50, 50],

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
@@ -97,7 +97,7 @@ function PageContent() {
   const prevMultiRef = useRef<Record<string, string[]>>({});
   const prevMergedRef = useRef<Record<string, string>>({});
 
-  const shindoColors = [
+  const shindoColors = useMemo(() => [
     { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
     { level: "震度6強", bgcolor: "#930A7A", color: "white" },
     { level: "震度6弱", bgcolor: "#A50C6B", color: "white" },
@@ -107,7 +107,7 @@ function PageContent() {
     { level: "震度3", bgcolor: "#F6CB51", color: "black" },
     { level: "震度2", bgcolor: "#4CD0A7", color: "black" },
     { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
-  ];
+  ], []);  
 
   useEffect(() => {
     if (receivedData) {
@@ -201,7 +201,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testnow/test.json");
+      const response = await fetch("/testdata/testdata.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -213,7 +213,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/testnow/test2.json");
+      const response = await fetch("/testdata/testdata2.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -429,21 +429,28 @@ function PageContent() {
     []
   );
 
-  const maxIntensityIndex = displayDataList.reduce((max, event) => {
-    if (!event.body || !("intensity" in event.body)) return max;
-    const intensityData = (event.body as EewInformation.Latest.PublicCommonBody).intensity;
-    if (!intensityData || !intensityData.forecastMaxInt) return max;
-    const fm = intensityData.forecastMaxInt;
-    const intensityStr = fm.to === "over" ? fm.from || "0" : fm.to || "0";
-    const idx = INTENSITY_ORDER.indexOf(intensityStr);
-    return idx > max ? idx : max;
-  }, 0);
+  const filteredMergedRegionMap = useMemo(() => {
+    if (!settings.enable_map_warning_area) return mergedRegionMap;
+    const warningCodes = new Set(mergedWarningRegions.map((r) => r.code));
+    const result: RegionIntensityMap = {};
+    for (const code in mergedRegionMap) {
+      if (!warningCodes.has(code)) {
+        result[code] = mergedRegionMap[code];
+      }
+    }
+    return result;
+  }, [mergedRegionMap, mergedWarningRegions, settings.enable_map_warning_area]);
 
-  const filteredShindoColors = shindoColors.filter((item) => {
-    const intensityValue = levelToIntensity[item.level];
-    const idx = INTENSITY_ORDER.indexOf(intensityValue);
-    return idx <= maxIntensityIndex;
-  });
+  const displayedIntensitySet = useMemo(() => {
+    return new Set(Object.values(filteredMergedRegionMap));
+  }, [filteredMergedRegionMap]);
+
+  const displayedShindoColors = useMemo(() => {
+    return shindoColors.filter(({ level }) => {
+      const intensity = levelToIntensity[level];
+      return displayedIntensitySet.has(intensity);
+    });
+  }, [displayedIntensitySet, shindoColors]);
 
   return (
     <>
@@ -463,21 +470,25 @@ function PageContent() {
         <div className="flex-1 relative">
           <div
             className={`absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border ${
-              displayDataList &&
-              displayDataList.length > 0 &&
-              displayDataList.some((data) => {
-                const intensityData = (data.body as EewInformation.Latest.PublicCommonBody)
-                  ?.intensity;
-                return intensityData?.forecastMaxInt?.from || intensityData?.forecastMaxInt?.to;
-              })
+              Object.keys(mergedRegionMap).length > 0 || mergedWarningRegions.length > 0
                 ? "visible"
                 : "hidden"
             }`}
           >
-            <h3 className="text-center font-bold mb-2 px-3 pt-3">震度の凡例</h3>
+            <h3 className="text-center font-bold mb-2 px-3 pt-3">地図の凡例</h3>
             <div className="border-t my-2 w-full"></div>
             <div className="space-y-1.5 px-3 pb-3">
-              {filteredShindoColors.map(({ level, bgcolor, color }) => (
+              {settings.enable_map_warning_area && mergedWarningRegions.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-full rounded shadow-sm text-left p-1"
+                    style={{ backgroundColor: "red", color: "white" }}
+                  >
+                    <span className="text-xs font-medium">警報地域</span>
+                  </div>
+                </div>
+              )}
+              {displayedShindoColors.map(({ level, bgcolor, color }) => (
                 <div key={level} className="flex items-center gap-2">
                   <div
                     className="w-full rounded shadow-sm text-left p-1"
