@@ -518,17 +518,22 @@ function KyoshinMonitor({
 
       const pCircle = L.circle([latVal, lngVal], {
         radius: pRadius * 1000,
-        color: "#0066FF",
-        fill: false,
+              color: "#0000ff",
+              weight: 3,
+              opacity: 1,
+              fillOpacity: 0,
+        pane: "psWavePane",
       });
       waveLayerRef.current?.addLayer(pCircle);
 
       const sCircle = L.circle([latVal, lngVal], {
         radius: sRadius * 1000,
-        color: "#FF0000",
-        fill: true,
-        fillColor: "#FFCCCC",
-        fillOpacity: 0.3,
+        color: "#ff0000",
+        weight: 6,
+        opacity: 1,
+        fillColor: "#ff0000",
+        fillOpacity: 0.2,
+        pane: "psWavePane",
       });
       waveLayerRef.current?.addLayer(sCircle);
     });
@@ -597,6 +602,17 @@ function MapInner({
   return null;
 }
 
+function CreatePsWavePane() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map.getPane("psWavePane")) {
+      map.createPane("psWavePane");
+      map.getPane("psWavePane")!.style.zIndex = "1000";
+    }
+  }, [map]);
+  return null;
+}
+
 interface MapProps {
   homePosition: { center: [number, number]; zoom: number };
   enableKyoshinMonitor: boolean;
@@ -658,6 +674,15 @@ const Map = forwardRef<L.Map, MapProps>(
     const [travelTable, setTravelTable] = useState<Array<{ p: number; s: number; depth: number; distance: number }>>([]);
     const epicenterLayerRef = useRef<LayerGroup | null>(null);
     const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
+
+    useEffect(() => {
+      const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
+      if (!mapInstance) return;
+      if (!mapInstance.getPane("psWavePane")) {
+        mapInstance.createPane("psWavePane");
+        mapInstance.getPane("psWavePane")!.style.zIndex = "1000";
+      }
+    }, [ref]);    
 
     useEffect(() => {
       if (forceAutoZoomTrigger) {
@@ -742,6 +767,7 @@ const Map = forwardRef<L.Map, MapProps>(
               weight: 3,
               opacity: 1,
               fillOpacity: 0,
+              pane: "psWavePane",
             }).addTo(waveCirclesLayerRef.current!);
           }
 
@@ -753,6 +779,7 @@ const Map = forwardRef<L.Map, MapProps>(
               opacity: 1,
               fillColor: "#ff0000",
               fillOpacity: 0.2,
+              pane: "psWavePane",
             }).addTo(waveCirclesLayerRef.current!);
           }
         });
@@ -907,6 +934,8 @@ const Map = forwardRef<L.Map, MapProps>(
         preferCanvas
         zoomControl={false}
       >
+        <CreatePsWavePane />
+
         <UserInteractionDetector
           onUserInteractionStart={handleUserInteractionStart}
           onUserInteractionEnd={handleUserInteractionEnd}

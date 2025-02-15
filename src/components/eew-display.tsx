@@ -610,7 +610,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     <Card className="w-96 shadow-xl bg-white/90 dark:bg-black/75 border">
       <CardHeader className="pb-4">
         <CardTitle
-          className={`flex items-center gap-2 text-lg p-2 rounded-lg ${
+          className={`flex flex-wrap items-center gap-2 text-lg p-2 rounded-lg ${
             isCanceled
               ? "bg-gray-200 dark:bg-gray-600/20"
               : isWarning
@@ -618,16 +618,34 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
               : "bg-yellow-100 dark:bg-yellow-950/30"
           }`}
         >
-          {isCanceled ? (
-            <XCircle className="h-5 w-5 text-gray-500" />
-          ) : isWarning ? (
-            <AlertCircle className="h-5 w-5 text-red-500" />
-          ) : (
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          <div className="flex items-center gap-2">
+            {isCanceled ? (
+              <XCircle className="h-5 w-5 text-gray-500" />
+            ) : isWarning ? (
+              <AlertCircle className="h-5 w-5 text-red-500" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            )}
+            {`緊急地震速報（${
+              isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
+            }）`}
+            {!isTest && (
+              <span className="text-sm ml-auto">
+                {isLastInfo ? `第${serialNo}報 （最終）` : `第${serialNo}報`}
+              </span>
+            )}
+          </div>
+
+          {isTest && (
+            <div className="flex w-full justify-between items-center text-sm">
+              <span className="text-xs">訓練・試験報</span>
+              {!isCanceled && (
+                <span className="ml-auto">
+                  {isLastInfo ? `第${serialNo}報 （最終）` : `第${serialNo}報`}
+                </span>
+              )}
+            </div>
           )}
-          {`${isTest ? "訓練・試験報" : ""} 緊急地震速報（${
-            isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
-          }）${isCanceled ? "" : (isLastInfo ? " 最終報" : ` 第${serialNo}報`)}`}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
