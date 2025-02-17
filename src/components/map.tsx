@@ -623,6 +623,7 @@ interface MapProps {
   regionIntensityMap: Record<string, string>;
   enableMapIntensityFill: boolean;
   enableDynamicZoom: boolean;
+  mapAutoZoom: boolean;
   mapResolution: "10m" | "50m" | "110m";
   onAutoZoomChange?: (value: boolean) => void;
   forceAutoZoomTrigger?: number;
@@ -641,6 +642,7 @@ const Map = forwardRef<L.Map, MapProps>(
       regionIntensityMap,
       enableMapIntensityFill,
       enableDynamicZoom,
+      mapAutoZoom,
       mapResolution,
       onAutoZoomChange,
       forceAutoZoomTrigger,
@@ -667,13 +669,23 @@ const Map = forwardRef<L.Map, MapProps>(
         : mapResolution === "50m"
         ? (rawCountriesData50 as unknown as FeatureCollection)
         : (rawCountriesData110 as unknown as FeatureCollection);  
-    const [autoZoomEnabled, setAutoZoomEnabled] = useState(enableDynamicZoom);
+    const [autoZoomEnabled, setAutoZoomEnabled] = useState(
+      enableDynamicZoom ? mapAutoZoom : false
+    );
     const autoZoomTimeoutRef = useRef<number | null>(null);
     const autoZoomViewRef = useRef<{ center: L.LatLng; zoom: number } | null>(null);
     const autoZoomActionTimeoutRef = useRef<number | null>(null);
     const [travelTable, setTravelTable] = useState<Array<{ p: number; s: number; depth: number; distance: number }>>([]);
     const epicenterLayerRef = useRef<LayerGroup | null>(null);
     const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
+
+    useEffect(() => {
+      if (!enableDynamicZoom) {
+        setAutoZoomEnabled(false);
+      } else {
+        setAutoZoomEnabled(mapAutoZoom);
+      }
+    }, [enableDynamicZoom, mapAutoZoom]);
 
     useEffect(() => {
       const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
@@ -685,13 +697,13 @@ const Map = forwardRef<L.Map, MapProps>(
     }, [ref]);    
 
     useEffect(() => {
-      if (forceAutoZoomTrigger) {
+      if (forceAutoZoomTrigger && enableDynamicZoom) {
         setAutoZoomEnabled(true);
         if (onAutoZoomChange) {
           onAutoZoomChange(true);
         }
       }
-    }, [forceAutoZoomTrigger, onAutoZoomChange]);
+    }, [forceAutoZoomTrigger, onAutoZoomChange, enableDynamicZoom]);
 
     useEffect(() => {
       return () => {
@@ -711,17 +723,24 @@ const Map = forwardRef<L.Map, MapProps>(
       if (autoZoomTimeoutRef.current) {
         clearTimeout(autoZoomTimeoutRef.current);
       }
-      setAutoZoomEnabled(false);
-    }, []);
+      if (enableDynamicZoom) {
+        setAutoZoomEnabled(false);
+      }
+    }, [enableDynamicZoom]);
     
     const handleUserInteractionEnd = useCallback(() => {
       if (autoZoomTimeoutRef.current) {
         clearTimeout(autoZoomTimeoutRef.current);
       }
-      autoZoomTimeoutRef.current = window.setTimeout(() => {
-        setAutoZoomEnabled(true);
-      }, 10000);
-    }, []);
+      if (enableDynamicZoom) {
+        autoZoomTimeoutRef.current = window.setTimeout(() => {
+          setAutoZoomEnabled(true);
+          if (onAutoZoomChange) {
+            onAutoZoomChange(true);
+          }
+        }, 10000);
+      }
+    }, [enableDynamicZoom, onAutoZoomChange]);
 
     useEffect(() => {
       if (typeof window !== "undefined") {
@@ -738,7 +757,7 @@ const Map = forwardRef<L.Map, MapProps>(
         .then(table => setTravelTable(table))
         .catch(err => console.error("走時表の読み込み失敗", err));
     }, []);
-    
+
     // 円を更新
     useEffect(() => {
       if (!(ref as React.MutableRefObject<L.Map | null>).current) return;
@@ -810,7 +829,7 @@ const Map = forwardRef<L.Map, MapProps>(
         epicenterLayerRef.current?.addLayer(marker);
       });
 
-      if (autoZoomEnabled) {
+      if (enableDynamicZoom && autoZoomEnabled) {
         const latlngs = epicenters.map((epi) => [epi.lat, epi.lng]) as [number, number][];
 
         const polygonsBounds = L.latLngBounds([]);
@@ -869,7 +888,7 @@ const Map = forwardRef<L.Map, MapProps>(
           };
         });
       }
-    }, [epicenters, ref, autoZoomEnabled, regionIntensityMap]);    
+    }, [epicenters, ref, autoZoomEnabled, enableDynamicZoom, regionIntensityMap]);    
 
     useEffect(() => {
       const timeoutId = autoZoomActionTimeoutRef.current;
@@ -949,7 +968,7 @@ const Map = forwardRef<L.Map, MapProps>(
           autoZoomEnabled={autoZoomEnabled}
         />
 
-        {/*<h1 className="absolute top-0 left-0 p-0 m-0 text-[250px] text-center text-gray-400">TEST</h1>*/}
+        <h1 className="absolute top-0 left-0 p-0 m-0 text-[250px] text-center text-gray-400">TEST</h1>
 
         {/* 世界図 */}
         <GeoJSON

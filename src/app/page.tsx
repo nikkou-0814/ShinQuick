@@ -25,6 +25,7 @@ interface Settings {
   theme: "system" | "dark" | "light";
   enable_kyoshin_monitor: boolean;
   enable_dynamic_zoom: boolean;
+  map_auto_zoom: boolean;
   enable_low_accuracy_eew: boolean;
   enable_accuracy_info: boolean;
   enable_drill_test_info: boolean;
@@ -37,6 +38,7 @@ const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   enable_kyoshin_monitor: false,
   enable_dynamic_zoom: true,
+  map_auto_zoom: true,
   enable_low_accuracy_eew: false,
   enable_accuracy_info: false,
   enable_drill_test_info: false,
@@ -91,7 +93,7 @@ function PageContent() {
   const [mergedWarningRegions, setMergedWarningRegions] = useState<{ code: string; name: string }[]>([]);
   const { isConnected, receivedData, connectWebSocket, disconnectWebSocket, injectTestData } = useWebSocket();
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
-  const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(true);
+  const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(settings.map_auto_zoom);
   const [forceAutoZoomTrigger, setForceAutoZoomTrigger] = useState<number>(0);
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
   const prevMultiRef = useRef<Record<string, string[]>>({});
@@ -107,7 +109,11 @@ function PageContent() {
     { level: "震度3", bgcolor: "#F6CB51", color: "black" },
     { level: "震度2", bgcolor: "#4CD0A7", color: "black" },
     { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
-  ], []);  
+  ], []);
+
+  useEffect(() => {
+    setMapAutoZoomEnabled(settings.map_auto_zoom);
+  }, [settings.map_auto_zoom]);
 
   useEffect(() => {
     if (receivedData) {
@@ -213,7 +219,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/testdata2.json");
+      const response = await fetch("/testdata/testnow/miyagi.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -511,6 +517,7 @@ function PageContent() {
             regionIntensityMap={mergedRegionMap}
             enableMapIntensityFill={settings.enable_map_intensity_fill}
             enableDynamicZoom={settings.enable_dynamic_zoom}
+            mapAutoZoom={mapAutoZoomEnabled}
             mapResolution={settings.world_map_resolution}
             onAutoZoomChange={setMapAutoZoomEnabled}
             forceAutoZoomTrigger={forceAutoZoomTrigger}
@@ -527,16 +534,16 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
+            <Button variant="outline" onClick={handleTest} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest2} className="hidden">
+            <Button variant="outline" onClick={handleTest2} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest3} className="hidden">
+            <Button variant="outline" onClick={handleTest3} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
+            <Button variant="outline" onClick={handleSendAllTests} className="">
               複数
             </Button>
             <div className="flex flex-col">

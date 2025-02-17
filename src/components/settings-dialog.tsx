@@ -379,7 +379,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="訓練報・テスト報の受信"
-                  description="設定を反映するにはWebSocket接続の再接続が必要です"
+                  description="設定を反映するにはWebSocket接続の再接続が必要です。"
                 >
                   <Switch
                     checked={settings.enable_drill_test_info}
