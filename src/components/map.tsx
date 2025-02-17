@@ -629,6 +629,8 @@ interface MapProps {
   forceAutoZoomTrigger?: number;
   enableMapWarningArea: boolean;
   warningRegionCodes: string[];
+  isCancel: boolean;
+  psWaveUpdateInterval: number;
 }
 
 const Map = forwardRef<L.Map, MapProps>(
@@ -648,6 +650,8 @@ const Map = forwardRef<L.Map, MapProps>(
       forceAutoZoomTrigger,
       enableMapWarningArea,
       warningRegionCodes,
+      isCancel,
+      psWaveUpdateInterval,
     },
     ref
   ) => {
@@ -802,10 +806,10 @@ const Map = forwardRef<L.Map, MapProps>(
             }).addTo(waveCirclesLayerRef.current!);
           }
         });
-      }, 10);
+      }, psWaveUpdateInterval);
 
       return () => clearInterval(intervalId);
-    }, [epicenters, travelTable, ref]);    
+    }, [epicenters, travelTable, ref, psWaveUpdateInterval]);    
 
     useEffect(() => {
       if (!ref || !(ref as React.MutableRefObject<L.Map | null>).current) return;
@@ -823,7 +827,7 @@ const Map = forwardRef<L.Map, MapProps>(
           iconUrl: epi.icon,
           iconSize: [48, 48],
           iconAnchor: [24, 24],
-          className: "blink",
+          className: `${isCancel ? "opacity-30" : "blink"}`,
         });
         const marker = L.marker([epi.lat, epi.lng], { icon: iconObj });
         epicenterLayerRef.current?.addLayer(marker);
@@ -888,7 +892,7 @@ const Map = forwardRef<L.Map, MapProps>(
           };
         });
       }
-    }, [epicenters, ref, autoZoomEnabled, enableDynamicZoom, regionIntensityMap]);    
+    }, [epicenters, ref, autoZoomEnabled, enableDynamicZoom, regionIntensityMap, isCancel]);    
 
     useEffect(() => {
       const timeoutId = autoZoomActionTimeoutRef.current;

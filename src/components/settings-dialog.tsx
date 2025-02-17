@@ -55,6 +55,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import SettingItem from "@/components/setting-item";
+import { Slider } from "@/components/ui/slider"
 
 interface Settings {
   theme: "system" | "dark" | "light";
@@ -66,6 +67,7 @@ interface Settings {
   enable_map_intensity_fill: boolean;
   enable_map_warning_area: boolean;
   world_map_resolution: "10m" | "50m" | "110m";
+  ps_wave_update_interval: number;
 }
 
 interface SettingsDialogProps {
@@ -277,6 +279,22 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     handleSettingChange("enable_map_warning_area", checked)
                   }
                   disabled={!isAuthenticated}
+                  />
+                </SettingItem>
+
+                <SettingItem
+                  title="予測円の更新間隔"
+                  description={`P/S波予測円の更新間隔を設定できます。（ミリ秒）(${settings.ps_wave_update_interval} ms)`}
+                >
+                  <Slider
+                    value={[settings.ps_wave_update_interval]}
+                    max={1000}
+                    min={0}
+                    step={1}
+                    onValueChange={(value) =>
+                      handleSettingChange("ps_wave_update_interval", value[0])
+                    }
+                    className="ml-4"
                   />
                 </SettingItem>
               </CardContent>

@@ -7,7 +7,7 @@ const SettingItem: React.FC<{
 }> = memo(({ title, description, children }) => (
   <div className="space-y-2">
     <div className="flex items-center justify-between">
-      <span className="font-medium">{title}</span>
+      <span className="font-medium whitespace-nowrap">{title}</span>
       {children}
     </div>
     <p className="text-sm text-muted-foreground">{description}</p>

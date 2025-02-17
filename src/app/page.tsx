@@ -32,6 +32,7 @@ interface Settings {
   enable_map_intensity_fill: boolean;
   enable_map_warning_area: boolean;
   world_map_resolution: "10m" | "50m" | "110m";
+  ps_wave_update_interval: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -45,6 +46,7 @@ const DEFAULT_SETTINGS: Settings = {
   enable_map_intensity_fill: true,
   enable_map_warning_area: false,
   world_map_resolution: "50m",
+  ps_wave_update_interval: 10,
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -98,6 +100,7 @@ function PageContent() {
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
   const prevMultiRef = useRef<Record<string, string[]>>({});
   const prevMergedRef = useRef<Record<string, string>>({});
+  const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
 
   const shindoColors = useMemo(() => [
     { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
@@ -207,7 +210,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata.json");
+      const response = await fetch("/testdata/cancel/test1.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -219,7 +222,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/testnow/miyagi.json");
+      const response = await fetch("/testdata/cancel/test3.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -231,7 +234,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/testnow/test3.json");
+      const response = await fetch("/testdata/test/testmiyagi.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -370,10 +373,9 @@ function PageContent() {
       if (!data.body?.isCanceled) return;
       if (canceledRemoveScheduledRef.current.has(data.eventId)) return;
 
-      canceledRemoveScheduledRef.current.add(data.eventId);
-
       setTimeout(() => {
         setDisplayDataList((prev) => prev.filter((x) => x.eventId !== data.eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== data.eventId));
         onRegionIntensityUpdate({}, data.eventId);
         onWarningRegionUpdate([], data.eventId);
 
@@ -458,6 +460,10 @@ function PageContent() {
     });
   }, [displayedIntensitySet, shindoColors]);
 
+  const showLegend =
+    (settings.enable_map_intensity_fill && Object.keys(mergedRegionMap).length > 0) ||
+    (settings.enable_map_warning_area && mergedWarningRegions.length > 0);
+
   return (
     <>
       <SettingsDialog
@@ -474,38 +480,35 @@ function PageContent() {
 
       <main className="h-full w-full flex">
         <div className="flex-1 relative">
-          <div
-            className={`absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border ${
-              Object.keys(mergedRegionMap).length > 0 || mergedWarningRegions.length > 0
-                ? "visible"
-                : "hidden"
-            }`}
-          >
-            <h3 className="text-center font-bold mb-2 px-3 pt-3">地図の凡例</h3>
-            <div className="border-t my-2 w-full"></div>
-            <div className="space-y-1.5 px-3 pb-3">
-              {settings.enable_map_warning_area && mergedWarningRegions.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-full rounded shadow-sm text-left p-1"
-                    style={{ backgroundColor: "red", color: "white" }}
-                  >
-                    <span className="text-xs font-medium">警報地域</span>
+          {(settings.enable_map_intensity_fill || settings.enable_map_warning_area) && showLegend && (
+            <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
+              <h3 className="text-center font-bold mb-2 px-3 pt-3">地図の凡例</h3>
+              <div className="border-t my-2 w-full"></div>
+              <div className="space-y-1.5 px-3 pb-3">
+                {settings.enable_map_warning_area && mergedWarningRegions.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-full rounded shadow-sm text-left p-1"
+                      style={{ backgroundColor: "red", color: "white" }}
+                    >
+                      <span className="text-xs font-medium">警報地域</span>
+                    </div>
                   </div>
-                </div>
-              )}
-              {displayedShindoColors.map(({ level, bgcolor, color }) => (
-                <div key={level} className="flex items-center gap-2">
-                  <div
-                    className="w-full rounded shadow-sm text-left p-1"
-                    style={{ backgroundColor: bgcolor, color: color }}
-                  >
-                    <span className="text-xs font-medium">{level}</span>
-                  </div>
-                </div>
-              ))}
+                )}
+                {settings.enable_map_intensity_fill &&
+                  displayedShindoColors.map(({ level, bgcolor, color }) => (
+                    <div key={level} className="flex items-center gap-2">
+                      <div
+                        className="w-full rounded shadow-sm text-left p-1"
+                        style={{ backgroundColor: bgcolor, color: color }}
+                      >
+                        <span className="text-xs font-medium">{level}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <DynamicMap
             ref={mapRef}
@@ -523,6 +526,8 @@ function PageContent() {
             forceAutoZoomTrigger={forceAutoZoomTrigger}
             enableMapWarningArea={settings.enable_map_warning_area}
             warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
+            isCancel={isCancel}
+            psWaveUpdateInterval={settings.ps_wave_update_interval}
           />
         </div>
 
