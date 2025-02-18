@@ -82,7 +82,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
 
   useEffect(() => {
     if (!parsedData || !onEpicenterUpdate) return;
-    if (!isLowAccuracy) return;
   
     const { eventId = "", serialNo = "", body } = parsedData;
     const { isCanceled = false } = body;
@@ -140,7 +139,14 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       !hypocenter.depth?.value
     )
       return;
-  
+
+    const isLowAccuracyMethod =
+      method === "PLUM法" || method === "レベル法" || method === "IPF法 (1点)";
+
+    if (!isLowAccuracy && isLowAccuracyMethod) {
+      return;
+    }
+
     const latVal = Number(coordinate.latitude.value);
     const lngVal = Number(coordinate.longitude.value);
     const depthVal = Number(hypocenter.depth.value);

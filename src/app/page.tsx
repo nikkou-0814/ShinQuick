@@ -210,7 +210,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/cancel/test1.json");
+      const response = await fetch("/testdata/testdata4.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -222,7 +222,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/cancel/test3.json");
+      const response = await fetch("/testdata/testnow/test3.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
@@ -464,6 +464,32 @@ function PageContent() {
     (settings.enable_map_intensity_fill && Object.keys(mergedRegionMap).length > 0) ||
     (settings.enable_map_warning_area && mergedWarningRegions.length > 0);
 
+  const getHypocenterMethod = (
+    earthquake: EewInformation.Latest.PublicCommonBody["earthquake"]
+  ): string => {
+    const { originTime, condition, hypocenter } = earthquake;
+    const earthquakeCondition = condition || "不明";
+    const accuracyEpicenters = hypocenter?.accuracy?.epicenters || [];
+
+    if (earthquakeCondition === "仮定震源要素") {
+      return "PLUM法";
+    }
+
+    if (accuracyEpicenters.length > 0) {
+      const epicValInt = parseInt(accuracyEpicenters[0], 10);
+      if (epicValInt === 1) {
+        return originTime ? "IPF法 (1点)" : "レベル法";
+      } else if (epicValInt === 2) {
+        return "IPF法 (2点)";
+      } else if (epicValInt === 3 || epicValInt === 4) {
+        return "IPF法 (3点以上)";
+      } else {
+        return originTime ? "不明" : "レベル法";
+      }
+    }
+    return originTime ? "不明" : "レベル法";
+  };
+
   return (
     <>
       <SettingsDialog
@@ -531,7 +557,7 @@ function PageContent() {
           />
         </div>
 
-        <div className="fixed bottom-4 left-4 shadow-lg bg-white dark:bg-black rounded-lg space-x-4 border">
+        <div className="fixed bottom-4 left-4 shadow-lg bg-white/50 dark:bg-black/50 rounded-lg space-x-4 border">
           <div className="flex space-x-3 p-3 justify-start items-center">
             <Button variant="outline" onClick={() => setShowSettings(true)}>
               <SettingsIcon />
@@ -567,27 +593,39 @@ function PageContent() {
           <SidebarProvider>
             <Sidebar variant="sidebar" side="right" className="w-fit">
               <SidebarContent className="overflow-y-auto p-2">
-                {displayDataList && displayDataList.length > 0 ? (
-                  displayDataList.map((data) => (
-                    <EewDisplay
-                      key={data.eventId}
-                      parsedData={data}
-                      isAccuracy={settings.enable_accuracy_info}
-                      isLowAccuracy={settings.enable_low_accuracy_eew}
-                      onEpicenterUpdate={handleEpicenterUpdate}
-                      onRegionIntensityUpdate={(regionMap) =>
-                        onRegionIntensityUpdate(regionMap, data.eventId)
-                      }
-                      onWarningRegionUpdate={(regions) =>
-                        onWarningRegionUpdate(regions, data.eventId)
-                      }
-                    />
-                  ))
-                ) : (
-                  <div className="w-[385px] h-full flex justify-center items-center">
-                    <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                  </div>
-                )}
+                {(() => {
+                  const filteredDisplayDataList = settings.enable_low_accuracy_eew
+                    ? displayDataList
+                    : displayDataList.filter((data) => {
+                        const body = data.body as EewInformation.Latest.PublicCommonBody;
+                        const earthquake = body.earthquake;
+                        if (!earthquake) return true;
+                        const method = getHypocenterMethod(earthquake);
+                        return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
+                      });
+
+                  return filteredDisplayDataList.length > 0 ? (
+                    filteredDisplayDataList.map((data) => (
+                      <EewDisplay
+                        key={data.eventId}
+                        parsedData={data}
+                        isAccuracy={settings.enable_accuracy_info}
+                        isLowAccuracy={settings.enable_low_accuracy_eew}
+                        onEpicenterUpdate={handleEpicenterUpdate}
+                        onRegionIntensityUpdate={(regionMap) =>
+                          onRegionIntensityUpdate(regionMap, data.eventId)
+                        }
+                        onWarningRegionUpdate={(regions) =>
+                          onWarningRegionUpdate(regions, data.eventId)
+                        }
+                      />
+                    ))
+                  ) : (
+                    <div className="w-[385px] h-full flex justify-center items-center">
+                      <h1 className="text-xl">緊急地震速報受信待機中</h1>
+                    </div>
+                  );
+                })()}
               </SidebarContent>
             </Sidebar>
           </SidebarProvider>
