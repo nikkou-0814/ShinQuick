@@ -284,17 +284,18 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="予測円の更新間隔"
-                  description={`P/S波予測円の更新間隔を設定できます。（ミリ秒）(${settings.ps_wave_update_interval} ms)`}
+                  description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。※DM-D.S.Sを利用しない場合は使用できません。(${settings.ps_wave_update_interval} ms)`}
                 >
                   <Slider
                     value={[settings.ps_wave_update_interval]}
                     max={1000}
                     min={0}
-                    step={1}
+                    step={10}
                     onValueChange={(value) =>
                       handleSettingChange("ps_wave_update_interval", value[0])
                     }
                     className="ml-4"
+                    disabled={!isAuthenticated}
                   />
                 </SettingItem>
               </CardContent>
