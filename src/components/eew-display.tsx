@@ -608,7 +608,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
               : "bg-yellow-100 dark:bg-yellow-950/30"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full">
             {isCanceled ? (
               <XCircle className="h-5 w-5 text-gray-500" />
             ) : isWarning ? (
@@ -620,7 +620,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
               isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
             }）`}
             {!isTest && (
-              <span className="text-sm ml-auto">
+              <span className="text-sm ml-auto mr-2">
                 {isLastInfo ? `第${serialNo}報 （最終）` : `第${serialNo}報`}
               </span>
             )}
