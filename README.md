@@ -32,15 +32,19 @@ Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊�
 
 本アプリは緊急地震速報に関する一定の知識を持つユーザーを対象としています。ご利用前に、必ず気象庁のホームページなどで緊急地震速報の詳細を理解してください。
 
+#### 基本知識
+
 * [緊急地震速報とは](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/whats-eew.html)
 
 * [緊急地震速報の発表条件](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/shousai.html#2)
 
-* [レベル法とは](https://www.data.jma.go.jp/eew/data/nc/katsuyou/reference.pdf#page=15)
+* [緊急地震速報の特性や限界、利用上の注意](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/tokusei.html)
+
+#### 1点観測を使用する場合の知識
 
 * [PLUM法とは](https://www.data.jma.go.jp/svd/eew/data/nc/plum/index.html)
 
-* [緊急地震速報の特性や限界、利用上の注意](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/tokusei.html)
+* [レベル法とは](https://www.data.jma.go.jp/eew/data/nc/katsuyou/reference.pdf#page=15)
 
 ## 情報の取得元
 
