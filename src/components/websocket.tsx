@@ -10,6 +10,7 @@ import React, {
 import { toast } from "sonner";
 import pako from "pako";
 import { EewInformation } from "@dmdata/telegram-json-types";
+import { WebSocketContextType } from "@/types/types";
 
 const isEewInformationMain = (
   data: unknown
@@ -50,14 +51,6 @@ const decodeAndDecompress = (
     return null;
   }
 };
-
-interface WebSocketContextType {
-  isConnected: boolean;
-  receivedData: EewInformation.Latest.Main | null;
-  connectWebSocket: (token: string, enableDrillTestInfo: boolean) => Promise<void>;
-  disconnectWebSocket: () => Promise<void>;
-  injectTestData: (data: { body: string }) => void;
-}
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 

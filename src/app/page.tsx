@@ -20,20 +20,7 @@ import {
   SidebarContent,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-
-interface Settings {
-  theme: "system" | "dark" | "light";
-  enable_kyoshin_monitor: boolean;
-  enable_dynamic_zoom: boolean;
-  map_auto_zoom: boolean;
-  enable_low_accuracy_eew: boolean;
-  enable_accuracy_info: boolean;
-  enable_drill_test_info: boolean;
-  enable_map_intensity_fill: boolean;
-  enable_map_warning_area: boolean;
-  world_map_resolution: "10m" | "50m" | "110m";
-  ps_wave_update_interval: number;
-}
+import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -53,16 +40,6 @@ const DynamicMap = dynamic(() => import("@/components/map"), {
   ssr: false,
 });
 
-type EpicenterInfo = {
-  eventId: string;
-  lat: number;
-  lng: number;
-  icon: string;
-  startTime: number;
-  originTime: number;
-  depthval: number;
-};
-
 const INTENSITY_ORDER = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"];
 
 const levelToIntensity: Record<string, string> = {
@@ -77,8 +54,6 @@ const levelToIntensity: Record<string, string> = {
   "震度6強": "6+",
   "震度7": "7",
 };
-
-type RegionIntensityMap = Record<string, string>;
 
 function PageContent() {
   const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -344,8 +319,8 @@ function PageContent() {
     const timer = setInterval(() => {
       setEpicenters((prev) => {
         const now = Date.now();
-        const filtered = prev.filter((e) => now - e.startTime < 3 * 60 * 1000);
-        const removed = prev.filter((e) => now - e.startTime >= 3 * 60 * 1000);
+        const filtered = prev.filter((e) => e.startTime && now - e.startTime < 3 * 60 * 1000);
+        const removed = prev.filter((e) => e.startTime && now - e.startTime >= 3 * 60 * 1000);
 
         removed.forEach((e) => {
           onRegionIntensityUpdate({}, e.eventId);

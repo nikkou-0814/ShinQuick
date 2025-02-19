@@ -56,31 +56,7 @@ import {
 } from "@/components/ui/table"
 import SettingItem from "@/components/setting-item";
 import { Slider } from "@/components/ui/slider"
-
-interface Settings {
-  theme: "system" | "dark" | "light";
-  enable_kyoshin_monitor: boolean;
-  enable_dynamic_zoom: boolean;
-  enable_low_accuracy_eew: boolean;
-  enable_accuracy_info: boolean;
-  enable_drill_test_info: boolean;
-  enable_map_intensity_fill: boolean;
-  enable_map_warning_area: boolean;
-  world_map_resolution: "10m" | "50m" | "110m";
-  ps_wave_update_interval: number;
-}
-
-interface SettingsDialogProps {
-  showSettings: boolean;
-  setShowSettings: (value: boolean) => void;
-  settings: Settings;
-  handleSettingChange: (key: keyof Settings, value: Settings[keyof Settings]) => void;
-  onConnectWebSocket: () => void;
-  isAuthenticated: boolean;
-  onDisconnectAuthentication: () => void;
-  onDisconnectWebSocket: () => Promise<void>;
-  isConnected: boolean;
-}
+import { SettingsDialogProps, Settings } from "@/types/types";
 
 const THEME_OPTIONS = [
   { value: "system", label: "システム" },
@@ -353,14 +329,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <TableRow>
                       <TableHead>区分名</TableHead>
                       <TableHead>区分API名</TableHead>
-                      <TableHead className="text-right">価格（月）</TableHead>
+                      <TableHead>価格（月）</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell className="font-medium">緊急地震（予報）</TableCell>
+                      <TableCell>緊急地震（予報）</TableCell>
                       <TableCell>eew.forecast</TableCell>
-                      <TableCell className="text-right">1650円</TableCell>
+                      <TableCell>1650円</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>

@@ -10,23 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { AlertCircle, AlertTriangle, Info, XCircle } from "lucide-react";
 import { EewInformation } from "@dmdata/telegram-json-types";
-
-export interface EewDisplayProps {
-  parsedData: EewInformation.Latest.Main | null;
-  isAccuracy?: boolean;
-  isLowAccuracy?: boolean;
-  onEpicenterUpdate?: (info: {
-    eventId: string;
-    serialNo: string;
-    lat: number;
-    lng: number;
-    icon: string;
-    depthval: number;
-    originTime: number;
-  }) => void;
-  onRegionIntensityUpdate?: (regionMap: Record<string, string>) => void;
-  onWarningRegionUpdate?: (warningRegions: { code: string; name: string }[]) => void;
-}
+import { EewDisplayProps } from "@/types/types";
 
 const EewDisplay: React.FC<EewDisplayProps> = ({
   parsedData,

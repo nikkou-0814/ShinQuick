@@ -13,6 +13,7 @@ import rawSaibunData from "../../public/mapdata/Saibun.json";
 import rawCitiesData from "../../public/mapdata/Cities.json";
 import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
+import { MapProps } from "@/types/types";
 
 // SmoothWheelZoom
 if (typeof window !== "undefined") {
@@ -119,16 +120,6 @@ if (typeof window !== "undefined") {
   );
 }
 
-export type EpicenterInfo = {
-  eventId: string;
-  lat: number;
-  lng: number;
-  icon: string;
-  startTime?: number;
-  originTime: number;
-  depthval: number;
-};
-
 const SaibunData = rawSaibunData as FeatureCollection;
 const CitiesData = rawCitiesData as FeatureCollection;
 
@@ -192,26 +183,6 @@ function CreatePsWavePane() {
     }
   }, [map]);
   return null;
-}
-
-export interface MapProps {
-  homePosition: { center: [number, number]; zoom: number };
-  enableKyoshinMonitor: boolean;
-  onTimeUpdate?: (time: string) => void;
-  isConnected: boolean;
-  epicenters: EpicenterInfo[];
-  originDt?: Date | null;
-  regionIntensityMap: Record<string, string>;
-  enableMapIntensityFill: boolean;
-  enableDynamicZoom: boolean;
-  mapAutoZoom: boolean;
-  mapResolution: "10m" | "50m" | "110m";
-  onAutoZoomChange?: (value: boolean) => void;
-  forceAutoZoomTrigger?: number;
-  enableMapWarningArea: boolean;
-  warningRegionCodes: string[];
-  isCancel: boolean;
-  psWaveUpdateInterval: number;
 }
 
 const Map = forwardRef<L.Map, MapProps>(

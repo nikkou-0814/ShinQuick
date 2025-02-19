@@ -3,33 +3,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
+import { KmoniData } from "@/types/types";
 
-interface KmoniData {
-  realTimeData?: {
-    intensity?: string;
-    timestamp?: string;
-  };
-  psWave?: {
-    items?: Array<{
-      latitude: string;
-      longitude: string;
-      pRadius: string;
-      sRadius: string;
-    }>;
-  };
-}
-
-function KyoshinMonitor({
-  enableKyoshinMonitor,
-  onTimeUpdate,
-  isConnected,
-  autoZoomEnabled,
-}: {
+function KyoshinMonitor(props: {
   enableKyoshinMonitor: boolean;
   onTimeUpdate?: (time: string) => void;
   isConnected: boolean;
   autoZoomEnabled: boolean;
 }) {
+  const { enableKyoshinMonitor, onTimeUpdate, isConnected, autoZoomEnabled } = props;
   const map = useMap();
   const [pointList, setPointList] = useState<Array<[number, number]>>([]);
   const [kmoniData, setKmoniData] = useState<KmoniData | null>(null);

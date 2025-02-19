@@ -2,23 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import L from "leaflet";
-
-type EpicenterInfo = {
-  eventId: string;
-  lat: number;
-  lng: number;
-  icon: string;
-  startTime?: number;
-  originTime: number;
-  depthval: number;
-};
-
-type TravelTableRow = {
-  p: number;
-  s: number;
-  depth: number;
-  distance: number;
-};
+import { EpicenterInfo, TravelTableRow } from "@/types/types";
 
 async function importTable(): Promise<TravelTableRow[]> {
   const res = await fetch("/tjma2001.txt");
