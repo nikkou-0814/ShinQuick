@@ -59,6 +59,7 @@ function PageContent() {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const { setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [nowAppTime, setNowAppTime] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
   const mapRef = useRef<L.Map | null>(null);
   const [displayDataList, setDisplayDataList] = useState<EewInformation.Latest.Main[]>([]);
@@ -88,6 +89,46 @@ function PageContent() {
     { level: "震度2", bgcolor: "#4CD0A7", color: "black" },
     { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
   ], []);
+
+  const fetchServerTime = useCallback(async () => {
+    try {
+      const response = await fetch("/api/nowtime");
+      if (!response.ok) throw new Error("時刻取得に失敗");
+      const data = await response.json();
+      const serverTimestamp = new Date(data.dateTime).getTime();
+      setNowAppTime(serverTimestamp);
+    } catch (error) {
+      console.error("時刻の取得に失敗", error);
+      toast.error("時間の取得に失敗しました。")
+    }
+  }, []);  
+
+  useEffect(() => {
+    fetchServerTime();
+  }, [fetchServerTime]);
+
+  useEffect(() => {
+    if (!nowAppTime) return;
+    const timer = setInterval(() => {
+      setNowAppTime(prev => prev + 1000);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [nowAppTime]);
+
+  useEffect(() => {
+    if (!nowAppTime) return;
+    const dateObj = new Date(nowAppTime);
+    const formatted = dateObj.toLocaleString("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    setCurrentTime(formatted);
+  }, [nowAppTime]);
 
   useEffect(() => {
     setMapAutoZoomEnabled(settings.map_auto_zoom);
@@ -465,6 +506,10 @@ function PageContent() {
     return originTime ? "不明" : "レベル法";
   };
 
+  const handleClockSync = () => {
+    fetchServerTime();
+  };
+
   return (
     <>
       <SettingsDialog
@@ -477,6 +522,7 @@ function PageContent() {
         isAuthenticated={isAuthenticated}
         onDisconnectAuthentication={handleDisconnectAuthentication}
         onDisconnectWebSocket={handleWebSocketDisconnect}
+        onSyncClock={handleClockSync}
       />
 
       <main className="h-full w-full flex">
@@ -529,6 +575,7 @@ function PageContent() {
             warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
             isCancel={isCancel}
             psWaveUpdateInterval={settings.ps_wave_update_interval}
+            nowAppTime={nowAppTime}
           />
         </div>
 

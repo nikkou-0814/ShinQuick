@@ -74,6 +74,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onDisconnectAuthentication,
   onDisconnectWebSocket,
   isConnected,
+  onSyncClock,
 }) => {
   const [openTheme, setOpenTheme] = useState(false);
   const [openWorldMapRes, setOpenWorldMapRes] = useState(false);
@@ -199,6 +200,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       </Command>
                     </PopoverContent>
                   </Popover>
+                </SettingItem>
+                <SettingItem
+                  title="時計の同期"
+                  description="サーバーから時刻を再取得して時計を合わせます。"
+                >
+                  <Button onClick={onSyncClock}>時計を合わせる</Button>
                 </SettingItem>
               </CardContent>
             </Card>

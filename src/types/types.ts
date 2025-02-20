@@ -15,7 +15,7 @@ export interface Settings {
   ps_wave_update_interval: number;
 }
 
-// EEW 表示用コンポーネントに渡す props
+// EEW表示用コンポーネントに渡すprops
 export interface EewDisplayProps {
   parsedData: EewInformation.Latest.Main | null;
   isAccuracy?: boolean;
@@ -45,10 +45,10 @@ export interface EpicenterInfo {
   depthval: number;
 }
 
-// EEW の細分化地域の予想震度マップ
+// EEWの細分化地域の予想震度マップ
 export type RegionIntensityMap = Record<string, string>;
 
-// マップコンポーネントの Props
+// マップコンポーネントのProps
 export interface MapProps {
   homePosition: { center: [number, number]; zoom: number };
   enableKyoshinMonitor: boolean;
@@ -66,9 +66,10 @@ export interface MapProps {
   warningRegionCodes: string[];
   isCancel: boolean;
   psWaveUpdateInterval: number;
+  nowAppTime: number | null;
 }
 
-// 設定ダイアログ用の Props
+// 設定ダイアログ用のProps
 export interface SettingsDialogProps {
   showSettings: boolean;
   setShowSettings: (value: boolean) => void;
@@ -79,9 +80,10 @@ export interface SettingsDialogProps {
   onDisconnectAuthentication: () => void;
   onDisconnectWebSocket: () => Promise<void>;
   isConnected: boolean;
+  onSyncClock: () => void;
 }
 
-// WebSocket コンテキストで扱う型
+// WebSocketコンテキストで扱う型
 export interface WebSocketContextType {
   isConnected: boolean;
   receivedData: EewInformation.Latest.Main | null;
@@ -112,4 +114,21 @@ export interface TravelTableRow {
   s: number;
   depth: number;
   distance: number;
+}
+
+// 強震モニタ用のProps
+export interface KyoshinMonitorProps {
+  enableKyoshinMonitor: boolean;
+  isConnected: boolean;
+  nowAppTime: number | null;
+  onTimeUpdate?: (time: string) => void;
+}
+
+// P/S波用のProps
+export interface PsWaveProps {
+  epicenters: EpicenterInfo[];
+  psWaveUpdateInterval: number;
+  isCancel: boolean;
+  ref: React.RefObject<L.Map | null> | null;
+  nowAppTime: number | null;
 }

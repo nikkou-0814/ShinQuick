@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import L from "leaflet";
-import { EpicenterInfo, TravelTableRow } from "@/types/types";
+import { TravelTableRow, PsWaveProps } from "@/types/types";
 
 async function importTable(): Promise<TravelTableRow[]> {
   const res = await fetch("/tjma2001.txt");
@@ -58,16 +58,13 @@ function getValue(
   return [pDistance, sDistance];
 }
 
-function PsWave({
-  epicenters,
-  psWaveUpdateInterval,
-  ref,
-}: {
-  epicenters: EpicenterInfo[];
-  psWaveUpdateInterval: number;
-  isCancel: boolean;
-  ref: React.MutableRefObject<L.Map | null> | null;
-}) {
+function PsWave(props: PsWaveProps) {
+  const {
+    epicenters,
+    psWaveUpdateInterval,
+    ref,
+    nowAppTime,
+  } = props;
   const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
   const travelTableRef = useRef<TravelTableRow[]>([]);
 
@@ -98,7 +95,8 @@ function PsWave({
       waveCirclesLayerRef.current?.clearLayers();
 
       epicenters.forEach((epi) => {
-        const elapsedTime = (Date.now() - epi.originTime) / 1000;
+        if (nowAppTime === null) return;
+        const elapsedTime = (nowAppTime - epi.originTime) / 1000;
         const [pDistance, sDistance] = getValue(
           travelTableRef.current,
           epi.depthval,
@@ -135,7 +133,7 @@ function PsWave({
     return () => {
       clearInterval(intervalId);
     };
-  }, [epicenters, psWaveUpdateInterval, ref]);
+  }, [epicenters, psWaveUpdateInterval, ref, nowAppTime]);
 
   return null;
 }

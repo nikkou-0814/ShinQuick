@@ -204,6 +204,7 @@ const Map = forwardRef<L.Map, MapProps>(
       warningRegionCodes,
       isCancel,
       psWaveUpdateInterval,
+      nowAppTime,
     },
     ref
   ) => {
@@ -371,13 +372,14 @@ const Map = forwardRef<L.Map, MapProps>(
           enableKyoshinMonitor={enableKyoshinMonitor}
           onTimeUpdate={onTimeUpdate}
           isConnected={isConnected}
-          autoZoomEnabled={autoZoomEnabled}
+          nowAppTime={nowAppTime}
         />
         <PsWave
           epicenters={epicenters}
           psWaveUpdateInterval={psWaveUpdateInterval}
           isCancel={isCancel}
           ref={ref as React.MutableRefObject<L.Map | null>}
+          nowAppTime={nowAppTime}
         />
         <GeoJSON
           key={`worldMap-${mapResolution}`}
