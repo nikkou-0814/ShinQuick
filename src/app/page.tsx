@@ -642,7 +642,7 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="">
+            <Button variant="outline" onClick={handleTest} className="hidden">
               <FlaskConical />
             </Button>
             <Button variant="outline" onClick={handleTest2} className="hidden">
