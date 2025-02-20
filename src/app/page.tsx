@@ -77,6 +77,7 @@ function PageContent() {
   const prevMultiRef = useRef<Record<string, string[]>>({});
   const prevMergedRef = useRef<Record<string, string>>({});
   const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
+  const [version, setVersion] = useState<string>("");
 
   const shindoColors = useMemo(() => [
     { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
@@ -513,6 +514,21 @@ function PageContent() {
     fetchServerTime();
   };
 
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const response = await fetch("/api/version");
+        if (!response.ok) throw new Error("バージョン情報の取得に失敗");
+        const data = await response.json();
+        setVersion(data.version);
+      } catch (error) {
+        console.error("バージョン取得失敗", error);
+        toast.error("バージョン情報の取得に失敗しました")
+      }
+    };
+    fetchVersion();
+  }, []);
+
   return (
     <>
       <SettingsDialog
@@ -527,6 +543,12 @@ function PageContent() {
         onDisconnectWebSocket={handleWebSocketDisconnect}
         onSyncClock={handleClockSync}
       />
+
+      {version && (
+        <div className="fixed bottom-0 left-0 z-50 text-xs">
+          ver {version}
+        </div>
+      )}
 
       <main className="h-full w-full flex">
         <div className="flex-1 relative">
