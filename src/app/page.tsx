@@ -60,6 +60,7 @@ function PageContent() {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const { setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [serverBaseTime, setServerBaseTime] = useState<number | null>(null);
   const [nowAppTime, setNowAppTime] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
   const mapRef = useRef<L.Map | null>(null);
@@ -72,6 +73,7 @@ function PageContent() {
   const [mergedWarningRegions, setMergedWarningRegions] = useState<{ code: string; name: string }[]>([]);
   const { isConnected, receivedData, connectWebSocket, disconnectWebSocket, injectTestData } = useWebSocket();
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
+  const rAFBaseRef = useRef<number | null>(null);
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(settings.map_auto_zoom);
   const [forceAutoZoomTrigger, setForceAutoZoomTrigger] = useState<number>(0);
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
@@ -98,9 +100,8 @@ function PageContent() {
       const response = await fetch("/api/nowtime");
       if (!response.ok) throw new Error("時刻取得に失敗");
       const data = await response.json();
-      const rawTimestamp = new Date(data.dateTime).getTime();
-      const Timestamp = Math.floor(rawTimestamp / 1000) * 1000;
-      setNowAppTime(Timestamp);
+      const serverTime = new Date(data.dateTime).getTime();
+      setServerBaseTime(serverTime);
       if (handler) {
         toast.success("時計を補正しました。");
       }
@@ -115,9 +116,24 @@ function PageContent() {
   }, [fetchServerTime]);
 
   useEffect(() => {
+    if (serverBaseTime === null) return;
+    rAFBaseRef.current = null;
+    let animationFrameId: number;
+    const updateTime = (timestamp: number) => {
+      if (rAFBaseRef.current === null) {
+        rAFBaseRef.current = timestamp;
+      }
+      const elapsed = timestamp - rAFBaseRef.current;
+      setNowAppTime(serverBaseTime + elapsed);
+      animationFrameId = requestAnimationFrame(updateTime);
+    };
+    animationFrameId = requestAnimationFrame(updateTime);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [serverBaseTime]);
+
+  useEffect(() => {
     if (settings.enable_kyoshin_monitor) return;
     if (!nowAppTime) return;
-
     const dateObj = new Date(nowAppTime);
     const formatted = dateObj.toLocaleString("ja-JP", {
       year: "numeric",
@@ -254,7 +270,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/testnow/test3.json");
+      const response = await fetch("/testdata/testnow/test.json");
       if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);

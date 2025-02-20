@@ -67,6 +67,11 @@ function PsWave(props: PsWaveProps) {
   } = props;
   const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
   const travelTableRef = useRef<TravelTableRow[]>([]);
+  const nowAppTimeRef = useRef(nowAppTime);
+
+  useEffect(() => {
+    nowAppTimeRef.current = nowAppTime;
+  }, [nowAppTime]);
 
   // 走時表の読み込み
   useEffect(() => {
@@ -94,9 +99,11 @@ function PsWave(props: PsWaveProps) {
 
       waveCirclesLayerRef.current?.clearLayers();
 
+      const currentTime = nowAppTimeRef.current;
+
       epicenters.forEach((epi) => {
-        if (nowAppTime === null) return;
-        const elapsedTime = (nowAppTime - epi.originTime) / 1000;
+        if (currentTime === null) return;
+        const elapsedTime = (currentTime - epi.originTime) / 1000;
         const [pDistance, sDistance] = getValue(
           travelTableRef.current,
           epi.depthval,
@@ -133,7 +140,7 @@ function PsWave(props: PsWaveProps) {
     return () => {
       clearInterval(intervalId);
     };
-  }, [epicenters, psWaveUpdateInterval, ref, nowAppTime]);
+  }, [epicenters, psWaveUpdateInterval, ref]);
 
   return null;
 }
