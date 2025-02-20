@@ -205,7 +205,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   title="時計の同期"
                   description="サーバーから時刻を再取得して時計を合わせます。"
                 >
-                  <Button onClick={onSyncClock}>時計を合わせる</Button>
+                  <Button
+                    onClick={onSyncClock}
+                    variant="outline"
+                  >
+                    時計を合わせる
+                  </Button>
                 </SettingItem>
               </CardContent>
             </Card>
@@ -305,7 +310,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="緊急地震速報の精度情報を表示する"
-                  description="イベント毎の情報が長くなるため、複数地震が発生した場合に見切れる場合があります。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="イベント毎の情報が長くなるため、見切れる場合があります。※DM-D.S.Sを利用しない場合は使用できません。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_accuracy_info : false}
@@ -352,7 +357,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   description="DM-D.S.Sアカウントを連携してリアルタイム情報を受信します。"
                 >
                   <Button
-                    variant={isAuthenticated ? "destructive" : "default"}
+                    variant={isAuthenticated ? "destructive" : "outline"}
                     onClick={() => {
                       if (isAuthenticated) {
                         setShowDisconnectAlert(true);
@@ -371,7 +376,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     description="リアルタイム情報を受信するためにWebSocketを接続します。"
                   >
                     <Button
-                      variant={isConnected ? "destructive" : "default"}
+                      variant={isConnected ? "destructive" : "outline"}
                       onClick={handleWebSocketToggle}
                     >
                       {isConnected ? "接続を切断" : "接続を開始"}
