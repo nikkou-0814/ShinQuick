@@ -95,29 +95,23 @@ function PageContent() {
       const response = await fetch("/api/nowtime");
       if (!response.ok) throw new Error("時刻取得に失敗");
       const data = await response.json();
-      const serverTimestamp = new Date(data.dateTime).getTime();
-      setNowAppTime(serverTimestamp);
+      const rawTimestamp = new Date(data.dateTime).getTime();
+      const Timestamp = Math.floor(rawTimestamp / 1000) * 1000;
+      setNowAppTime(Timestamp);
     } catch (error) {
       console.error("時刻の取得に失敗", error);
-      toast.error("時間の取得に失敗しました。")
+      toast.error("時間の取得に失敗しました。");
     }
-  }, []);  
+  }, []);
 
   useEffect(() => {
     fetchServerTime();
   }, [fetchServerTime]);
 
   useEffect(() => {
+    if (settings.enable_kyoshin_monitor) return; 
     if (!nowAppTime) return;
-    const timer = setInterval(() => {
-      setNowAppTime(prev => prev + 1000);
-    }, 1000);
 
-    return () => clearInterval(timer);
-  }, [nowAppTime]);
-
-  useEffect(() => {
-    if (!nowAppTime) return;
     const dateObj = new Date(nowAppTime);
     const formatted = dateObj.toLocaleString("ja-JP", {
       year: "numeric",
@@ -128,6 +122,15 @@ function PageContent() {
       second: "2-digit",
     });
     setCurrentTime(formatted);
+  }, [nowAppTime, settings.enable_kyoshin_monitor]);
+
+  useEffect(() => {
+    if (!nowAppTime) return;
+    const timer = setInterval(() => {
+      setNowAppTime(prev => prev + 1000);
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, [nowAppTime]);
 
   useEffect(() => {
@@ -287,7 +290,7 @@ function PageContent() {
       toast.error("テストデータの読み込みに失敗したよ。");
     }
   };
-  
+
   const onRegionIntensityUpdate = useCallback(
     (regionMap: Record<string, string>, eventId: string) => {
       if (Object.keys(regionMap).length === 0) {
@@ -298,7 +301,7 @@ function PageContent() {
       
       const merged: Record<string, string> = {};
       const multi: Record<string, string[]> = {};
-  
+
       Object.entries(allRegionMapsRef.current).forEach(([, map]) => {
         Object.entries(map).forEach(([code, intensity]) => {
           if (!multi[code]) {
@@ -307,7 +310,7 @@ function PageContent() {
           multi[code].push(intensity);
         });
       });
-  
+
       Object.entries(multi).forEach(([code, intensities]) => {
         let maxRank = -1;
         let maxIntensity = "0";
@@ -325,14 +328,14 @@ function PageContent() {
         setMultiRegionMap(multi);
         prevMultiRef.current = multi;
       }
-  
+
       if (JSON.stringify(prevMergedRef.current) !== JSON.stringify(merged)) {
         setMergedRegionMap(merged);
         prevMergedRef.current = merged;
       }
     },
     []
-  );  
+  );
 
   const onWarningRegionUpdate = useCallback(
     (warningRegions: { code: string; name: string }[], eventId: string) => {

@@ -69,7 +69,7 @@ function KyoshinMonitor(props: KyoshinMonitorProps) {
     },
   });
 
-  // nowAppTime の最新値を参照するための ref を用意
+  // nowAppTimeの最新値を参照するためのref
   const nowAppTimeRef = useRef(nowAppTime);
   useEffect(() => {
     nowAppTimeRef.current = nowAppTime;
@@ -136,8 +136,17 @@ function KyoshinMonitor(props: KyoshinMonitorProps) {
         if (isMounted) {
           setKmoniData(data);
           if (onTimeUpdate) {
-            if (data.realTimeData?.timestamp) {
-              onTimeUpdate(data.realTimeData.timestamp);
+            if (data.realTimeData?.dataTime) {
+              const dateISO = new Date(data.realTimeData.dataTime);
+              const formattedTime = dateISO.toLocaleString("ja-JP", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              });
+              onTimeUpdate(formattedTime);
             } else {
               const fallbackTime = new Date().toLocaleString("ja-JP", {
                 year: "numeric",
