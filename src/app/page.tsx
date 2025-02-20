@@ -189,25 +189,6 @@ function PageContent() {
     }
   }, []);
 
-  useEffect(() => {
-    if (settings.enable_kyoshin_monitor) return;
-    const updateCurrentTime = () => {
-      const now = new Date();
-      const formattedTime = now.toLocaleString("ja-JP", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-      setCurrentTime(formattedTime);
-    };
-    updateCurrentTime();
-    const interval = setInterval(updateCurrentTime, 1000);
-    return () => clearInterval(interval);
-  }, [settings.enable_kyoshin_monitor]);
-
   const updateSettings = (newSettings: Partial<Settings>) => {
     setSettings((prevSettings) => {
       const updatedSettings = { ...prevSettings, ...newSettings };
