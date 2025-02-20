@@ -21,6 +21,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
+import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay"
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -78,6 +79,7 @@ function PageContent() {
   const prevMergedRef = useRef<Record<string, string>>({});
   const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
   const [version, setVersion] = useState<string>("");
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
 
   const shindoColors = useMemo(() => [
     { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
@@ -91,7 +93,7 @@ function PageContent() {
     { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
   ], []);
 
-  const fetchServerTime = useCallback(async () => {
+  const fetchServerTime = useCallback(async (handler: boolean = false) => {
     try {
       const response = await fetch("/api/nowtime");
       if (!response.ok) throw new Error("時刻取得に失敗");
@@ -99,6 +101,9 @@ function PageContent() {
       const rawTimestamp = new Date(data.dateTime).getTime();
       const Timestamp = Math.floor(rawTimestamp / 1000) * 1000;
       setNowAppTime(Timestamp);
+      if (handler) {
+        toast.success("時計を補正しました。");
+      }
     } catch (error) {
       console.error("時刻の取得に失敗", error);
       toast.error("時間の取得に失敗しました。");
@@ -106,11 +111,11 @@ function PageContent() {
   }, []);
 
   useEffect(() => {
-    fetchServerTime();
+    fetchServerTime(false);
   }, [fetchServerTime]);
 
   useEffect(() => {
-    if (settings.enable_kyoshin_monitor) return; 
+    if (settings.enable_kyoshin_monitor) return;
     if (!nowAppTime) return;
 
     const dateObj = new Date(nowAppTime);
@@ -133,6 +138,13 @@ function PageContent() {
 
     return () => clearInterval(timer);
   }, [nowAppTime]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchServerTime(false);
+    }, 10 * 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [fetchServerTime]);
 
   useEffect(() => {
     setMapAutoZoomEnabled(settings.map_auto_zoom);
@@ -288,7 +300,7 @@ function PageContent() {
       toast.success("全てのテストデータを送信しました。");
     } catch (error) {
       console.error("テストデータの挿入失敗:", error);
-      toast.error("テストデータの読み込みに失敗したよ。");
+      toast.error("テストデータの読み込みに失敗しました。");
     }
   };
 
@@ -511,7 +523,7 @@ function PageContent() {
   };
 
   const handleClockSync = () => {
-    fetchServerTime();
+    fetchServerTime(true);
   };
 
   useEffect(() => {
@@ -552,6 +564,7 @@ function PageContent() {
 
       <main className="h-full w-full flex">
         <div className="flex-1 relative">
+          <LoadingMapOverlay isVisible={!isMapLoaded} />
           {(settings.enable_map_intensity_fill || settings.enable_map_warning_area) && showLegend && (
             <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
               <h3 className="text-center font-bold mb-2 px-3 pt-3">地図の凡例</h3>
@@ -601,6 +614,7 @@ function PageContent() {
             isCancel={isCancel}
             psWaveUpdateInterval={settings.ps_wave_update_interval}
             nowAppTime={nowAppTime}
+            onMapLoad={() => setIsMapLoaded(true)}
           />
         </div>
 
@@ -637,45 +651,43 @@ function PageContent() {
         </div>
 
         <div className="w-[400px]">
-          <SidebarProvider>
-            <Sidebar variant="sidebar" side="right" className="w-fit">
-              <SidebarContent className="overflow-y-auto p-2">
-                {(() => {
-                  const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                    ? displayDataList
-                    : displayDataList.filter((data) => {
-                        const body = data.body as EewInformation.Latest.PublicCommonBody;
-                        const earthquake = body.earthquake;
-                        if (!earthquake) return true;
-                        const method = getHypocenterMethod(earthquake);
-                        return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                      });
+          <Sidebar variant="sidebar" side="right" className="w-fit">
+            <SidebarContent className="overflow-y-auto p-2">
+              {(() => {
+                const filteredDisplayDataList = settings.enable_low_accuracy_eew
+                  ? displayDataList
+                  : displayDataList.filter((data) => {
+                      const body = data.body as EewInformation.Latest.PublicCommonBody;
+                      const earthquake = body.earthquake;
+                      if (!earthquake) return true;
+                      const method = getHypocenterMethod(earthquake);
+                      return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
+                  });
 
-                  return filteredDisplayDataList.length > 0 ? (
-                    filteredDisplayDataList.map((data) => (
-                      <EewDisplay
-                        key={data.eventId}
-                        parsedData={data}
-                        isAccuracy={settings.enable_accuracy_info}
-                        isLowAccuracy={settings.enable_low_accuracy_eew}
-                        onEpicenterUpdate={handleEpicenterUpdate}
-                        onRegionIntensityUpdate={(regionMap) =>
-                          onRegionIntensityUpdate(regionMap, data.eventId)
-                        }
-                        onWarningRegionUpdate={(regions) =>
-                          onWarningRegionUpdate(regions, data.eventId)
-                        }
-                      />
-                    ))
-                  ) : (
-                    <div className="w-[385px] h-full flex justify-center items-center">
-                      <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                    </div>
-                  );
-                })()}
-              </SidebarContent>
-            </Sidebar>
-          </SidebarProvider>
+                return filteredDisplayDataList.length > 0 ? (
+                  filteredDisplayDataList.map((data) => (
+                    <EewDisplay
+                      key={data.eventId}
+                      parsedData={data}
+                      isAccuracy={settings.enable_accuracy_info}
+                      isLowAccuracy={settings.enable_low_accuracy_eew}
+                      onEpicenterUpdate={handleEpicenterUpdate}
+                      onRegionIntensityUpdate={(regionMap) =>
+                        onRegionIntensityUpdate(regionMap, data.eventId)
+                      }
+                      onWarningRegionUpdate={(regions) =>
+                        onWarningRegionUpdate(regions, data.eventId)
+                      }
+                    />
+                  ))
+                ) : (
+                  <div className="w-[385px] h-full flex justify-center items-center">
+                    <h1 className="text-xl">緊急地震速報受信待機中</h1>
+                  </div>
+                );
+              })()}
+            </SidebarContent>
+          </Sidebar>
         </div>
       </main>
     </>
@@ -685,7 +697,9 @@ function PageContent() {
 export default function Page() {
   return (
     <WebSocketProvider>
-      <PageContent />
+      <SidebarProvider>
+        <PageContent />
+      </SidebarProvider>
     </WebSocketProvider>
   );
 }

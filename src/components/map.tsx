@@ -14,7 +14,6 @@ import rawCitiesData from "../../public/mapdata/Cities.json";
 import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
 import { MapProps } from "@/types/types";
-import { Spinner } from "@/components/ui/spinner"
 
 // SmoothWheelZoom
 if (typeof window !== "undefined") {
@@ -206,6 +205,7 @@ const Map = forwardRef<L.Map, MapProps>(
       isCancel,
       psWaveUpdateInterval,
       nowAppTime,
+      onMapLoad,
     },
     ref
   ) => {
@@ -234,7 +234,7 @@ const Map = forwardRef<L.Map, MapProps>(
       enableDynamicZoom ? mapAutoZoom : false
     );
     const autoZoomTimeoutRef = useRef<number | null>(null);
-    const [mapLoaded, setMapLoaded] = useState(false);
+    const [, setMapLoaded] = useState(false);
 
     useEffect(() => {
       if (!enableDynamicZoom) {
@@ -356,21 +356,6 @@ const Map = forwardRef<L.Map, MapProps>(
 
     return (
       <div style={{ position: "relative", width: "100%", height: "100vh" }}>
-        {!mapLoaded && (
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              zIndex: 1100,
-            }}
-            className="flex space-x-2 items-center"
-          >
-            <Spinner variant="primary" size={32} />
-            <p>loading</p>
-          </div>
-        )}
         <MapContainer
           ref={ref as React.RefObject<L.Map | null>}
           center={homePosition.center}
@@ -379,7 +364,12 @@ const Map = forwardRef<L.Map, MapProps>(
           scrollWheelZoom={false}
           preferCanvas
           zoomControl={false}
-          whenReady={() => setMapLoaded(true)}
+          whenReady={() => {
+            setMapLoaded(true);
+            if (typeof onMapLoad === 'function') {
+              onMapLoad();
+            }
+          }}
         >
           <CreatePsWavePane />
           <UserInteractionDetector

@@ -67,6 +67,7 @@ export interface MapProps {
   isCancel: boolean;
   psWaveUpdateInterval: number;
   nowAppTime: number | null;
+  onMapLoad?: () => void;
 }
 
 // 設定ダイアログ用のProps
