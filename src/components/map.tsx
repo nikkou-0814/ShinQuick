@@ -204,6 +204,8 @@ const Map = forwardRef<L.Map, MapProps>(
       warningRegionCodes,
       isCancel,
       psWaveUpdateInterval,
+      nowAppTime,
+      onMapLoad,
     },
     ref
   ) => {
@@ -232,6 +234,7 @@ const Map = forwardRef<L.Map, MapProps>(
       enableDynamicZoom ? mapAutoZoom : false
     );
     const autoZoomTimeoutRef = useRef<number | null>(null);
+    const [, setMapLoaded] = useState(false);
 
     useEffect(() => {
       if (!enableDynamicZoom) {
@@ -242,7 +245,7 @@ const Map = forwardRef<L.Map, MapProps>(
     }, [enableDynamicZoom, mapAutoZoom]);
 
     useEffect(() => {
-      const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
+      const mapInstance = (ref as React.RefObject<L.Map | null>).current;
       if (!mapInstance) return;
       if (!mapInstance.getPane("psWavePane")) {
         mapInstance.createPane("psWavePane");
@@ -294,8 +297,8 @@ const Map = forwardRef<L.Map, MapProps>(
 
     // 震源マーカー描画 + 自動ズーム処理
     useEffect(() => {
-      if (!ref || !(ref as React.MutableRefObject<L.Map | null>).current) return;
-      const mapInstance = (ref as React.MutableRefObject<L.Map | null>).current;
+      if (!ref || !(ref as React.RefObject<L.Map | null>).current) return;
+      const mapInstance = (ref as React.RefObject<L.Map | null>).current;
       if (!epicenterLayerRef.current && mapInstance) {
         epicenterLayerRef.current = L.layerGroup().addTo(mapInstance);
       }
@@ -352,77 +355,86 @@ const Map = forwardRef<L.Map, MapProps>(
     }, [epicenters, ref, autoZoomEnabled, enableDynamicZoom, regionIntensityMap, isCancel]);
 
     return (
-      <MapContainer
-        ref={ref as React.MutableRefObject<L.Map | null>}
-        center={homePosition.center}
-        zoom={homePosition.zoom}
-        style={{ width: "100%", height: "100vh", zIndex: 0 }}
-        scrollWheelZoom={false}
-        preferCanvas
-        zoomControl={false}
-      >
-        <CreatePsWavePane />
-        <UserInteractionDetector
-          onUserInteractionStart={handleUserInteractionStart}
-          onUserInteractionEnd={handleUserInteractionEnd}
-        />
-        <MapInner onZoomChange={setCurrentZoom} homePosition={homePosition} />
-        <KyoshinMonitor
-          enableKyoshinMonitor={enableKyoshinMonitor}
-          onTimeUpdate={onTimeUpdate}
-          isConnected={isConnected}
-          autoZoomEnabled={autoZoomEnabled}
-        />
-        <PsWave
-          epicenters={epicenters}
-          psWaveUpdateInterval={psWaveUpdateInterval}
-          isCancel={isCancel}
-          ref={ref as React.MutableRefObject<L.Map | null>}
-        />
-        <GeoJSON
-          key={`worldMap-${mapResolution}`}
-          data={countriesData}
-          style={{
-            color: theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
-            fillColor: theme === "dark" ? "#252525" : "#737A8A",
-            fillOpacity: 0.6,
-            weight: 0.8,
-          }}
-        />
-        <GeoJSON
-          data={SaibunData}
-          style={(feature) => {
-            const defaultStyle = {
-              color: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
-              weight: 0.6,
-              fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
-              fillOpacity: 0.9,
-            };
-            if (enableMapWarningArea && feature?.properties?.code) {
-              if (warningRegionCodes.includes(String(feature.properties.code))) {
-                return { ...defaultStyle, fillColor: "#FF0000", fillOpacity: 0.9 };
-              }
+      <div style={{ position: "relative", width: "100%", height: "100vh" }}>
+        <MapContainer
+          ref={ref as React.RefObject<L.Map | null>}
+          center={homePosition.center}
+          zoom={homePosition.zoom}
+          style={{ width: "100%", height: "100vh", zIndex: 0 }}
+          scrollWheelZoom={false}
+          preferCanvas
+          zoomControl={false}
+          whenReady={() => {
+            setMapLoaded(true);
+            if (typeof onMapLoad === 'function') {
+              onMapLoad();
             }
-            if (!enableMapIntensityFill) return defaultStyle;
-            if (!feature?.properties?.code) return defaultStyle;
-            const regionCode = String(feature.properties.code);
-            const intensity = regionIntensityMap[regionCode];
-            if (!intensity) return defaultStyle;
-            const fillColor = intensityFillColors[intensity] || "#62626B";
-            return { ...defaultStyle, fillColor, fillOpacity: 1 };
           }}
-        />
-        {currentZoom >= 10 && (
+        >
+          <CreatePsWavePane />
+          <UserInteractionDetector
+            onUserInteractionStart={handleUserInteractionStart}
+            onUserInteractionEnd={handleUserInteractionEnd}
+          />
+          <MapInner onZoomChange={setCurrentZoom} homePosition={homePosition} />
+          <KyoshinMonitor
+            enableKyoshinMonitor={enableKyoshinMonitor}
+            onTimeUpdate={onTimeUpdate}
+            isConnected={isConnected}
+            nowAppTime={nowAppTime}
+          />
+          <PsWave
+            epicenters={epicenters}
+            psWaveUpdateInterval={psWaveUpdateInterval}
+            isCancel={isCancel}
+            ref={ref as React.RefObject<L.Map | null>}
+            nowAppTime={nowAppTime}
+          />
           <GeoJSON
-            data={CitiesData}
+            key={`worldMap-${mapResolution}`}
+            data={countriesData}
             style={{
-              color: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
-              fillOpacity: 0,
-              weight: theme === "dark" ? 0.3 : 0.4,
+              color: theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
+              fillColor: theme === "dark" ? "#252525" : "#737A8A",
+              fillOpacity: 0.6,
+              weight: 0.8,
             }}
           />
-        )}
-      </MapContainer>
+          <GeoJSON
+            data={SaibunData}
+            style={(feature) => {
+              const defaultStyle = {
+                color: theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
+                weight: 0.6,
+                fillColor: theme === "dark" ? "#2C2C2C" : "#FFF",
+                fillOpacity: 0.9,
+              };
+              if (enableMapWarningArea && feature?.properties?.code) {
+                if (warningRegionCodes.includes(String(feature.properties.code))) {
+                  return { ...defaultStyle, fillColor: "#FF0000", fillOpacity: 0.9 };
+                }
+              }
+              if (!enableMapIntensityFill) return defaultStyle;
+              if (!feature?.properties?.code) return defaultStyle;
+              const regionCode = String(feature.properties.code);
+              const intensity = regionIntensityMap[regionCode];
+              if (!intensity) return defaultStyle;
+              const fillColor = intensityFillColors[intensity] || "#62626B";
+              return { ...defaultStyle, fillColor, fillOpacity: 1 };
+            }}
+          />
+          {currentZoom >= 10 && (
+            <GeoJSON
+              data={CitiesData}
+              style={{
+                color: theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+                fillOpacity: 0,
+                weight: theme === "dark" ? 0.3 : 0.4,
+              }}
+            />
+          )}
+        </MapContainer>
+      </div>
     );
   }
 );

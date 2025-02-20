@@ -238,6 +238,14 @@ typescript@5.7.3 (Apache-2.0)
 Repository: https://github.com/microsoft/TypeScript
 License File: node_modules/typescript/LICENSE.txt
 
+framer-motion@12.4.7 (MIT)
+Repository: https://github.com/motiondivision/motion
+License File: node_modules/framer-motion/LICENSE.md
+
+sntp@3.0.2 (BSD-3-Clause)
+Repository: https://github.com/hueniverse/sntp
+License File: node_modules/sntp/LICENSE
+
 MIT License
 
 Copyright (c) 2018 mutsuyuki

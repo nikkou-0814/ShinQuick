@@ -23,6 +23,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.0",
+    "framer-motion": "^12.4.7",
     "geojson": "^0.5.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.474.0",
@@ -32,6 +33,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
+    "sntp": "^3.0.2",
     "sonner": "^1.7.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7"
@@ -45,6 +47,7 @@
     "@types/pako": "^2.0.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sntp": "^3.0.4",
     "eslint": "^9",
     "eslint-config-next": "15.1.6",
     "postcss": "^8",

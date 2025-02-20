@@ -3,15 +3,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { KmoniData } from "@/types/types";
+import { KmoniData, KyoshinMonitorProps } from "@/types/types";
 
-function KyoshinMonitor(props: {
-  enableKyoshinMonitor: boolean;
-  onTimeUpdate?: (time: string) => void;
-  isConnected: boolean;
-  autoZoomEnabled: boolean;
-}) {
-  const { enableKyoshinMonitor, onTimeUpdate, isConnected, autoZoomEnabled } = props;
+function KyoshinMonitor(props: KyoshinMonitorProps) {
+  const {
+    enableKyoshinMonitor,
+    onTimeUpdate,
+    isConnected,
+    nowAppTime,
+  } = props;
   const map = useMap();
   const [pointList, setPointList] = useState<Array<[number, number]>>([]);
   const [kmoniData, setKmoniData] = useState<KmoniData | null>(null);
@@ -69,6 +69,12 @@ function KyoshinMonitor(props: {
     },
   });
 
+  // nowAppTimeの最新値を参照するためのref
+  const nowAppTimeRef = useRef(nowAppTime);
+  useEffect(() => {
+    nowAppTimeRef.current = nowAppTime;
+  }, [nowAppTime]);
+
   // 観測点の取得
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
@@ -97,35 +103,27 @@ function KyoshinMonitor(props: {
   }, [enableKyoshinMonitor]);
 
   useEffect(() => {
-    if (!enableKyoshinMonitor) {
-      if (layerRef.current) {
-        layerRef.current.clearLayers();
-        map.removeLayer(layerRef.current);
-      }
-      if (waveLayerRef.current) {
-        waveLayerRef.current.clearLayers();
-        map.removeLayer(waveLayerRef.current);
-      }
-      return;
-    }
+    if (!enableKyoshinMonitor) return;
     let isMounted = true;
 
     const fetchKyoshinMonitorData = async () => {
       try {
-        const date = new Date();
-        date.setSeconds(date.getSeconds() - 2);
+        if (nowAppTimeRef.current === null) {
+          return;
+        }
+        const target = nowAppTimeRef.current - 2000;
+        const dateObj = new Date(target);
         const nowTime =
-          date.getFullYear().toString() +
-          ("0" + (date.getMonth() + 1)).slice(-2) +
-          ("0" + date.getDate()).slice(-2) +
-          ("0" + date.getHours()).slice(-2) +
-          ("0" + date.getMinutes()).slice(-2) +
-          ("0" + date.getSeconds()).slice(-2);
-
+          dateObj.getFullYear().toString() +
+          ("0" + (dateObj.getMonth() + 1)).slice(-2) +
+          ("0" + dateObj.getDate()).slice(-2) +
+          ("0" + dateObj.getHours()).slice(-2) +
+          ("0" + dateObj.getMinutes()).slice(-2) +
+          ("0" + dateObj.getSeconds()).slice(-2);
         const nowDay =
-          date.getFullYear().toString() +
-          ("0" + (date.getMonth() + 1)).slice(-2) +
-          ("0" + date.getDate()).slice(-2);
+          dateObj.getFullYear().toString() +
+          ("0" + (dateObj.getMonth() + 1)).slice(-2) +
+          ("0" + dateObj.getDate()).slice(-2);
 
         const url = `https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/${nowDay}/${nowTime}.json`;
 
@@ -138,8 +136,17 @@ function KyoshinMonitor(props: {
         if (isMounted) {
           setKmoniData(data);
           if (onTimeUpdate) {
-            if (data.realTimeData?.timestamp) {
-              onTimeUpdate(data.realTimeData.timestamp);
+            if (data.realTimeData?.dataTime) {
+              const dateISO = new Date(data.realTimeData.dataTime);
+              const formattedTime = dateISO.toLocaleString("ja-JP", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              });
+              onTimeUpdate(formattedTime);
             } else {
               const fallbackTime = new Date().toLocaleString("ja-JP", {
                 year: "numeric",
@@ -201,7 +208,6 @@ function KyoshinMonitor(props: {
     layerRef.current.addTo(map);
   }, [map, kmoniData, zoomLevel, pointList, enableKyoshinMonitor, convertStringToColor]);
 
-  // P/S波
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
     if (isConnected) {
@@ -242,13 +248,11 @@ function KyoshinMonitor(props: {
       const lngVal =
         (lngStr.startsWith("E") ? 1 : -1) * parseFloat(lngStr.slice(1));
 
-      // 震源
       const epicenterMarker = L.marker([latVal, lngVal], {
         icon: epicenterIcon,
       });
       waveLayerRef.current?.addLayer(epicenterMarker);
 
-      // P波
       const pCircle = L.circle([latVal, lngVal], {
         radius: pRadius * 1000,
         color: "#0000ff",
@@ -259,7 +263,6 @@ function KyoshinMonitor(props: {
       });
       waveLayerRef.current?.addLayer(pCircle);
 
-      // S波
       const sCircle = L.circle([latVal, lngVal], {
         radius: sRadius * 1000,
         color: "#ff0000",
@@ -273,7 +276,7 @@ function KyoshinMonitor(props: {
     });
 
     waveLayerRef.current.addTo(map);
-  }, [enableKyoshinMonitor, kmoniData, map, isConnected, autoZoomEnabled]);
+  }, [enableKyoshinMonitor, kmoniData, map, isConnected]);
 
   return null;
 }
