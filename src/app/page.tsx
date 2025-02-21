@@ -646,7 +646,6 @@ function PageContent() {
 
           <DynamicMap
             ref={mapRef}
-            homePosition={{ center: [35, 136], zoom: 4.5 }}
             enableKyoshinMonitor={settings.enable_kyoshin_monitor}
             onTimeUpdate={handleTimeUpdate}
             isConnected={isConnected}
