@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { Source, Layer, LayerProps } from "react-map-gl/maplibre";
+import { Source, Layer } from "react-map-gl/maplibre";
 import * as turf from "@turf/turf";
 import { TravelTableRow, PsWaveProps } from "@/types/types";
+import { Feature, FeatureCollection, Polygon } from "geojson";
 
 // 走時表の読み込み
 async function importTable(): Promise<TravelTableRow[]> {
@@ -64,8 +65,8 @@ interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
   nowAppTimeRef: React.RefObject<number>;
 }
 
-const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterval, nowAppTimeRef, isCancel }) => {
-  const [circleGeoJSON, setCircleGeoJSON] = useState<any>({
+const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterval, nowAppTimeRef }) => {
+  const [circleGeoJSON, setCircleGeoJSON] = useState<FeatureCollection<Polygon>>({
     type: "FeatureCollection",
     features: [],
   });
@@ -92,7 +93,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterva
         return;
       }
 
-      const features: any[] = [];
+      const features: Feature<Polygon>[] = [];
       const currentTime = nowAppTimeRef.current;
 
       epicenters.forEach((epi) => {
@@ -100,12 +101,21 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterva
         const [pDistance, sDistance] = getValue(travelTableRef.current, epi.depthval, elapsedTime);
 
         if (!isNaN(pDistance)) {
-          const pCircle = turf.circle([epi.lng, epi.lat], pDistance, { steps: 64, units: "kilometers" });
+          const pCircle: Feature<Polygon> = turf.circle(
+            [epi.lng, epi.lat],
+            pDistance,
+            { steps: 64, units: "kilometers" }
+          ) as Feature<Polygon>;
           pCircle.properties = { color: "#0000ff", type: "pWave" };
           features.push(pCircle);
         }
+
         if (!isNaN(sDistance)) {
-          const sCircle = turf.circle([epi.lng, epi.lat], sDistance, { steps: 64, units: "kilometers" });
+          const sCircle: Feature<Polygon> = turf.circle(
+            [epi.lng, epi.lat],
+            sDistance,
+            { steps: 64, units: "kilometers" }
+          ) as Feature<Polygon>;
           sCircle.properties = { color: "#ff0000", fillOpacity: 0.2, type: "sWave" };
           features.push(sCircle);
         }

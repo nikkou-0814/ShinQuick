@@ -19,6 +19,7 @@ import maplibregl from "maplibre-gl";
 import { WebMercatorViewport } from "viewport-mercator-project";
 import { useTheme } from "next-themes";
 import { FeatureCollection, Feature } from "geojson";
+import Image from "next/image";
 
 import rawCountriesData10 from "../../public/mapdata/10mCountries.json";
 import rawCountriesData50 from "../../public/mapdata/50mCountries.json";
@@ -28,7 +29,7 @@ import rawCitiesData from "../../public/mapdata/Cities.json";
 
 import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
-import { MapProps } from "@/types/types";
+import { MapProps, SaibunProperties, SaibunFeatureWithBbox } from "@/types/types";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 const intensityFillColors: Record<string, string> = {
@@ -47,11 +48,6 @@ const intensityFillColors: Record<string, string> = {
 
 const SaibunData = rawSaibunData as FeatureCollection;
 const CitiesData = rawCitiesData as FeatureCollection;
-
-interface SaibunFeatureWithBbox {
-  feature: Feature;
-  bbox: [number, number, number, number];
-}
 
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
@@ -97,7 +93,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [mapResolution]);
 
-  // 細分化区画のバウンディングボックスをあらかじめ計算
+  // 細分化地域のバウンディングボックスをあらかじめ計算
   const saibunFeaturesWithBbox = useMemo<SaibunFeatureWithBbox[]>(() => {
     const data: FeatureCollection = JSON.parse(JSON.stringify(SaibunData));
 
@@ -139,11 +135,11 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       });
   }, []);
 
-  // 細分化区画の塗りつぶし色などをプロパティに仕込む
+  // 細分化地域の塗りつぶし色などをプロパティに仕込む
   const processedSaibunData = useMemo(() => {
     const clonedFeatures: Feature[] = saibunFeaturesWithBbox.map(({ feature }) => {
       const cloned = JSON.parse(JSON.stringify(feature)) as Feature;
-      const fProps: any = cloned.properties || {};
+      const fProps = cloned.properties as SaibunProperties;
       const code = fProps.code;
       // デフォルト
       let fillColor = theme === "dark" ? "#2C2C2C" : "#FFF";
@@ -315,14 +311,13 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   // マップのロード完了
   const onMapLoadHandler = useCallback(() => {
-    if (enableKyoshinMonitor)
-      if (ref && 'current' in ref && ref.current) {
-        ref.current.moveLayer("site-layer");
-        ref.current.moveLayer("pWave-layer");
-        ref.current.moveLayer("sWave-layer");
-      }
+    if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
+      ref.current.moveLayer("site-layer");
+      ref.current.moveLayer("pWave-layer");
+      ref.current.moveLayer("sWave-layer");
+    }
     onMapLoad?.();
-  }, [onMapLoad]);  
+  }, [onMapLoad, enableKyoshinMonitor, ref]);
 
   return (
     <div
@@ -393,10 +388,11 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
             latitude={epi.lat}
             anchor="center"
           >
-            <img
+            <Image
               src={epi.icon}
               alt="epicenter"
-              style={{ width: 48, height: 48 }}
+              width={48}
+              height={48}
               className={isCancel ? "opacity-30" : "blink"}
             />
           </Marker>

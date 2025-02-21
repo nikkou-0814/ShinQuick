@@ -1,5 +1,6 @@
 import { EewInformation } from "@dmdata/telegram-json-types";
 import { MapRef } from "react-map-gl/maplibre";
+import { Feature } from "geojson";
 
 // 設定の型
 export interface Settings {
@@ -33,7 +34,6 @@ export interface EewDisplayProps {
   onRegionIntensityUpdate?: (regionMap: Record<string, string>) => void;
   onWarningRegionUpdate?: (warningRegions: { code: string; name: string }[]) => void;
 }
-
 
 // 震源アイコンなどで使う情報
 export interface EpicenterInfo {
@@ -118,8 +118,8 @@ export interface TravelTableRow {
   distance: number;
 }
 
-// 強震モニタ用のProps
-export interface KyoshinMonitorProps {
+// 強震モニタ用のベースProps
+export interface BaseKyoshinMonitorProps {
   enableKyoshinMonitor: boolean;
   isConnected: boolean;
   nowAppTimeRef: React.RefObject<number>;
@@ -133,4 +133,27 @@ export interface PsWaveProps {
   isCancel: boolean;
   ref: React.ForwardedRef<MapRef>;
   nowAppTimeRef: React.RefObject<number>;
+}
+
+// 細分化地域のプロパティ用型
+export interface SaibunProperties {
+  code?: string | number;
+  computedFillColor?: string;
+  computedFillOpacity?: number;
+  [key: string]: unknown;
+}
+
+// 強震モニタ観測点用型
+export interface SiteListData {
+  items: [number, number][];
+}
+
+// 強震モニタ用のProps
+export type KyoshinMonitorProps = Omit<BaseKyoshinMonitorProps, "nowAppTime"> & {
+  nowAppTimeRef: React.RefObject<number>;
+};
+
+export interface SaibunFeatureWithBbox {
+  feature: Feature;
+  bbox: [number, number, number, number];
 }
