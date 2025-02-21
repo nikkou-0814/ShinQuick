@@ -283,7 +283,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     onAutoZoomChange,
     saibunFeaturesWithBbox,
     ref,
-    nowAppTimeRef,
   ]);
 
   const autoZoomTimeoutRef = useRef<number | null>(null);

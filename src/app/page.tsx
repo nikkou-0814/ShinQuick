@@ -29,6 +29,7 @@ import {
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
 import { MapRef } from "react-map-gl/maplibre";
+import { ClockDisplay } from "@/components/clock-display"
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -79,10 +80,6 @@ function PageContent() {
   const { setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [serverBaseTime, setServerBaseTime] = useState<number | null>(null);
-  const [nowAppTime, setNowAppTime] = useState<number>(0);
-  const [currentTime, setCurrentTime] = useState<string>(
-    "----/--/-- --:--:--"
-  );
   const mapRef = useRef<MapRef | null>(null);
   const [displayDataList, setDisplayDataList] = useState<
     EewInformation.Latest.Main[]
@@ -118,6 +115,7 @@ function PageContent() {
   const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [currentTime, setCurrentTime] = useState("----/--/-- --:--:--");
 
   const shindoColors = useMemo(
     () => [
@@ -169,28 +167,6 @@ function PageContent() {
     animationFrameId = requestAnimationFrame(updateTime);
     return () => cancelAnimationFrame(animationFrameId);
   }, [serverBaseTime]);
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setNowAppTime(nowAppTimeRef.current);
-    }, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  useEffect(() => {
-    if (settings.enable_kyoshin_monitor) return;
-    if (!nowAppTime) return;
-    const dateObj = new Date(nowAppTime);
-    const formatted = dateObj.toLocaleString("ja-JP", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    setCurrentTime(formatted);
-  }, [nowAppTime, settings.enable_kyoshin_monitor]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -710,7 +686,12 @@ function PageContent() {
               複数
             </Button>
             <div className="flex flex-col">
-              <p className="pr-1">{currentTime}</p>
+              <ClockDisplay
+                nowAppTimeRef={nowAppTimeRef}
+                overrideTime={
+                  settings.enable_kyoshin_monitor ? currentTime : undefined
+                }
+              />
               {isConnected && (
                 <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
                   <Send size={16} />
