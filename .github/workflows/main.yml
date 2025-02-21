@@ -1,0 +1,39 @@
+name: Next.js CI
+
+on:
+  push:
+    branches:
+      - dev
+      - maplibre
+      - main
+  pull_request:
+    branches:
+      - dev
+      - maplibre
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Node.js Setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'pnpm'
+
+      - name: pnpm setup
+        run: corepack enable
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Next.js Build
+        run: pnpm build
+
+      - name: ESLint Check
+        run: pnpm lint
