@@ -333,6 +333,12 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     onMapLoad?.();
   }, [onMapLoad, enableKyoshinMonitor, ref]);
 
+  useEffect(() => {
+    if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
+      ref.current.moveLayer("site-layer");
+    }
+  }, [enableKyoshinMonitor, ref]);
+
   return (
     <div
       style={{
