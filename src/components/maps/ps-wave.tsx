@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import L from "leaflet";
+import React, { useEffect, useState, useRef } from "react";
+import { Source, Layer, LayerProps } from "react-map-gl/maplibre";
+import * as turf from "@turf/turf";
 import { TravelTableRow, PsWaveProps } from "@/types/types";
 
+// 走時表の読み込み
 async function importTable(): Promise<TravelTableRow[]> {
   const res = await fetch("/tjma2001.txt");
   const text = await res.text();
@@ -19,13 +21,13 @@ async function importTable(): Promise<TravelTableRow[]> {
   });
 }
 
+// 走時表から現在時刻に基づいてP波・S波の伝播距離を計算
 function getValue(
   table: TravelTableRow[],
   depth: number,
   time: number
 ): [number, number] {
   if (depth > 700 || time > 2000) {
-    console.log("しきい値超え", { depth, time });
     return [NaN, NaN];
   }
 
@@ -58,22 +60,18 @@ function getValue(
   return [pDistance, sDistance];
 }
 
-function PsWave(props: PsWaveProps) {
-  const {
-    epicenters,
-    psWaveUpdateInterval,
-    ref,
-    nowAppTime,
-  } = props;
-  const waveCirclesLayerRef = useRef<L.LayerGroup | null>(null);
+interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
+  nowAppTimeRef: React.RefObject<number>;
+}
+
+const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterval, nowAppTimeRef, isCancel }) => {
+  const [circleGeoJSON, setCircleGeoJSON] = useState<any>({
+    type: "FeatureCollection",
+    features: [],
+  });
   const travelTableRef = useRef<TravelTableRow[]>([]);
-  const nowAppTimeRef = useRef(nowAppTime);
+  const updateIntervalRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    nowAppTimeRef.current = nowAppTime;
-  }, [nowAppTime]);
-
-  // 走時表の読み込み
   useEffect(() => {
     importTable()
       .then(table => {
@@ -82,67 +80,74 @@ function PsWave(props: PsWaveProps) {
       .catch(err => console.error("走時表の読み込み失敗", err));
   }, []);
 
-  // 円を定期的に描画更新
   useEffect(() => {
-    if (!ref || !ref.current) return;
-    const mapInstance = ref.current;
-
-    if (!waveCirclesLayerRef.current) {
-      waveCirclesLayerRef.current = L.layerGroup().addTo(mapInstance);
+    if (!epicenters.length || !travelTableRef.current.length) {
+      setCircleGeoJSON({ type: "FeatureCollection", features: [] });
+      return;
     }
 
-    const intervalId = setInterval(() => {
-      if (!travelTableRef.current.length || !epicenters.length) {
-        waveCirclesLayerRef.current?.clearLayers();
+    const updateGeoJSON = () => {
+      if (!epicenters.length || !travelTableRef.current.length || !nowAppTimeRef.current) {
+        setCircleGeoJSON({ type: "FeatureCollection", features: [] });
         return;
       }
 
-      waveCirclesLayerRef.current?.clearLayers();
-
+      const features: any[] = [];
       const currentTime = nowAppTimeRef.current;
 
       epicenters.forEach((epi) => {
-        if (currentTime === null) return;
         const elapsedTime = (currentTime - epi.originTime) / 1000;
-        const [pDistance, sDistance] = getValue(
-          travelTableRef.current,
-          epi.depthval,
-          elapsedTime
-        );
+        const [pDistance, sDistance] = getValue(travelTableRef.current, epi.depthval, elapsedTime);
 
-        // P波
         if (!isNaN(pDistance)) {
-          L.circle([epi.lat, epi.lng], {
-            radius: pDistance * 1000,
-            color: "#0000ff",
-            weight: 3,
-            opacity: 1,
-            fillOpacity: 0,
-            pane: "psWavePane",
-          }).addTo(waveCirclesLayerRef.current!);
+          const pCircle = turf.circle([epi.lng, epi.lat], pDistance, { steps: 64, units: "kilometers" });
+          pCircle.properties = { color: "#0000ff", type: "pWave" };
+          features.push(pCircle);
         }
-
-        // S波
         if (!isNaN(sDistance)) {
-          L.circle([epi.lat, epi.lng], {
-            radius: sDistance * 1000,
-            color: "#ff0000",
-            weight: 6,
-            opacity: 1,
-            fillColor: "#ff0000",
-            fillOpacity: 0.2,
-            pane: "psWavePane",
-          }).addTo(waveCirclesLayerRef.current!);
+          const sCircle = turf.circle([epi.lng, epi.lat], sDistance, { steps: 64, units: "kilometers" });
+          sCircle.properties = { color: "#ff0000", fillOpacity: 0.2, type: "sWave" };
+          features.push(sCircle);
         }
       });
-    }, psWaveUpdateInterval);
+
+      setCircleGeoJSON({ type: "FeatureCollection", features });
+
+      updateIntervalRef.current = window.setTimeout(updateGeoJSON, psWaveUpdateInterval);
+    };
+
+    updateGeoJSON();
 
     return () => {
-      clearInterval(intervalId);
+      if (updateIntervalRef.current !== null) {
+        clearTimeout(updateIntervalRef.current);
+      }
     };
-  }, [epicenters, psWaveUpdateInterval, ref]);
+  }, [epicenters, psWaveUpdateInterval, nowAppTimeRef]);
 
-  return null;
-}
+  return (
+    <Source id="psWaveSource" type="geojson" data={circleGeoJSON}>
+      <Layer
+        id="pWave-layer"
+        type="line"
+        paint={{
+          "line-color": "#0000ff",
+          "line-width": 2,
+        }}
+        filter={["==", ["get", "type"], "pWave"]}
+      />
+      <Layer
+        id="sWave-layer"
+        type="fill"
+        paint={{
+          "fill-color": "#ff0000",
+          "fill-opacity": 0.2,
+          "fill-outline-color": "#ff0000",
+        }}
+        filter={["==", ["get", "type"], "sWave"]}
+      />
+    </Source>
+  );
+};
 
 export default PsWave;

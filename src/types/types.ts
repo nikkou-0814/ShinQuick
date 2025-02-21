@@ -1,4 +1,5 @@
 import { EewInformation } from "@dmdata/telegram-json-types";
+import { MapRef } from "react-map-gl/maplibre";
 
 // 設定の型
 export interface Settings {
@@ -66,7 +67,7 @@ export interface MapProps {
   warningRegionCodes: string[];
   isCancel: boolean;
   psWaveUpdateInterval: number;
-  nowAppTime: number | null;
+  nowAppTimeRef: React.RefObject<number>;
   onMapLoad?: () => void;
 }
 
@@ -121,7 +122,7 @@ export interface TravelTableRow {
 export interface KyoshinMonitorProps {
   enableKyoshinMonitor: boolean;
   isConnected: boolean;
-  nowAppTime: number | null;
+  nowAppTimeRef: React.RefObject<number>;
   onTimeUpdate?: (time: string) => void;
 }
 
@@ -130,6 +131,6 @@ export interface PsWaveProps {
   epicenters: EpicenterInfo[];
   psWaveUpdateInterval: number;
   isCancel: boolean;
-  ref: React.RefObject<L.Map | null> | null;
-  nowAppTime: number | null;
+  ref: React.ForwardedRef<MapRef>;
+  nowAppTimeRef: React.RefObject<number>;
 }

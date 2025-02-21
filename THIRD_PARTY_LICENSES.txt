@@ -78,13 +78,13 @@ License File: node_modules/@radix-ui/react-tooltip/README.md
 Repository: https://github.com/microsoft/rushstack
 License File: node_modules/@rushstack/eslint-patch/LICENSE
 
+@turf/turf@7.2.0 (MIT)
+Repository: https://github.com/Turfjs/turf
+License File: node_modules/@turf/turf/LICENSE
+
 @types/geojson@7946.0.16 (MIT)
 Repository: https://github.com/DefinitelyTyped/DefinitelyTyped
 License File: node_modules/@types/geojson/LICENSE
-
-@types/leaflet@1.9.16 (MIT)
-Repository: https://github.com/DefinitelyTyped/DefinitelyTyped
-License File: node_modules/@types/leaflet/LICENSE
 
 @types/node@20.17.16 (MIT)
 Repository: https://github.com/DefinitelyTyped/DefinitelyTyped
@@ -101,6 +101,10 @@ License File: node_modules/@types/react-dom/LICENSE
 @types/react@19.0.8 (MIT)
 Repository: https://github.com/DefinitelyTyped/DefinitelyTyped
 License File: node_modules/@types/react/LICENSE
+
+@types/react-map-gl@6.1.7 (MIT)
+Repository: https://github.com/DefinitelyTyped/DefinitelyTyped
+License File: node_modules/@types/react-map-gl/LICENSE
 
 @typescript-eslint/parser@8.22.0 (MIT)
 Repository: https://github.com/typescript-eslint/typescript-eslint
@@ -182,9 +186,9 @@ geojson@0.5.0 (MIT)
 Repository: https://github.com/caseycesari/geojson.js
 License File: node_modules/geojson/LICENSE
 
-leaflet@1.9.4 (BSD-2-Clause)
-Repository: https://github.com/Leaflet/Leaflet
-License File: node_modules/leaflet/LICENSE
+maplibre-gl@5.1.1 (BSD-3-Clause)
+Repository: https://github.com/maplibre/maplibre-gl-js
+License File: node_modules/maplibre-gl/LICENSE.txt
 
 lucide-react@0.474.0 (ISC)
 Repository: https://github.com/lucide-icons/lucide
