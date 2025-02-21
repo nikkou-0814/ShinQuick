@@ -1,24 +1,20 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Source, Layer, LayerProps } from "react-map-gl/maplibre";
-import { KmoniData, KyoshinMonitorProps } from "@/types/types";
+import { KmoniData, SiteListData, KyoshinMonitorProps } from "@/types/types";
+import { Feature, FeatureCollection, GeoJsonProperties, Point } from "geojson";
 
-interface ModifiedKyoshinMonitorProps extends Omit<KyoshinMonitorProps, "nowAppTime"> {
-  nowAppTimeRef: React.RefObject<number>;
-}
-
-const KyoshinMonitor: React.FC<ModifiedKyoshinMonitorProps> = ({
+const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
   enableKyoshinMonitor,
   onTimeUpdate,
-  isConnected,
   nowAppTimeRef,
 }) => {
   const [pointList, setPointList] = useState<Array<[number, number]>>([]);
   const [kmoniData, setKmoniData] = useState<KmoniData | null>(null);
 
   // 色定義
-  const colorList: { [key: string]: string } = {
+  const colorList = useMemo((): Record<string, string> => ({
     a: "#00000000",
     b: "#00000000",
     c: "#00000000",
@@ -45,11 +41,11 @@ const KyoshinMonitor: React.FC<ModifiedKyoshinMonitorProps> = ({
     x: "#331A1A",
     y: "#663333",
     z: "#993333",
-  };
+  }), []);
 
   const convertStringToColor = useCallback((ch: string): string => {
     return colorList[ch.toLowerCase()] || "#b00201";
-  }, []);
+  }, [colorList]);
 
   // 観測点の取得
   useEffect(() => {
@@ -61,7 +57,7 @@ const KyoshinMonitor: React.FC<ModifiedKyoshinMonitorProps> = ({
           console.warn("SiteList fetch error:", res.status, res.statusText);
           return;
         }
-        const data = await res.json();
+        const data: SiteListData = await res.json();
         if (data.items && Array.isArray(data.items)) {
           setPointList(data.items);
         } else {
@@ -142,10 +138,10 @@ const KyoshinMonitor: React.FC<ModifiedKyoshinMonitorProps> = ({
     };
   }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef]);
 
-  const [siteGeoJSON, setSiteGeoJSON] = useState<any>({
+  const [siteGeoJSON, setSiteGeoJSON] = useState<FeatureCollection<Point, GeoJsonProperties>>({
     type: "FeatureCollection",
     features: [],
-  });
+  });  
 
   useEffect(() => {
     if (!enableKyoshinMonitor || !kmoniData?.realTimeData?.intensity || pointList.length === 0) {
@@ -153,21 +149,23 @@ const KyoshinMonitor: React.FC<ModifiedKyoshinMonitorProps> = ({
       return;
     }
     const intensityStr = kmoniData.realTimeData.intensity;
-    const features = pointList.map((pt: [number, number], idx: number) => {
+    const features: Feature<Point, GeoJsonProperties>[] = pointList.map((pt: [number, number], idx: number) => {
       const [lat, lng] = pt;
       const char = intensityStr.charAt(idx) || "a";
+  
       return {
         type: "Feature",
         geometry: {
           type: "Point",
           coordinates: [lng, lat],
-        },
+        } as Point,
         properties: {
           color: convertStringToColor(char),
           radius: 3,
         },
-      };
+      } as Feature<Point, GeoJsonProperties>;
     });
+  
     setSiteGeoJSON({ type: "FeatureCollection", features });
   }, [enableKyoshinMonitor, kmoniData, pointList, convertStringToColor]);
 

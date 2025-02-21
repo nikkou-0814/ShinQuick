@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 
 const ClockDisplay: React.FC<{
-  nowAppTimeRef: React.MutableRefObject<number>;
+  nowAppTimeRef: React.RefObject<number>;
   overrideTime?: string;
 }> = React.memo(({ nowAppTimeRef, overrideTime }) => {
   const [displayTime, setDisplayTime] = useState(
@@ -31,4 +31,5 @@ const ClockDisplay: React.FC<{
   return <p className="pr-1">{displayTime}</p>;
 });
 
+ClockDisplay.displayName = "ClockDisplay";
 export { ClockDisplay }

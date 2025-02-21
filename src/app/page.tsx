@@ -104,7 +104,6 @@ function PageContent() {
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
   const nowAppTimeRef = useRef<number>(0);
   const rAFBaseRef = useRef<number | null>(null);
-  const lastRenderRef = useRef<number>(0);
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(
     settings.map_auto_zoom
   );
