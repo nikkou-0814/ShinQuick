@@ -1,26 +1,24 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { useMap, useMapEvents } from "react-leaflet";
-import L from "leaflet";
+import React, { useState, useEffect, useCallback } from "react";
+import { Source, Layer, LayerProps } from "react-map-gl/maplibre";
 import { KmoniData, KyoshinMonitorProps } from "@/types/types";
 
-function KyoshinMonitor(props: KyoshinMonitorProps) {
-  const {
-    enableKyoshinMonitor,
-    onTimeUpdate,
-    isConnected,
-    nowAppTime,
-  } = props;
-  const map = useMap();
+interface ModifiedKyoshinMonitorProps extends Omit<KyoshinMonitorProps, "nowAppTime"> {
+  nowAppTimeRef: React.RefObject<number>;
+}
+
+const KyoshinMonitor: React.FC<ModifiedKyoshinMonitorProps> = ({
+  enableKyoshinMonitor,
+  onTimeUpdate,
+  isConnected,
+  nowAppTimeRef,
+}) => {
   const [pointList, setPointList] = useState<Array<[number, number]>>([]);
   const [kmoniData, setKmoniData] = useState<KmoniData | null>(null);
-  const [zoomLevel, setZoomLevel] = useState<number>(map.getZoom());
-  const layerRef = useRef<L.LayerGroup | null>(null);
-  const waveLayerRef = useRef<L.LayerGroup | null>(null);
 
   // 色定義
-  const colorList: { [key: string]: string } = React.useMemo(() => ({
+  const colorList: { [key: string]: string } = {
     a: "#00000000",
     b: "#00000000",
     c: "#00000000",
@@ -47,43 +45,18 @@ function KyoshinMonitor(props: KyoshinMonitorProps) {
     x: "#331A1A",
     y: "#663333",
     z: "#993333",
-  }), []);
-
-  const convertStringToColor = React.useCallback((ch: string): string => {
-    return colorList[ch.toLowerCase()] || "#b00201";
-  }, [colorList]);
-
-  const getRadiusForZoom = (zoom: number): number => {
-    if (zoom > 10) return 12;
-    if (zoom > 9) return 10;
-    if (zoom > 8) return 8;
-    if (zoom > 7) return 6;
-    if (zoom > 6) return 3;
-    if (zoom > 5) return 1.5;
-    return 0.3;
   };
 
-  useMapEvents({
-    zoomend: () => {
-      setZoomLevel(map.getZoom());
-    },
-  });
-
-  // nowAppTimeの最新値を参照するためのref
-  const nowAppTimeRef = useRef(nowAppTime);
-  useEffect(() => {
-    nowAppTimeRef.current = nowAppTime;
-  }, [nowAppTime]);
+  const convertStringToColor = useCallback((ch: string): string => {
+    return colorList[ch.toLowerCase()] || "#b00201";
+  }, []);
 
   // 観測点の取得
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
-
     const fetchSiteList = async () => {
       try {
-        const res = await fetch(
-          "https://weather-kyoshin.east.edge.storage-yahoo.jp/SiteList/sitelist.json"
-        );
+        const res = await fetch("https://weather-kyoshin.east.edge.storage-yahoo.jp/SiteList/sitelist.json");
         if (!res.ok) {
           console.warn("SiteList fetch error:", res.status, res.statusText);
           return;
@@ -107,10 +80,8 @@ function KyoshinMonitor(props: KyoshinMonitorProps) {
     let isMounted = true;
 
     const fetchKyoshinMonitorData = async () => {
+      if (!nowAppTimeRef.current) return;
       try {
-        if (nowAppTimeRef.current === null) {
-          return;
-        }
         const target = nowAppTimeRef.current - 2000;
         const dateObj = new Date(target);
         const nowTime =
@@ -124,9 +95,7 @@ function KyoshinMonitor(props: KyoshinMonitorProps) {
           dateObj.getFullYear().toString() +
           ("0" + (dateObj.getMonth() + 1)).slice(-2) +
           ("0" + dateObj.getDate()).slice(-2);
-
         const url = `https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/${nowDay}/${nowTime}.json`;
-
         const res = await fetch(url);
         if (!res.ok) {
           console.warn("RealTimeData fetch error:", res.status, res.statusText);
@@ -167,118 +136,67 @@ function KyoshinMonitor(props: KyoshinMonitorProps) {
 
     fetchKyoshinMonitorData();
     const intervalId = setInterval(fetchKyoshinMonitorData, 1000);
-
     return () => {
       isMounted = false;
       clearInterval(intervalId);
-      if (layerRef.current) {
-        map.removeLayer(layerRef.current);
-      }
-      if (waveLayerRef.current) {
-        map.removeLayer(waveLayerRef.current);
-      }
     };
-  }, [map, enableKyoshinMonitor, onTimeUpdate]);
+  }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef]);
 
-  // 強震モニタ表示
+  const [siteGeoJSON, setSiteGeoJSON] = useState<any>({
+    type: "FeatureCollection",
+    features: [],
+  });
+
   useEffect(() => {
-    if (!enableKyoshinMonitor) return;
-    if (!kmoniData?.realTimeData?.intensity) return;
-    if (pointList.length === 0) return;
-
-    if (!layerRef.current) {
-      layerRef.current = L.layerGroup();
+    if (!enableKyoshinMonitor || !kmoniData?.realTimeData?.intensity || pointList.length === 0) {
+      setSiteGeoJSON({ type: "FeatureCollection", features: [] });
+      return;
     }
-    layerRef.current.clearLayers();
-
-    const radiusForZoom = getRadiusForZoom(zoomLevel);
     const intensityStr = kmoniData.realTimeData.intensity;
-
-    pointList.forEach((pt, idx) => {
+    const features = pointList.map((pt: [number, number], idx: number) => {
       const [lat, lng] = pt;
       const char = intensityStr.charAt(idx) || "a";
-      const circle = L.circleMarker([lat, lng], {
-        radius: radiusForZoom,
-        color: convertStringToColor(char),
-        fillOpacity: 1,
-      });
-      layerRef.current?.addLayer(circle);
+      return {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [lng, lat],
+        },
+        properties: {
+          color: convertStringToColor(char),
+          radius: 3,
+        },
+      };
     });
+    setSiteGeoJSON({ type: "FeatureCollection", features });
+  }, [enableKyoshinMonitor, kmoniData, pointList, convertStringToColor]);
 
-    layerRef.current.addTo(map);
-  }, [map, kmoniData, zoomLevel, pointList, enableKyoshinMonitor, convertStringToColor]);
+  const siteLayer: LayerProps = {
+    id: "site-layer",
+    type: "circle",
+    paint: {
+      "circle-color": ["get", "color"],
+      "circle-radius": [
+        "interpolate",
+        ["exponential", 2.5],
+        ["zoom"],
+        0, 2,
+        5, 4,
+        10, 30,
+        15, 25,
+        20, 40,
+        22, 50
+      ],
+      "circle-stroke-color": "#fff",
+      "circle-stroke-width": 0,
+    },
+  };
 
-  useEffect(() => {
-    if (!enableKyoshinMonitor) return;
-    if (isConnected) {
-      if (waveLayerRef.current) {
-        waveLayerRef.current.clearLayers();
-        map.removeLayer(waveLayerRef.current);
-      }
-      return;
-    }
-
-    if (!kmoniData?.psWave?.items || kmoniData.psWave.items.length === 0) {
-      if (waveLayerRef.current) {
-        waveLayerRef.current.clearLayers();
-      }
-      return;
-    }
-
-    if (!waveLayerRef.current) {
-      waveLayerRef.current = L.layerGroup();
-    }
-    waveLayerRef.current.clearLayers();
-
-    const epicenterIcon = L.icon({
-      iconUrl: "/shingen.png",
-      iconSize: [48, 48],
-      iconAnchor: [24, 24],
-      className: "blink",
-    });
-
-    kmoniData.psWave.items.forEach((item: { latitude: string; longitude: string; pRadius: string; sRadius: string }) => {
-      const latStr = item.latitude;
-      const lngStr = item.longitude;
-      const pRadius = parseFloat(item.pRadius);
-      const sRadius = parseFloat(item.sRadius);
-
-      const latVal =
-        (latStr.startsWith("N") ? 1 : -1) * parseFloat(latStr.slice(1));
-      const lngVal =
-        (lngStr.startsWith("E") ? 1 : -1) * parseFloat(lngStr.slice(1));
-
-      const epicenterMarker = L.marker([latVal, lngVal], {
-        icon: epicenterIcon,
-      });
-      waveLayerRef.current?.addLayer(epicenterMarker);
-
-      const pCircle = L.circle([latVal, lngVal], {
-        radius: pRadius * 1000,
-        color: "#0000ff",
-        weight: 3,
-        opacity: 1,
-        fillOpacity: 0,
-        pane: "psWavePane",
-      });
-      waveLayerRef.current?.addLayer(pCircle);
-
-      const sCircle = L.circle([latVal, lngVal], {
-        radius: sRadius * 1000,
-        color: "#ff0000",
-        weight: 6,
-        opacity: 1,
-        fillColor: "#ff0000",
-        fillOpacity: 0.2,
-        pane: "psWavePane",
-      });
-      waveLayerRef.current?.addLayer(sCircle);
-    });
-
-    waveLayerRef.current.addTo(map);
-  }, [enableKyoshinMonitor, kmoniData, map, isConnected]);
-
-  return null;
-}
+  return (
+    <Source id="siteSource" type="geojson" data={siteGeoJSON}>
+      <Layer {...siteLayer} />
+    </Source>
+  );
+};
 
 export default KyoshinMonitor;

@@ -1,7 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { Button } from "@/components/ui/button";
 import SettingsDialog from "@/components/settings-dialog";
 import { useTheme } from "next-themes";
@@ -21,7 +27,8 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
-import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay"
+import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
+import { MapRef } from "react-map-gl/maplibre";
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -41,7 +48,18 @@ const DynamicMap = dynamic(() => import("@/components/map"), {
   ssr: false,
 });
 
-const INTENSITY_ORDER = ["0", "1", "2", "3", "4", "5-", "5+", "6-", "6+", "7"];
+const INTENSITY_ORDER = [
+  "0",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5-",
+  "5+",
+  "6-",
+  "6+",
+  "7",
+];
 
 const levelToIntensity: Record<string, string> = {
   "不明": "不明",
@@ -62,19 +80,37 @@ function PageContent() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [serverBaseTime, setServerBaseTime] = useState<number | null>(null);
   const [nowAppTime, setNowAppTime] = useState<number>(0);
-  const [currentTime, setCurrentTime] = useState<string>("----/--/-- --:--:--");
-  const mapRef = useRef<L.Map | null>(null);
-  const [displayDataList, setDisplayDataList] = useState<EewInformation.Latest.Main[]>([]);
+  const [currentTime, setCurrentTime] = useState<string>(
+    "----/--/-- --:--:--"
+  );
+  const mapRef = useRef<MapRef | null>(null);
+  const [displayDataList, setDisplayDataList] = useState<
+    EewInformation.Latest.Main[]
+  >([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const allRegionMapsRef = useRef<Record<string, RegionIntensityMap>>({});
   const [mergedRegionMap, setMergedRegionMap] = useState<RegionIntensityMap>({});
   const [, setMultiRegionMap] = useState<Record<string, string[]>>({});
-  const allWarningRegionsRef = useRef<Record<string, { code: string; name: string }[]>>({});
-  const [mergedWarningRegions, setMergedWarningRegions] = useState<{ code: string; name: string }[]>([]);
-  const { isConnected, receivedData, connectWebSocket, disconnectWebSocket, injectTestData } = useWebSocket();
+  const allWarningRegionsRef = useRef<
+    Record<string, { code: string; name: string }[]>
+  >({});
+  const [mergedWarningRegions, setMergedWarningRegions] = useState<
+    { code: string; name: string }[]
+  >([]);
+  const {
+    isConnected,
+    receivedData,
+    connectWebSocket,
+    disconnectWebSocket,
+    injectTestData,
+  } = useWebSocket();
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
+  const nowAppTimeRef = useRef<number>(0);
   const rAFBaseRef = useRef<number | null>(null);
-  const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(settings.map_auto_zoom);
+  const lastRenderRef = useRef<number>(0);
+  const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(
+    settings.map_auto_zoom
+  );
   const [forceAutoZoomTrigger, setForceAutoZoomTrigger] = useState<number>(0);
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
   const prevMultiRef = useRef<Record<string, string[]>>({});
@@ -83,17 +119,20 @@ function PageContent() {
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
 
-  const shindoColors = useMemo(() => [
-    { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
-    { level: "震度6強", bgcolor: "#930A7A", color: "white" },
-    { level: "震度6弱", bgcolor: "#A50C6B", color: "white" },
-    { level: "震度5強", bgcolor: "#C31B1B", color: "white" },
-    { level: "震度5弱", bgcolor: "#E52A18", color: "white" },
-    { level: "震度4", bgcolor: "#FF9939", color: "black" },
-    { level: "震度3", bgcolor: "#F6CB51", color: "black" },
-    { level: "震度2", bgcolor: "#4CD0A7", color: "black" },
-    { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
-  ], []);
+  const shindoColors = useMemo(
+    () => [
+      { level: "震度7", bgcolor: "#5F0CA2", color: "white" },
+      { level: "震度6強", bgcolor: "#930A7A", color: "white" },
+      { level: "震度6弱", bgcolor: "#A50C6B", color: "white" },
+      { level: "震度5強", bgcolor: "#C31B1B", color: "white" },
+      { level: "震度5弱", bgcolor: "#E52A18", color: "white" },
+      { level: "震度4", bgcolor: "#FF9939", color: "black" },
+      { level: "震度3", bgcolor: "#F6CB51", color: "black" },
+      { level: "震度2", bgcolor: "#4CD0A7", color: "black" },
+      { level: "震度1", bgcolor: "#2B8EB2", color: "white" },
+    ],
+    []
+  );
 
   const fetchServerTime = useCallback(async (handler: boolean = false) => {
     try {
@@ -124,12 +163,19 @@ function PageContent() {
         rAFBaseRef.current = timestamp;
       }
       const elapsed = timestamp - rAFBaseRef.current;
-      setNowAppTime(serverBaseTime + elapsed);
+      nowAppTimeRef.current = serverBaseTime + elapsed;
       animationFrameId = requestAnimationFrame(updateTime);
     };
     animationFrameId = requestAnimationFrame(updateTime);
     return () => cancelAnimationFrame(animationFrameId);
   }, [serverBaseTime]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setNowAppTime(nowAppTimeRef.current);
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     if (settings.enable_kyoshin_monitor) return;
@@ -147,15 +193,6 @@ function PageContent() {
   }, [nowAppTime, settings.enable_kyoshin_monitor]);
 
   useEffect(() => {
-    if (!nowAppTime) return;
-    const timer = setInterval(() => {
-      setNowAppTime(prev => prev + 1000);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [nowAppTime]);
-
-  useEffect(() => {
     const intervalId = setInterval(() => {
       fetchServerTime(false);
     }, 10 * 60 * 1000);
@@ -170,7 +207,9 @@ function PageContent() {
     if (receivedData) {
       const newData = receivedData as EewInformation.Latest.Main;
       setDisplayDataList((prevList) => {
-        const filtered = prevList.filter((data) => data.eventId !== newData.eventId);
+        const filtered = prevList.filter(
+          (data) => data.eventId !== newData.eventId
+        );
         return [newData, ...filtered];
       });
     }
@@ -199,7 +238,10 @@ function PageContent() {
     });
   };
 
-  const handleSettingChange = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+  const handleSettingChange = <K extends keyof Settings>(
+    key: K,
+    value: Settings[K]
+  ) => {
     if (key === "theme") {
       if (value === "dark" || value === "light" || value === "system") {
         setTheme(value);
@@ -233,14 +275,18 @@ function PageContent() {
 
   const setHomePosition = () => {
     if (mapRef.current) {
-      mapRef.current.setView([35, 136], 5);
+      mapRef.current.flyTo({
+        center: [136, 35],
+        zoom: 4.5,
+      });
     }
   };
 
   const handleTest = async () => {
     try {
       const response = await fetch("/testdata/testnow/miyagi.json");
-      if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
+      if (!response.ok)
+        throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
     } catch (error) {
@@ -252,7 +298,8 @@ function PageContent() {
   const handleTest2 = async () => {
     try {
       const response = await fetch("/testdata/testnow/test.json");
-      if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
+      if (!response.ok)
+        throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
     } catch (error) {
@@ -264,7 +311,8 @@ function PageContent() {
   const handleTest3 = async () => {
     try {
       const response = await fetch("/testdata/test/testmiyagi.json");
-      if (!response.ok) throw new Error(`テストデータ取得失敗: ${response.statusText}`);
+      if (!response.ok)
+        throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
       injectTestData(testData);
     } catch (error) {
@@ -308,7 +356,7 @@ function PageContent() {
       } else {
         allRegionMapsRef.current[eventId] = regionMap;
       }
-      
+
       const merged: Record<string, string> = {};
       const multi: Record<string, string[]> = {};
 
@@ -368,13 +416,18 @@ function PageContent() {
   );
 
   useEffect(() => {
-    const intervalTime = settings.enable_dynamic_zoom && mapAutoZoomEnabled ? 2000 : 10000;
+    const intervalTime =
+      settings.enable_dynamic_zoom && mapAutoZoomEnabled ? 2000 : 10000;
 
     const timer = setInterval(() => {
       setEpicenters((prev) => {
         const now = Date.now();
-        const filtered = prev.filter((e) => e.startTime && now - e.startTime < 3 * 60 * 1000);
-        const removed = prev.filter((e) => e.startTime && now - e.startTime >= 3 * 60 * 1000);
+        const filtered = prev.filter(
+          (e) => e.startTime && now - e.startTime < 3 * 60 * 1000
+        );
+        const removed = prev.filter(
+          (e) => e.startTime && now - e.startTime >= 3 * 60 * 1000
+        );
 
         removed.forEach((e) => {
           onRegionIntensityUpdate({}, e.eventId);
@@ -403,8 +456,12 @@ function PageContent() {
       if (canceledRemoveScheduledRef.current.has(data.eventId)) return;
 
       setTimeout(() => {
-        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== data.eventId));
-        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== data.eventId));
+        setDisplayDataList((prev) =>
+          prev.filter((x) => x.eventId !== data.eventId)
+        );
+        setEpicenters((prev) =>
+          prev.filter((epi) => epi.eventId !== data.eventId)
+        );
         onRegionIntensityUpdate({}, data.eventId);
         onWarningRegionUpdate([], data.eventId);
 
@@ -490,7 +547,8 @@ function PageContent() {
   }, [displayedIntensitySet, shindoColors]);
 
   const showLegend =
-    (settings.enable_map_intensity_fill && Object.keys(mergedRegionMap).length > 0) ||
+    (settings.enable_map_intensity_fill &&
+      Object.keys(mergedRegionMap).length > 0) ||
     (settings.enable_map_warning_area && mergedWarningRegions.length > 0);
 
   const getHypocenterMethod = (
@@ -527,12 +585,13 @@ function PageContent() {
     const fetchVersion = async () => {
       try {
         const response = await fetch("/api/version");
-        if (!response.ok) throw new Error("バージョン情報の取得に失敗");
+        if (!response.ok)
+          throw new Error("バージョン情報の取得に失敗");
         const data = await response.json();
         setVersion(data.version);
       } catch (error) {
         console.error("バージョン取得失敗", error);
-        toast.error("バージョン情報の取得に失敗しました")
+        toast.error("バージョン情報の取得に失敗しました");
       }
     };
     fetchVersion();
@@ -562,39 +621,54 @@ function PageContent() {
       <main className="h-full w-full flex">
         <div className="flex-1 relative">
           <LoadingMapOverlay isVisible={!isMapLoaded} />
-          {(settings.enable_map_intensity_fill || settings.enable_map_warning_area) && showLegend && (
-            <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
-              <h3 className="text-center font-bold mb-2 px-3 pt-3">地図の凡例</h3>
-              <div className="border-t my-2 w-full"></div>
-              <div className="space-y-1.5 px-3 pb-3">
-                {settings.enable_map_warning_area && mergedWarningRegions.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-full rounded shadow-sm text-left p-1"
-                      style={{ backgroundColor: "red", color: "white" }}
-                    >
-                      <span className="text-xs font-medium">警報地域</span>
-                    </div>
-                  </div>
-                )}
-                {settings.enable_map_intensity_fill &&
-                  displayedShindoColors.map(({ level, bgcolor, color }) => (
-                    <div key={level} className="flex items-center gap-2">
-                      <div
-                        className="w-full rounded shadow-sm text-left p-1"
-                        style={{ backgroundColor: bgcolor, color: color }}
-                      >
-                        <span className="text-xs font-medium">{level}</span>
+          {(settings.enable_map_intensity_fill ||
+            settings.enable_map_warning_area) &&
+            showLegend && (
+              <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
+                <h3 className="text-center font-bold mb-2 px-3 pt-3">
+                  地図の凡例
+                </h3>
+                <div className="border-t my-2 w-full"></div>
+                <div className="space-y-1.5 px-3 pb-3">
+                  {settings.enable_map_warning_area &&
+                    mergedWarningRegions.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-full rounded shadow-sm text-left p-1"
+                          style={{
+                            backgroundColor: "red",
+                            color: "white",
+                          }}
+                        >
+                          <span className="text-xs font-medium">
+                            警報地域
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )}
+                  {settings.enable_map_intensity_fill &&
+                    displayedShindoColors.map(({ level, bgcolor, color }) => (
+                      <div key={level} className="flex items-center gap-2">
+                        <div
+                          className="w-full rounded shadow-sm text-left p-1"
+                          style={{
+                            backgroundColor: bgcolor,
+                            color: color,
+                          }}
+                        >
+                          <span className="text-xs font-medium">
+                            {level}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           <DynamicMap
             ref={mapRef}
-            homePosition={{ center: [35, 136], zoom: 5 }}
+            homePosition={{ center: [35, 136], zoom: 4.5 }}
             enableKyoshinMonitor={settings.enable_kyoshin_monitor}
             onTimeUpdate={handleTimeUpdate}
             isConnected={isConnected}
@@ -610,7 +684,7 @@ function PageContent() {
             warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
             isCancel={isCancel}
             psWaveUpdateInterval={settings.ps_wave_update_interval}
-            nowAppTime={nowAppTime}
+            nowAppTimeRef={nowAppTimeRef}
             onMapLoad={() => setIsMapLoaded(true)}
           />
         </div>
@@ -623,7 +697,7 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
+            <Button variant="outline" onClick={handleTest} className="">
               <FlaskConical />
             </Button>
             <Button variant="outline" onClick={handleTest2} className="hidden">
@@ -632,7 +706,7 @@ function PageContent() {
             <Button variant="outline" onClick={handleTest3} className="hidden">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
+            <Button variant="outline" onClick={handleSendAllTests} className="">
               複数
             </Button>
             <div className="flex flex-col">
@@ -659,7 +733,7 @@ function PageContent() {
                       if (!earthquake) return true;
                       const method = getHypocenterMethod(earthquake);
                       return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                  });
+                    });
 
                 return filteredDisplayDataList.length > 0 ? (
                   filteredDisplayDataList.map((data) => (
