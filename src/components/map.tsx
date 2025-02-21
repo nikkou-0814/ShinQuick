@@ -31,6 +31,7 @@ import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
 import { MapProps, SaibunProperties, SaibunFeatureWithBbox } from "@/types/types";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { getJapanHomePosition } from "@/utils/home-position";
 
 const intensityFillColors: Record<string, string> = {
   "0": "#62626B",
@@ -179,10 +180,12 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     saibunFeaturesWithBbox
   ]);
 
+  const initialViewState = getJapanHomePosition();
+
   const [viewState, setViewState] = useState({
-    longitude: homePosition.center[1],
-    latitude: homePosition.center[0],
-    zoom: homePosition.zoom,
+    longitude: initialViewState.longitude,
+    latitude: initialViewState.latitude,
+    zoom: initialViewState.zoom,
   });
 
   const [autoZoomEnabled, setAutoZoomEnabled] = useState(
@@ -207,6 +210,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   // 自動ズーム処理
   useEffect(() => {
+    if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) return;
     if (!enableDynamicZoom || !autoZoomEnabled) return;
 
     let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
@@ -280,8 +284,18 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     saibunFeaturesWithBbox,
     ref,
   ]);
-
   const autoZoomTimeoutRef = useRef<number | null>(null);
+
+  const setHomePosition = () => {
+    if (ref && typeof ref !== "function" && ref.current) {
+      const { longitude, latitude, zoom } = getJapanHomePosition();
+      ref.current.flyTo({
+        center: [longitude, latitude],
+        zoom: zoom,
+        duration: 1000,
+      });
+    }
+  };
 
   const handleUserInteractionStart = useCallback(() => {
     if (autoZoomTimeoutRef.current) {
@@ -299,6 +313,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
     if (enableDynamicZoom) {
       autoZoomTimeoutRef.current = window.setTimeout(() => {
+        setHomePosition();
         setAutoZoomEnabled(true);
         onAutoZoomChange?.(true);
       }, 10000);

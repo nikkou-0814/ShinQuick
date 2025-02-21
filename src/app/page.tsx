@@ -30,6 +30,7 @@ import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
 import { MapRef } from "react-map-gl/maplibre";
 import { ClockDisplay } from "@/components/clock-display"
+import { getJapanHomePosition } from "@/utils/home-position";
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -250,9 +251,11 @@ function PageContent() {
 
   const setHomePosition = () => {
     if (mapRef.current) {
+      const { longitude, latitude, zoom } = getJapanHomePosition();
       mapRef.current.flyTo({
-        center: [136, 35],
-        zoom: 4.5,
+        center: [longitude, latitude],
+        zoom: zoom,
+        duration: 1000,
       });
     }
   };
@@ -672,7 +675,7 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="">
+            <Button variant="outline" onClick={handleTest} className="hidden">
               <FlaskConical />
             </Button>
             <Button variant="outline" onClick={handleTest2} className="hidden">
@@ -681,7 +684,7 @@ function PageContent() {
             <Button variant="outline" onClick={handleTest3} className="hidden">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleSendAllTests} className="">
+            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
               複数
             </Button>
             <div className="flex flex-col">
