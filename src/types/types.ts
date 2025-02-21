@@ -51,7 +51,6 @@ export type RegionIntensityMap = Record<string, string>;
 
 // マップコンポーネントのProps
 export interface MapProps {
-  homePosition: { center: [number, number]; zoom: number };
   enableKyoshinMonitor: boolean;
   onTimeUpdate?: (time: string) => void;
   isConnected: boolean;

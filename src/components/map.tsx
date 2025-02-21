@@ -52,7 +52,6 @@ const CitiesData = rawCitiesData as FeatureCollection;
 
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
-    homePosition,
     enableKyoshinMonitor,
     onTimeUpdate,
     isConnected,
@@ -286,7 +285,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   ]);
   const autoZoomTimeoutRef = useRef<number | null>(null);
 
-  const setHomePosition = () => {
+  const setHomePosition = useCallback(() => {
     if (ref && typeof ref !== "function" && ref.current) {
       const { longitude, latitude, zoom } = getJapanHomePosition();
       ref.current.flyTo({
@@ -295,7 +294,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         duration: 1000,
       });
     }
-  };
+  }, [ref]);
 
   const handleUserInteractionStart = useCallback(() => {
     if (autoZoomTimeoutRef.current) {
@@ -318,7 +317,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         onAutoZoomChange?.(true);
       }, 10000);
     }
-  }, [enableDynamicZoom, onAutoZoomChange]);
+  }, [enableDynamicZoom, onAutoZoomChange, setHomePosition]);
 
   const onMove = (evt: ViewStateChangeEvent) => {
     setViewState(evt.viewState);
