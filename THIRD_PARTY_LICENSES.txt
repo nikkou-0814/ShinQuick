@@ -214,10 +214,6 @@ react-dom@19.0.0 (MIT)
 Repository: https://github.com/facebook/react
 License File: node_modules/react-dom/LICENSE
 
-react-leaflet@5.0.0 (Hippocratic-2.1)
-Repository: https://github.com/PaulLeCam/react-leaflet
-License File: node_modules/react-leaflet/LICENSE.md
-
 react@19.0.0 (MIT)
 Repository: https://github.com/facebook/react
 License File: node_modules/react/LICENSE
