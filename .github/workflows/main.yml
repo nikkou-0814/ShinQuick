@@ -4,12 +4,10 @@ on:
   push:
     branches:
       - dev
-      - maplibre
       - main
   pull_request:
     branches:
       - dev
-      - maplibre
       - main
 
 jobs:
