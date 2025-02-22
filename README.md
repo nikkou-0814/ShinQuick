@@ -2,7 +2,7 @@
 
 <div style="text-align: center;">
   <img src="images/screenshot.png" alt="screenshot" style="max-width: 100%; height: auto;">
-  複数地震時の動作
+  動作の例
 </div>
 
 ## 概要
