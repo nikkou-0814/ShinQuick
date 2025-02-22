@@ -99,11 +99,6 @@ Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊�
 
 * 設定のDM-D.S.SタブのUIなどを参考にしています。
 
-### Leaflet無段階ズーム
-
-* [Leaflet.SmoothWheelZoom](https://github.com/mutsuyuki/Leaflet.SmoothWheelZoom)
-* [Leaflet.jsのマウスホイールZoomを、Googlemap的な無段階ズームにする](https://qiita.com/mutsuyuki/items/18750a8a73675604c4d8)
-
 TypeScript用に改変して使用しています。
 
 ## ライセンス
