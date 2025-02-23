@@ -252,7 +252,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     if (epicenters.length === 1) {
       maxZoom = epicenters[0].depthval > 150 ? 5 : 7;
     } else if (epicenters.length > 1) {
-      maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 5 : 9;
+      maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 5 : 6;
     }
 
     const viewport = new WebMercatorViewport({
