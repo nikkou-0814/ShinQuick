@@ -63,15 +63,22 @@ function getValue(
 
 interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
   nowAppTimeRef: React.RefObject<number>;
+  isMapMoving?: boolean;
 }
 
-const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterval, nowAppTimeRef }) => {
+const PsWave: React.FC<ModifiedPsWaveProps> = ({ 
+  epicenters, 
+  psWaveUpdateInterval, 
+  nowAppTimeRef,
+  isMapMoving = false,
+}) => {
   const [circleGeoJSON, setCircleGeoJSON] = useState<FeatureCollection<Polygon>>({
     type: "FeatureCollection",
     features: [],
   });
   const travelTableRef = useRef<TravelTableRow[]>([]);
   const updateIntervalRef = useRef<number | null>(null);
+  const lastUpdateTime = useRef<number>(0);
 
   useEffect(() => {
     importTable()
@@ -93,6 +100,18 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterva
         return;
       }
 
+      const now = Date.now();
+      if (isMapMoving) {
+        if (now - lastUpdateTime.current < 500) {
+          updateIntervalRef.current = window.setTimeout(updateGeoJSON, psWaveUpdateInterval);
+          return;
+        }
+      }
+      
+      lastUpdateTime.current = now;
+
+      const circleSteps = isMapMoving ? 32 : 64;
+      
       const features: Feature<Polygon>[] = [];
       const currentTime = nowAppTimeRef.current;
 
@@ -104,7 +123,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterva
           const pCircle: Feature<Polygon> = turf.circle(
             [epi.lng, epi.lat],
             pDistance,
-            { steps: 64, units: "kilometers" }
+            { steps: circleSteps, units: "kilometers" }
           ) as Feature<Polygon>;
           pCircle.properties = { color: "#0000ff", type: "pWave" };
           features.push(pCircle);
@@ -114,7 +133,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterva
           const sCircle: Feature<Polygon> = turf.circle(
             [epi.lng, epi.lat],
             sDistance,
-            { steps: 64, units: "kilometers" }
+            { steps: circleSteps, units: "kilometers" }
           ) as Feature<Polygon>;
           sCircle.properties = { color: "#ff0000", fillOpacity: 0.2, type: "sWave" };
           features.push(sCircle);
@@ -133,7 +152,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterva
         clearTimeout(updateIntervalRef.current);
       }
     };
-  }, [epicenters, psWaveUpdateInterval, nowAppTimeRef]);
+  }, [epicenters, psWaveUpdateInterval, nowAppTimeRef, isMapMoving]);
 
   return (
     <Source id="psWaveSource" type="geojson" data={circleGeoJSON}>
@@ -160,4 +179,4 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({ epicenters, psWaveUpdateInterva
   );
 };
 
-export default PsWave;
+export default React.memo(PsWave);
