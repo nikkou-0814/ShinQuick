@@ -118,47 +118,49 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         }
         const data = await res.json();
         if (isMounted) {
-          setKmoniData(data);
-          if (onTimeUpdate) {
-            if (data.realTimeData?.dataTime) {
-              const dateISO = new Date(data.realTimeData.dataTime);
-              const formattedTime = dateISO.toLocaleString("ja-JP", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              });
-              onTimeUpdate(formattedTime);
-            } else {
-              const fallbackTime = new Date().toLocaleString("ja-JP", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              });
-              onTimeUpdate(fallbackTime);
+          requestAnimationFrame(() => {
+            setKmoniData(data);
+            if (onTimeUpdate) {
+              if (data.realTimeData?.dataTime) {
+                const dateISO = new Date(data.realTimeData.dataTime);
+                const formattedTime = dateISO.toLocaleString("ja-JP", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+                onTimeUpdate(formattedTime);
+              } else {
+                const fallbackTime = new Date().toLocaleString("ja-JP", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+                onTimeUpdate(fallbackTime);
+              }
             }
-          }
+          });
         }
       } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          console.log('Fetch aborted due to timeout');
+        if (err instanceof DOMException && err.name === "AbortError") {
+          console.log("Fetch aborted due to timeout");
         } else {
           console.error("KyoshinMonitor fetch error:", err);
         }
       }
     };
-
+    
     fetchKyoshinMonitorData();
     const intervalId = window.setInterval(fetchKyoshinMonitorData, 1000);
     return () => {
       isMounted = false;
       clearInterval(intervalId);
-    };
+    };    
   }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef]);
 
   const siteGeoJSON = useMemo(() => {
