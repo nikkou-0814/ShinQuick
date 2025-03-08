@@ -258,8 +258,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) return;
     if (!enableDynamicZoom || !autoZoomEnabled) return;
     if (!ref || !('current' in ref) || !ref.current) return;
-    
-    const now = Date.now();
+    const now = nowAppTimeRef.current;
     if (now - lastAutoZoomTime.current < 200) {
       if (!pendingAutoZoom.current) {
         pendingAutoZoom.current = true;
@@ -396,17 +395,18 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   const handleMoveEnd = useCallback(() => {
     if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
-      const map = ref.current;
-      if (map.getLayer("site-layer")) {
-        map.moveLayer("site-layer");
-      }
-      if (map.getLayer("pWave-layer")) {
-        map.moveLayer("pWave-layer");
-      }
-      if (map.getLayer("sWave-layer")) {
-        map.moveLayer("sWave-layer");
-      }
+      requestAnimationFrame(() => {
+        if (!ref.current) return;
+        const map = ref.current;
+        const layersToMove = ["site-layer", "pWave-layer", "sWave-layer"];
+        layersToMove.forEach(layerId => {
+          if (map.getLayer(layerId)) {
+            map.moveLayer(layerId);
+          }
+        });
+      });
     }
+    
     setIsMapMoving(false);
     window.dispatchEvent(new Event('moveend'));
   }, [enableKyoshinMonitor, ref]);
@@ -418,32 +418,32 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   // マップのロード完了
   const onMapLoadHandler = useCallback(() => {
     if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
-      const map = ref.current;
-      if (map.getLayer("site-layer")) {
-        map.moveLayer("site-layer");
-      }
-      if (map.getLayer("pWave-layer")) {
-        map.moveLayer("pWave-layer");
-      }
-      if (map.getLayer("sWave-layer")) {
-        map.moveLayer("sWave-layer");
-      }
+      requestAnimationFrame(() => {
+        if (!ref.current) return;
+        const map = ref.current;
+        const layersToMove = ["site-layer", "pWave-layer", "sWave-layer"];
+        layersToMove.forEach(layerId => {
+          if (map.getLayer(layerId)) {
+            map.moveLayer(layerId);
+          }
+        });
+      });
     }
     onMapLoad?.();
   }, [onMapLoad, enableKyoshinMonitor, ref]);
 
   useEffect(() => {
     if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
-      const map = ref.current;
-      if (map.getLayer("site-layer")) {
-        map.moveLayer("site-layer");
-      }
-      if (map.getLayer("pWave-layer")) {
-        map.moveLayer("pWave-layer");
-      }
-      if (map.getLayer("sWave-layer")) {
-        map.moveLayer("sWave-layer");
-      }
+      requestAnimationFrame(() => {
+        if (!ref.current) return;
+        const map = ref.current;
+        const layersToMove = ["site-layer", "pWave-layer", "sWave-layer"];
+        layersToMove.forEach(layerId => {
+          if (map.getLayer(layerId)) {
+            map.moveLayer(layerId);
+          }
+        });
+      });
     }
   }, [enableKyoshinMonitor, ref]);  
 
@@ -473,9 +473,9 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   , [theme]);
 
   const memoizedEpicenters = useMemo(() => {
-    return epicenters.map((epi, index) => (
+    return epicenters.map((epi) => (
       <Marker
-        key={`epi-${index}-${epi.lng}-${epi.lat}`}
+        key={`epi-${epi.eventId}`}
         longitude={epi.lng}
         latitude={epi.lat}
         anchor="center"

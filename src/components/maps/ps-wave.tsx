@@ -88,68 +88,137 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
       .catch(err => console.error("走時表の読み込み失敗", err));
   }, []);
 
+  // 震源と波の位置を保持するためのキャッシュ
+  const epicenterCacheRef = useRef<Map<string, {
+    lat: number,
+    lng: number,
+    depthval: number,
+    originTime: number
+  }>>(new Map());
+
+  const updatePendingRef = useRef(false);
+  const lastCalculatedTimeRef = useRef<number>(0);
+  const lastFeaturesRef = useRef<Feature<Polygon>[]>([]);
+
   useEffect(() => {
     if (!epicenters.length || !travelTableRef.current.length) {
       setCircleGeoJSON({ type: "FeatureCollection", features: [] });
       return;
     }
 
-    const updateGeoJSON = () => {
-      if (!epicenters.length || !travelTableRef.current.length || !nowAppTimeRef.current) {
-        setCircleGeoJSON({ type: "FeatureCollection", features: [] });
-        return;
-      }
+    // 震源情報をキャッシュに保存
+    epicenters.forEach(epi => {
+      const key = `${epi.eventId}`;
+      epicenterCacheRef.current.set(key, {
+        lat: epi.lat,
+        lng: epi.lng,
+        depthval: epi.depthval,
+        originTime: epi.originTime
+      });
+    });
 
-      const now = Date.now();
-      if (isMapMoving) {
-        if (now - lastUpdateTime.current < 500) {
-          updateIntervalRef.current = window.setTimeout(updateGeoJSON, psWaveUpdateInterval);
-          return;
-        }
-      }
-      
-      lastUpdateTime.current = now;
-
-      const circleSteps = isMapMoving ? 32 : 64;
-      
+    // P/S波の位置を計算
+    const calculateWavePositions = (currentTime: number): Feature<Polygon>[] => {
+      const circleSteps = isMapMoving ? 16 : 48;
       const features: Feature<Polygon>[] = [];
-      const currentTime = nowAppTimeRef.current;
 
       epicenters.forEach((epi) => {
         const elapsedTime = (currentTime - epi.originTime) / 1000;
         const [pDistance, sDistance] = getValue(travelTableRef.current, epi.depthval, elapsedTime);
 
+        // P波の描画
         if (!isNaN(pDistance)) {
           const pCircle: Feature<Polygon> = turf.circle(
             [epi.lng, epi.lat],
             pDistance,
             { steps: circleSteps, units: "kilometers" }
           ) as Feature<Polygon>;
-          pCircle.properties = { color: "#0000ff", type: "pWave" };
+          pCircle.properties = { 
+            color: "#0000ff", 
+            type: "pWave",
+            eventId: epi.eventId
+          };
           features.push(pCircle);
         }
 
+        // S波の描画
         if (!isNaN(sDistance)) {
           const sCircle: Feature<Polygon> = turf.circle(
             [epi.lng, epi.lat],
             sDistance,
             { steps: circleSteps, units: "kilometers" }
           ) as Feature<Polygon>;
-          sCircle.properties = { color: "#ff0000", fillOpacity: 0.2, type: "sWave" };
+          sCircle.properties = { 
+            color: "#ff0000", 
+            fillOpacity: 0.2, 
+            type: "sWave",
+            eventId: epi.eventId
+          };
           features.push(sCircle);
         }
       });
 
-      setCircleGeoJSON({ type: "FeatureCollection", features });
-
-      updateIntervalRef.current = window.setTimeout(updateGeoJSON, psWaveUpdateInterval);
+      return features;
     };
 
-    updateGeoJSON();
+    // GeoJSONを更新
+    const updateGeoJSON = () => {
+      if (!epicenters.length || !travelTableRef.current.length || !nowAppTimeRef.current) {
+        setCircleGeoJSON({ type: "FeatureCollection", features: [] });
+        updatePendingRef.current = false;
+        return;
+      }
+      const now = nowAppTimeRef.current;
+      
+      // マップ移動中は更新頻度を下げる
+      if (isMapMoving) {
+        if (now - lastUpdateTime.current < 1000) {
+          updateIntervalRef.current = window.setTimeout(updateGeoJSON, psWaveUpdateInterval);
+          updatePendingRef.current = false;
+          return;
+        }
+      } else {
+        if (now - lastUpdateTime.current < psWaveUpdateInterval) {
+          updateIntervalRef.current = window.setTimeout(updateGeoJSON, 
+            psWaveUpdateInterval - (now - lastUpdateTime.current));
+          updatePendingRef.current = false;
+          return;
+        }
+      }
+      
+      lastUpdateTime.current = now;
+
+      const shouldRecalculate = now - lastCalculatedTimeRef.current >= 1000;
+      const features = shouldRecalculate 
+        ? calculateWavePositions(now) 
+        : lastFeaturesRef.current;
+      
+      if (shouldRecalculate) {
+        lastCalculatedTimeRef.current = now;
+        lastFeaturesRef.current = features;
+      }
+
+      requestAnimationFrame(() => {
+        setCircleGeoJSON({ type: "FeatureCollection", features });
+        // 次の更新をスケジュール
+        updateIntervalRef.current = window.setTimeout(() => {
+          updatePendingRef.current = true;
+          updateGeoJSON();
+        }, isMapMoving ? Math.max(psWaveUpdateInterval * 2, 1000) : psWaveUpdateInterval);
+      });
+      
+      updatePendingRef.current = false;
+    };
+
+    if (!updatePendingRef.current) {
+      updatePendingRef.current = true;
+      updateGeoJSON();
+    }
 
     return () => {
       if (updateIntervalRef.current !== null) {
         clearTimeout(updateIntervalRef.current);
+        updatePendingRef.current = false;
       }
     };
   }, [epicenters, psWaveUpdateInterval, nowAppTimeRef, isMapMoving]);

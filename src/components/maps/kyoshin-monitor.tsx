@@ -90,7 +90,7 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
 
     const fetchKyoshinMonitorData = async () => {
       if (!nowAppTimeRef.current) return;
-      const now = Date.now();
+      const now = nowAppTimeRef.current;
       if (now - lastFetchTime.current < 500) return;
       lastFetchTime.current = now;
       try {
@@ -163,16 +163,18 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
     };    
   }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef]);
 
+  // 座標配列を作成
   const siteGeoJSON = useMemo(() => {
     if (!enableKyoshinMonitor || !kmoniData?.realTimeData?.intensity || pointList.length === 0) {
       return { type: "FeatureCollection" as const, features: [] };
     }
     const intensityStr = kmoniData.realTimeData.intensity;
     const features: Feature<Point, GeoJsonProperties>[] = [];
-    
-    for (let idx = 0; idx < pointList.length; idx++) {
+    const maxPoints = Math.min(pointList.length, intensityStr.length);
+    for (let idx = 0; idx < maxPoints; idx++) {
       const [lat, lng] = pointList[idx];
-      const char = idx < intensityStr.length ? intensityStr.charAt(idx) : 'a';
+      const char = intensityStr.charAt(idx);
+
       if (char === 'a' || char === 'b' || char === 'c') {
         continue;
       }
@@ -188,7 +190,6 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         },
       });
     }
-
     return { type: "FeatureCollection" as const, features };
   }, [enableKyoshinMonitor, kmoniData, pointList, convertStringToColor]);
 
@@ -202,11 +203,11 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         ["exponential", 2.5],
         ["zoom"],
         0, 2,
-        5, 4,
-        10, 15,
-        15, 20,
-        20, 30,
-        22, 40
+        5, 3,
+        10, 10,
+        15, 15,
+        20, 20,
+        22, 30
       ],
       "circle-stroke-color": "#fff",
       "circle-stroke-width": 0,

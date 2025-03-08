@@ -222,7 +222,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
                   title="強震モニタを有効にする"
-                  description="強震モニタと緊急地震速報（震源とP/S波予測円のみ）を表示します。この機能をオンにすると地図の動作が重くなります。"
+                  description="強震モニタを表示します。この機能をオンにすると地図の動作が重くなります。"
                 >
                   <Switch
                     checked={settings.enable_kyoshin_monitor}
