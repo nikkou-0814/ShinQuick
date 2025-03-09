@@ -59,10 +59,10 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
   
   try {
     if (resolution === "10m") {
-      const module = await import("../../public/mapdata/10mCountries.json");
+      const dataModule = await import("../../public/mapdata/10mCountries.json");
       data = {
         type: "FeatureCollection" as const,
-        features: (module.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
+        features: (dataModule.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
           (geometry: GeoJSON.Geometry) => ({
             type: "Feature" as const,
             geometry,
@@ -71,11 +71,11 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
         ),
       };
     } else if (resolution === "50m") {
-      const module = await import("../../public/mapdata/50mCountries.json");
-      data = module.default as unknown as FeatureCollection;
+      const dataModule = await import("../../public/mapdata/50mCountries.json");
+      data = dataModule.default as unknown as FeatureCollection;
     } else {
-      const module = await import("../../public/mapdata/110mCountries.json");
-      data = module.default as unknown as FeatureCollection;
+      const dataModule = await import("../../public/mapdata/110mCountries.json");
+      data = dataModule.default as unknown as FeatureCollection;
     }
     
     // キャッシュに保存
@@ -117,14 +117,14 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     const loadMapData = async () => {
       try {
         if (!mapDataCache.saibun) {
-          const module = await import("../../public/mapdata/Saibun.json");
-          mapDataCache.saibun = module.default as FeatureCollection;
+          const dataModule = await import("../../public/mapdata/Saibun.json");
+          mapDataCache.saibun = dataModule.default as FeatureCollection;
           setSaibunDataLoaded(true);
         }
   
         if (!mapDataCache.cities) {
-          const module = await import("../../public/mapdata/Cities.json");
-          mapDataCache.cities = module.default as FeatureCollection;
+          const dataModule = await import("../../public/mapdata/Cities.json");
+          mapDataCache.cities = dataModule.default as FeatureCollection;
           setCitiesDataLoaded(true);
         }
       } catch (error) {
