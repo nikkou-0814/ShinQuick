@@ -6,20 +6,71 @@ import * as turf from "@turf/turf";
 import { TravelTableRow, PsWaveProps, EpicenterInfo } from "@/types/types";
 import { Feature, FeatureCollection, Polygon } from "geojson";
 
+// 走時表のキャッシュ
+const travelTableCache = {
+  data: null as TravelTableRow[] | null,
+  loading: false,
+  error: null as Error | null,
+};
+
 // 走時表の読み込み
 async function importTable(): Promise<TravelTableRow[]> {
-  const res = await fetch("/tjma2001.txt");
-  const text = await res.text();
-  const lines = text.trim().split("\n").map(line => line.trim().replace(/\s+/g, " "));
-  return lines.map(line => {
-    const s = line.split(" ");
-    return {
-      p: parseFloat(s[1]),
-      s: parseFloat(s[3]),
-      depth: parseInt(s[4], 10),
-      distance: parseInt(s[5], 10),
-    };
-  });
+  // キャッシュがあればそれを返す
+  if (travelTableCache.data) {
+    return travelTableCache.data;
+  }
+
+  if (travelTableCache.loading) {
+    return new Promise((resolve, reject) => {
+      const checkCache = () => {
+        if (travelTableCache.data) {
+          resolve(travelTableCache.data);
+        } else if (travelTableCache.error) {
+          reject(travelTableCache.error);
+        } else {
+          setTimeout(checkCache, 100);
+        }
+      };
+      checkCache();
+    });
+  }
+  
+  travelTableCache.loading = true;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const res = await fetch("/tjma2001.txt", { 
+      signal: controller.signal,
+      cache: 'force-cache'
+    });
+    
+    clearTimeout(timeoutId);
+    
+    const text = await res.text();
+    const lines = text.trim().split("\n").map(line => line.trim().replace(/\s+/g, " "));
+    const data = lines.map(line => {
+      const s = line.split(" ");
+      return {
+        p: parseFloat(s[1]),
+        s: parseFloat(s[3]),
+        depth: parseInt(s[4], 10),
+        distance: parseInt(s[5], 10),
+      };
+    });
+    
+    // キャッシュに保存
+    travelTableCache.data = data;
+    travelTableCache.loading = false;
+    
+    return data;
+  } catch (error) {
+    travelTableCache.loading = false;
+    travelTableCache.error = error instanceof Error ? error : new Error(String(error));
+    console.error("走時表の読み込みに失敗:", error);
+    throw error;
+  }
 }
 
 // 走時表から現在時刻に基づいてP波・S波の伝播距離を計算
@@ -81,23 +132,34 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
   const timeoutIdRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
   const isUpdatingRef = useRef<boolean>(false);
-
+  const isMountedRef = useRef<boolean>(true);
+  
   useEffect(() => {
-    importTable()
-      .then(table => {
-        travelTableRef.current = table;
-      })
-      .catch(err => console.error("走時表の読み込み失敗", err));
-
-    const animationFrameId = animationFrameIdRef.current;
-    const timeoutId = timeoutIdRef.current;
-
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+    isMountedRef.current = true;
+    
+    const loadTravelTable = async () => {
+      try {
+        const table = await importTable();
+        if (isMountedRef.current) {
+          travelTableRef.current = table;
+        }
+      } catch (err) {
+        console.error("走時表の読み込み失敗", err);
       }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    };
+    
+    loadTravelTable();
+    
+    return () => {
+      isMountedRef.current = false;
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+      
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
       }
     };
   }, []);
@@ -153,17 +215,35 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
 
   // GeoJSONを更新
   const updateGeoJSON = useCallback(() => {
+    // コンポーネントがアンマウントされていたら更新しない
+    if (!isMountedRef.current) return;
+    
     try {
       if (isUpdatingRef.current) return;
       isUpdatingRef.current = true;
 
-      if (!epicenters.length || !travelTableRef.current.length || !nowAppTimeRef.current) {
+      if (!epicenters.length || !travelTableRef.current?.length || !nowAppTimeRef.current) {
         setCircleGeoJSON({ type: "FeatureCollection", features: [] });
         isUpdatingRef.current = false;
         return;
       }
 
       const now = nowAppTimeRef.current;
+      
+      // 前回の更新から十分な時間が経過していない場合はスキップ
+      const minUpdateInterval = isMapMoving ? 100 : 50;
+      if (now - lastUpdateTimeRef.current < minUpdateInterval) {
+        isUpdatingRef.current = false;
+
+        if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = window.setTimeout(() => {
+          updateGeoJSON();
+        }, minUpdateInterval);
+        
+        return;
+      }
+      
+      // P/S波の位置を計算
       const features = calculateWavePositions(
         now, 
         epicenters, 
@@ -171,9 +251,11 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
         isMapMoving
       );
 
+      // GeoJSONを更新
       setCircleGeoJSON({ type: "FeatureCollection", features });
       lastUpdateTimeRef.current = now;
 
+      // 次の更新をスケジュール
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
 
       const updateInterval = isMapMoving 
@@ -182,14 +264,20 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
 
       timeoutIdRef.current = window.setTimeout(() => {
         isUpdatingRef.current = false;
-        updateGeoJSON();
+        if (isMountedRef.current) {
+          updateGeoJSON();
+        }
       }, updateInterval);
     } catch (error) {
       console.error("P/S波の更新中にエラーが発生しました:", error);
       isUpdatingRef.current = false;
+      
+      // エラー発生時も次の更新をスケジュール
       if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current);
       timeoutIdRef.current = window.setTimeout(() => {
-        updateGeoJSON();
+        if (isMountedRef.current) {
+          updateGeoJSON();
+        }
       }, psWaveUpdateInterval);
     }
   }, [epicenters, psWaveUpdateInterval, nowAppTimeRef, isMapMoving, calculateWavePositions]);
@@ -197,12 +285,15 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
   useEffect(() => {
     if (timeoutIdRef.current) {
       clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
     }
+    
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
     }
 
-    if (!epicenters.length || !travelTableRef.current.length) {
+    if (!epicenters.length || !travelTableRef.current?.length) {
       setCircleGeoJSON({ type: "FeatureCollection", features: [] });
       return;
     }
@@ -211,15 +302,15 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
 
     updateGeoJSON();
 
-    const animationFrameId = animationFrameIdRef.current;
-    const timeoutId = timeoutIdRef.current;
-
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
       }
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+      
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
       }
     };
   }, [epicenters, psWaveUpdateInterval, isMapMoving, updateGeoJSON]);

@@ -41,32 +41,51 @@ const intensityFillColors: Record<string, string> = {
   "不明": "#62626B",
 };
 
-// 国データを読み込むためのワーカー
-const loadCountryData = (resolution: string) => {
-  if (resolution === "10m") {
-    return import("../../public/mapdata/10mCountries.json").then(module => ({
-      type: "FeatureCollection" as const,
-      features: (module.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
-        (geometry: GeoJSON.Geometry) => ({
-          type: "Feature" as const,
-          geometry,
-          properties: {},
-        })
-      ),
-    }));
-  } else if (resolution === "50m") {
-    return import("../../public/mapdata/50mCountries.json").then(module => 
-      module.default as unknown as FeatureCollection
-    );
-  } else {
-    return import("../../public/mapdata/110mCountries.json").then(module => 
-      module.default as unknown as FeatureCollection
-    );
-  }
+// 地図データのキャッシュ管理
+const mapDataCache = {
+  countries: {} as Record<string, FeatureCollection>,
+  saibun: null as FeatureCollection | null,
+  cities: null as FeatureCollection | null,
 };
 
-let SaibunData: FeatureCollection | null = null;
-let CitiesData: FeatureCollection | null = null;
+// 国データを読み込むためのワーカー
+const loadCountryData = async (resolution: string): Promise<FeatureCollection> => {
+  // キャッシュにあればそれを返す
+  if (mapDataCache.countries[resolution]) {
+    return mapDataCache.countries[resolution];
+  }
+  
+  let data: FeatureCollection;
+  
+  try {
+    if (resolution === "10m") {
+      const module = await import("../../public/mapdata/10mCountries.json");
+      data = {
+        type: "FeatureCollection" as const,
+        features: (module.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
+          (geometry: GeoJSON.Geometry) => ({
+            type: "Feature" as const,
+            geometry,
+            properties: {},
+          })
+        ),
+      };
+    } else if (resolution === "50m") {
+      const module = await import("../../public/mapdata/50mCountries.json");
+      data = module.default as unknown as FeatureCollection;
+    } else {
+      const module = await import("../../public/mapdata/110mCountries.json");
+      data = module.default as unknown as FeatureCollection;
+    }
+    
+    // キャッシュに保存
+    mapDataCache.countries[resolution] = data;
+    return data;
+  } catch (error) {
+    console.error(`国データの読み込みに失敗 (${resolution}):`, error);
+    throw error;
+  }
+};
 
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
@@ -91,44 +110,56 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   const { resolvedTheme } = useTheme();
   const theme = resolvedTheme || "light";
-
+  const [saibunDataLoaded, setSaibunDataLoaded] = useState(!!mapDataCache.saibun);
+  const [citiesDataLoaded, setCitiesDataLoaded] = useState(!!mapDataCache.cities);
+  
   useEffect(() => {
-    if (!SaibunData) {
-      import("../../public/mapdata/Saibun.json").then(module => {
-        SaibunData = module.default as FeatureCollection;
-        setSaibunDataLoaded(true);
-      });
-    }
-
-    if (!CitiesData) {
-      import("../../public/mapdata/Cities.json").then(module => {
-        CitiesData = module.default as FeatureCollection;
-        setCitiesDataLoaded(true);
-      });
-    }
+    const loadMapData = async () => {
+      try {
+        if (!mapDataCache.saibun) {
+          const module = await import("../../public/mapdata/Saibun.json");
+          mapDataCache.saibun = module.default as FeatureCollection;
+          setSaibunDataLoaded(true);
+        }
+  
+        if (!mapDataCache.cities) {
+          const module = await import("../../public/mapdata/Cities.json");
+          mapDataCache.cities = module.default as FeatureCollection;
+          setCitiesDataLoaded(true);
+        }
+      } catch (error) {
+        console.error("地図データの読み込みに失敗:", error);
+      }
+    };
+    
+    loadMapData();
   }, []);
-
-  const [saibunDataLoaded, setSaibunDataLoaded] = useState(!!SaibunData);
-  const [citiesDataLoaded, setCitiesDataLoaded] = useState(!!CitiesData);
   const [countriesData, setCountriesData] = useState<FeatureCollection | null>(null);
   const [isMapMoving, setIsMapMoving] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    loadCountryData(mapResolution).then(data => {
-      if (mounted) {
-        setCountriesData(data);
+    
+    const fetchCountryData = async () => {
+      try {
+        const data = await loadCountryData(mapResolution);
+        if (mounted) {
+          setCountriesData(data);
+        }
+      } catch (error) {
+        console.error("国データの読み込みに失敗:", error);
       }
-    });
-
+    };
+    
+    fetchCountryData();
     return () => { mounted = false; };
   }, [mapResolution]);
 
   // 細分化地域のバウンディングボックスをあらかじめ計算
   const saibunFeaturesWithBbox = useMemo<SaibunFeatureWithBbox[]>(() => {
-    if (!saibunDataLoaded || !SaibunData) return [];
+    if (!saibunDataLoaded || !mapDataCache.saibun) return [];
     
-    return SaibunData.features
+    return mapDataCache.saibun.features
       .filter((feature) => feature.geometry && feature.geometry.type)
       .map((feature) => {
         let minLat = 90,
@@ -389,12 +420,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [enableDynamicZoom, onAutoZoomChange, setHomePosition]);
 
-  const handleMoveStart = useCallback(() => {
-    setIsMapMoving(true);
-    window.dispatchEvent(new Event('movestart'));
-  }, []);
-
-  const handleMoveEnd = useCallback(() => {
+  const reorderMapLayers = useCallback(() => {
     if (ref && "current" in ref && ref.current) {
       requestAnimationFrame(() => {
         if (!ref.current) return;
@@ -417,10 +443,18 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         }
       });
     }
-    
+  }, [ref]);
+
+  const handleMoveStart = useCallback(() => {
+    setIsMapMoving(true);
+    window.dispatchEvent(new Event('movestart'));
+  }, []);
+
+  const handleMoveEnd = useCallback(() => {
+    reorderMapLayers();
     setIsMapMoving(false);
     window.dispatchEvent(new Event('moveend'));
-  }, [ref]);
+  }, [reorderMapLayers]);
 
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
     setViewState(evt.viewState);
@@ -428,55 +462,14 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   // マップのロード完了
   const onMapLoadHandler = useCallback(() => {
-    if (ref && "current" in ref && ref.current) {
-      requestAnimationFrame(() => {
-        if (!ref.current) return;
-        const map = ref.current;
-        const layerOrder = [
-          "countries-fill",
-          "countries-outline",
-          "saibun-layer",
-          "cities-layer",
-          "site-layer",
-          "pWave-layer",
-          "sWave-layer"
-        ];
-
-        for (let i = 0; i < layerOrder.length; i++) {
-          const layerId = layerOrder[i];
-          if (map.getLayer(layerId)) {
-            map.moveLayer(layerId);
-          }
-        }
-      });
-    }
+    reorderMapLayers();
     onMapLoad?.();
-  }, [onMapLoad, ref]);
+  }, [onMapLoad, reorderMapLayers]);
 
+  // レイヤーの順序を整理
   useEffect(() => {
-    if (ref && "current" in ref && ref.current) {
-      requestAnimationFrame(() => {
-        if (!ref.current) return;
-        const map = ref.current;
-        const layerOrder = [
-          "countries-fill",
-          "countries-outline",
-          "saibun-layer",
-          "cities-layer",
-          "site-layer",
-          "pWave-layer",
-          "sWave-layer"
-        ];
-
-        for (let i = 0; i < layerOrder.length; i++) {
-          const layerId = layerOrder[i];
-          if (map.getLayer(layerId)) {
-            map.moveLayer(layerId);
-          }
-        }
-      });
-    }
-  }, [ref]);  
+    reorderMapLayers();
+  }, [reorderMapLayers]);
 
   const countriesFillPaint = useMemo(() => ({
     "fill-color": theme === "dark" ? "#252525" : "#737A8A",
@@ -577,8 +570,8 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
           </Source>
         )}
 
-        {citiesDataLoaded && CitiesData && (
-          <Source id="cities" type="geojson" data={CitiesData} generateId>
+        {citiesDataLoaded && mapDataCache.cities && (
+          <Source id="cities" type="geojson" data={mapDataCache.cities} generateId>
             <Layer
               id="cities-layer"
               type="line"
