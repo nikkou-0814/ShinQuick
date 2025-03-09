@@ -394,22 +394,32 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   }, []);
 
   const handleMoveEnd = useCallback(() => {
-    if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
+    if (ref && "current" in ref && ref.current) {
       requestAnimationFrame(() => {
         if (!ref.current) return;
         const map = ref.current;
-        const layersToMove = ["site-layer", "pWave-layer", "sWave-layer"];
-        layersToMove.forEach(layerId => {
+        const layerOrder = [
+          "countries-fill",
+          "countries-outline",
+          "saibun-layer",
+          "cities-layer",
+          "site-layer",
+          "pWave-layer",
+          "sWave-layer"
+        ];
+        
+        for (let i = 0; i < layerOrder.length; i++) {
+          const layerId = layerOrder[i];
           if (map.getLayer(layerId)) {
             map.moveLayer(layerId);
           }
-        });
+        }
       });
     }
     
     setIsMapMoving(false);
     window.dispatchEvent(new Event('moveend'));
-  }, [enableKyoshinMonitor, ref]);
+  }, [ref]);
 
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
     setViewState(evt.viewState);
@@ -417,35 +427,55 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   // マップのロード完了
   const onMapLoadHandler = useCallback(() => {
-    if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
+    if (ref && "current" in ref && ref.current) {
       requestAnimationFrame(() => {
         if (!ref.current) return;
         const map = ref.current;
-        const layersToMove = ["site-layer", "pWave-layer", "sWave-layer"];
-        layersToMove.forEach(layerId => {
+        const layerOrder = [
+          "countries-fill",
+          "countries-outline",
+          "saibun-layer",
+          "cities-layer",
+          "site-layer",
+          "pWave-layer",
+          "sWave-layer"
+        ];
+
+        for (let i = 0; i < layerOrder.length; i++) {
+          const layerId = layerOrder[i];
           if (map.getLayer(layerId)) {
             map.moveLayer(layerId);
           }
-        });
+        }
       });
     }
     onMapLoad?.();
-  }, [onMapLoad, enableKyoshinMonitor, ref]);
+  }, [onMapLoad, ref]);
 
   useEffect(() => {
-    if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
+    if (ref && "current" in ref && ref.current) {
       requestAnimationFrame(() => {
         if (!ref.current) return;
         const map = ref.current;
-        const layersToMove = ["site-layer", "pWave-layer", "sWave-layer"];
-        layersToMove.forEach(layerId => {
+        const layerOrder = [
+          "countries-fill",
+          "countries-outline",
+          "saibun-layer",
+          "cities-layer",
+          "site-layer",
+          "pWave-layer",
+          "sWave-layer"
+        ];
+
+        for (let i = 0; i < layerOrder.length; i++) {
+          const layerId = layerOrder[i];
           if (map.getLayer(layerId)) {
             map.moveLayer(layerId);
           }
-        });
+        }
       });
     }
-  }, [enableKyoshinMonitor, ref]);  
+  }, [ref]);  
 
   const countriesFillPaint = useMemo(() => ({
     "fill-color": theme === "dark" ? "#252525" : "#737A8A",

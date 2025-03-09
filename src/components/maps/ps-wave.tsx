@@ -99,6 +99,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
   const updatePendingRef = useRef(false);
   const lastCalculatedTimeRef = useRef<number>(0);
   const lastFeaturesRef = useRef<Feature<Polygon>[]>([]);
+  const epicenterHashRef = useRef<string>("");
 
   useEffect(() => {
     if (!epicenters.length || !travelTableRef.current.length) {
@@ -116,6 +117,26 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
         originTime: epi.originTime
       });
     });
+
+    // 震源情報のハッシュを計算して変更を検出
+    const currentHash = JSON.stringify(epicenters.map(epi => ({
+      eventId: epi.eventId,
+      lat: epi.lat,
+      lng: epi.lng,
+      depthval: epi.depthval,
+      originTime: epi.originTime
+    })));
+
+    if (currentHash !== epicenterHashRef.current) {
+      epicenterHashRef.current = currentHash;
+      if (updateIntervalRef.current !== null) {
+        clearTimeout(updateIntervalRef.current);
+      }
+      updatePendingRef.current = true;
+      requestAnimationFrame(() => {
+        updateGeoJSON();
+      });
+    }
 
     // P/S波の位置を計算
     const calculateWavePositions = (currentTime: number): Feature<Polygon>[] => {
@@ -172,7 +193,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
       
       // マップ移動中は更新頻度を下げる
       if (isMapMoving) {
-        if (now - lastUpdateTime.current < 1000) {
+        if (now - lastUpdateTime.current < 100) {
           updateIntervalRef.current = window.setTimeout(updateGeoJSON, psWaveUpdateInterval);
           updatePendingRef.current = false;
           return;
@@ -188,7 +209,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
       
       lastUpdateTime.current = now;
 
-      const shouldRecalculate = now - lastCalculatedTimeRef.current >= 1000;
+      const shouldRecalculate = now - lastCalculatedTimeRef.current >= psWaveUpdateInterval;
       const features = shouldRecalculate 
         ? calculateWavePositions(now) 
         : lastFeaturesRef.current;
@@ -204,7 +225,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
         updateIntervalRef.current = window.setTimeout(() => {
           updatePendingRef.current = true;
           updateGeoJSON();
-        }, isMapMoving ? Math.max(psWaveUpdateInterval * 2, 1000) : psWaveUpdateInterval);
+        }, isMapMoving ? Math.max(psWaveUpdateInterval * 2, 100) : psWaveUpdateInterval);
       });
       
       updatePendingRef.current = false;
