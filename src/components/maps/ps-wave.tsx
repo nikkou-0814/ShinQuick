@@ -80,7 +80,6 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
   const animationFrameIdRef = useRef<number | null>(null);
   const timeoutIdRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
-  const epicenterHashRef = useRef<string>("");
   const isUpdatingRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -89,13 +88,16 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
         travelTableRef.current = table;
       })
       .catch(err => console.error("走時表の読み込み失敗", err));
-    
+
+    const animationFrameId = animationFrameIdRef.current;
+    const timeoutId = timeoutIdRef.current;
+
     return () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
   }, []);
@@ -209,12 +211,15 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
 
     updateGeoJSON();
 
+    const animationFrameId = animationFrameIdRef.current;
+    const timeoutId = timeoutIdRef.current;
+
     return () => {
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
     };
   }, [epicenters, psWaveUpdateInterval, isMapMoving, updateGeoJSON]);
