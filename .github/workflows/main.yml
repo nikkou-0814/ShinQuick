@@ -32,7 +32,18 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Next.js Build
-        run: pnpm build
+        run: |
+          pnpm build 2>&1 | tee build.log
+
+      - name: Check Build Warnings
+        run: |
+          if grep -q "No Babel config found" build.log; then
+            echo "ERROR: Unexpected warning was detected in the build log."
+            echo "------------------ Build Log Start ------------------"
+            cat build.log
+            echo "------------------ Build Log End --------------------"
+            exit 1
+          fi
 
       - name: ESLint Check
         run: pnpm lint

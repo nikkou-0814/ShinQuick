@@ -1,17 +1,27 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Source, Layer, LayerProps } from "react-map-gl/maplibre";
 import { KmoniData, SiteListData, KyoshinMonitorProps } from "@/types/types";
-import { Feature, FeatureCollection, GeoJsonProperties, Point } from "geojson";
+import { Feature, GeoJsonProperties, Point } from "geojson";
+
+// 強震モニタデータのキャッシュ
+const kyoshinDataCache = {
+  pointList: null as Array<[number, number]> | null,
+  lastFetchedTime: 0,
+  abortController: null as AbortController | null,
+};
 
 const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
   enableKyoshinMonitor,
   onTimeUpdate,
   nowAppTimeRef,
 }) => {
-  const [pointList, setPointList] = useState<Array<[number, number]>>([]);
+  const [pointList, setPointList] = useState<Array<[number, number]>>(kyoshinDataCache.pointList || []);
   const [kmoniData, setKmoniData] = useState<KmoniData | null>(null);
+  const fetchingRef = useRef(false);
+  const lastFetchTime = useRef(kyoshinDataCache.lastFetchedTime);
+  const isMountedRef = useRef(true);
 
   // 色定義
   const colorList = useMemo((): Record<string, string> => ({
@@ -47,113 +57,204 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
     return colorList[ch.toLowerCase()] || "#b00201";
   }, [colorList]);
 
+  // コンポーネントのマウント状態を追跡
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (kyoshinDataCache.abortController) {
+        kyoshinDataCache.abortController.abort();
+        kyoshinDataCache.abortController = null;
+      }
+    };
+  }, []);
+
   // 観測点の取得
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
+    
+    // キャッシュがあればそれを使用
+    if (kyoshinDataCache.pointList && kyoshinDataCache.pointList.length > 0) {
+      setPointList(kyoshinDataCache.pointList);
+      return;
+    }
+    
     const fetchSiteList = async () => {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
+      
       try {
-        const res = await fetch("https://weather-kyoshin.east.edge.storage-yahoo.jp/SiteList/sitelist.json");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const res = await fetch(
+          "https://weather-kyoshin.east.edge.storage-yahoo.jp/SiteList/sitelist.json", 
+          { signal: controller.signal }
+        );
+        
+        clearTimeout(timeoutId);
+        
         if (!res.ok) {
           console.warn("SiteList fetch error:", res.status, res.statusText);
           return;
         }
+        
         const data: SiteListData = await res.json();
+        
         if (data.items && Array.isArray(data.items)) {
-          setPointList(data.items);
+          kyoshinDataCache.pointList = data.items;
+          if (isMountedRef.current) {
+            setPointList(data.items);
+          }
         } else {
           console.warn("Unknown SiteList Format", data);
         }
       } catch (err) {
-        console.error("fetchSiteList error:", err);
+        if (err instanceof DOMException && err.name === "AbortError") {
+          console.log("観測点リストの取得がタイムアウトしました");
+        } else {
+          console.error("fetchSiteList error:", err);
+        }
+      } finally {
+        fetchingRef.current = false;
       }
     };
 
     fetchSiteList();
   }, [enableKyoshinMonitor]);
 
+  // 強震モニタデータの取得
   useEffect(() => {
     if (!enableKyoshinMonitor) return;
-    let isMounted = true;
+    
+    // 日時フォーマット関数
+    const formatDateForKyoshin = (date: Date) => {
+      return {
+        time: date.getFullYear().toString() +
+              ("0" + (date.getMonth() + 1)).slice(-2) +
+              ("0" + date.getDate()).slice(-2) +
+              ("0" + date.getHours()).slice(-2) +
+              ("0" + date.getMinutes()).slice(-2) +
+              ("0" + date.getSeconds()).slice(-2),
+        day: date.getFullYear().toString() +
+             ("0" + (date.getMonth() + 1)).slice(-2) +
+             ("0" + date.getDate()).slice(-2)
+      };
+    };
+    
+    // 時刻表示の更新
+    const updateTimeDisplay = (data: KmoniData) => {
+      if (!onTimeUpdate) return;
+      
+      if (data.realTimeData?.timestamp) {
+        const dateISO = new Date(data.realTimeData.timestamp);
+        const formattedTime = dateISO.toLocaleString("ja-JP", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        onTimeUpdate(formattedTime);
+      } else {
+        const fallbackTime = new Date().toLocaleString("ja-JP", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        onTimeUpdate(fallbackTime);
+      }
+    };
 
     const fetchKyoshinMonitorData = async () => {
       if (!nowAppTimeRef.current) return;
+      const now = nowAppTimeRef.current;
+
+      if (now - lastFetchTime.current < 500) return;
+      lastFetchTime.current = now;
+      kyoshinDataCache.lastFetchedTime = now;
+
+      if (kyoshinDataCache.abortController) {
+        kyoshinDataCache.abortController.abort();
+      }
+      
       try {
         const target = nowAppTimeRef.current - 2000;
         const dateObj = new Date(target);
-        const nowTime =
-          dateObj.getFullYear().toString() +
-          ("0" + (dateObj.getMonth() + 1)).slice(-2) +
-          ("0" + dateObj.getDate()).slice(-2) +
-          ("0" + dateObj.getHours()).slice(-2) +
-          ("0" + dateObj.getMinutes()).slice(-2) +
-          ("0" + dateObj.getSeconds()).slice(-2);
-        const nowDay =
-          dateObj.getFullYear().toString() +
-          ("0" + (dateObj.getMonth() + 1)).slice(-2) +
-          ("0" + dateObj.getDate()).slice(-2);
+        const { time: nowTime, day: nowDay } = formatDateForKyoshin(dateObj);
+        
         const url = `https://weather-kyoshin.east.edge.storage-yahoo.jp/RealTimeData/${nowDay}/${nowTime}.json`;
-        const res = await fetch(url);
+        
+        // 新しいAbortControllerを作成
+        kyoshinDataCache.abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+          if (kyoshinDataCache.abortController) {
+            kyoshinDataCache.abortController.abort();
+          }
+        }, 5000);
+        
+        const res = await fetch(url, { 
+          signal: kyoshinDataCache.abortController.signal,
+          cache: 'no-store'
+        });
+        
+        clearTimeout(timeoutId);
+        
         if (!res.ok) {
           console.warn("RealTimeData fetch error:", res.status, res.statusText);
           return;
         }
+        
         const data = await res.json();
-        if (isMounted) {
-          setKmoniData(data);
-          if (onTimeUpdate) {
-            if (data.realTimeData?.dataTime) {
-              const dateISO = new Date(data.realTimeData.dataTime);
-              const formattedTime = dateISO.toLocaleString("ja-JP", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              });
-              onTimeUpdate(formattedTime);
-            } else {
-              const fallbackTime = new Date().toLocaleString("ja-JP", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              });
-              onTimeUpdate(fallbackTime);
-            }
-          }
+        
+        if (isMountedRef.current) {
+          requestAnimationFrame(() => {
+            setKmoniData(data);
+            updateTimeDisplay(data);
+          });
         }
       } catch (err) {
-        console.error("KyoshinMonitor fetch error:", err);
+        if (err instanceof DOMException && err.name === "AbortError") {
+          console.log("強震モニタデータの取得がタイムアウトまたはキャンセルされました");
+        } else {
+          console.error("KyoshinMonitor fetch error:", err);
+        }
+      } finally {
+        // 完了したリクエストのコントローラーをクリア
+        kyoshinDataCache.abortController = null;
       }
     };
-
     fetchKyoshinMonitorData();
-    const intervalId = setInterval(fetchKyoshinMonitorData, 1000);
+    const intervalId = window.setInterval(fetchKyoshinMonitorData, 1000);
     return () => {
-      isMounted = false;
       clearInterval(intervalId);
-    };
+      if (kyoshinDataCache.abortController) {
+        kyoshinDataCache.abortController.abort();
+        kyoshinDataCache.abortController = null;
+      }
+    };    
   }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef]);
 
-  const [siteGeoJSON, setSiteGeoJSON] = useState<FeatureCollection<Point, GeoJsonProperties>>({
-    type: "FeatureCollection",
-    features: [],
-  });  
-
-  useEffect(() => {
+  // 座標配列を作成
+  const siteGeoJSON = useMemo(() => {
     if (!enableKyoshinMonitor || !kmoniData?.realTimeData?.intensity || pointList.length === 0) {
-      setSiteGeoJSON({ type: "FeatureCollection", features: [] });
-      return;
+      return { type: "FeatureCollection" as const, features: [] };
     }
     const intensityStr = kmoniData.realTimeData.intensity;
-    const features: Feature<Point, GeoJsonProperties>[] = pointList.map((pt: [number, number], idx: number) => {
-      const [lat, lng] = pt;
-      const char = intensityStr.charAt(idx) || "a";
-  
-      return {
+    const features: Feature<Point, GeoJsonProperties>[] = [];
+    const maxPoints = Math.min(pointList.length, intensityStr.length);
+    for (let idx = 0; idx < maxPoints; idx++) {
+      const [lat, lng] = pointList[idx];
+      const char = intensityStr.charAt(idx);
+
+      if (char === 'a' || char === 'b' || char === 'c') {
+        continue;
+      }
+      features.push({
         type: "Feature",
         geometry: {
           type: "Point",
@@ -163,13 +264,12 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
           color: convertStringToColor(char),
           radius: 3,
         },
-      } as Feature<Point, GeoJsonProperties>;
-    });
-  
-    setSiteGeoJSON({ type: "FeatureCollection", features });
+      });
+    }
+    return { type: "FeatureCollection" as const, features };
   }, [enableKyoshinMonitor, kmoniData, pointList, convertStringToColor]);
 
-  const siteLayer: LayerProps = {
+  const siteLayer = useMemo<LayerProps>(() => ({
     id: "site-layer",
     type: "circle",
     paint: {
@@ -179,22 +279,26 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         ["exponential", 2.5],
         ["zoom"],
         0, 2,
-        5, 4,
-        10, 30,
-        15, 25,
-        20, 40,
-        22, 50
+        5, 3,
+        10, 10,
+        15, 15,
+        20, 20,
+        22, 30
       ],
       "circle-stroke-color": "#fff",
       "circle-stroke-width": 0,
     },
-  };
+  }), []);
+
+  if (siteGeoJSON.features.length === 0) {
+    return null;
+  }
 
   return (
-    <Source id="siteSource" type="geojson" data={siteGeoJSON}>
+    <Source id="siteSource" type="geojson" data={siteGeoJSON} generateId>
       <Layer {...siteLayer} />
     </Source>
   );
 };
 
-export default KyoshinMonitor;
+export default React.memo(KyoshinMonitor);

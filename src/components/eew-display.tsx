@@ -75,7 +75,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     const { earthquake } = body;
     const { hypocenter } = earthquake;
     const { coordinate, accuracy: hypocenterAccuracy } = hypocenter;
-  
+
     const method = (() => {
       const condition = earthquake.condition || "不明";
       const accuracyEpicenters = hypocenterAccuracy?.epicenters || [];

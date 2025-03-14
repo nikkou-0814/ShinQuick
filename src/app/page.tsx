@@ -188,6 +188,7 @@ function PageContent() {
         );
         return [newData, ...filtered];
       });
+      setForceAutoZoomTrigger(Date.now());
     }
   }, [receivedData]);
 
@@ -262,7 +263,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testnow/miyagi.json");
+      const response = await fetch("/testdata/ishikawa/1.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
@@ -275,7 +276,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/testnow/test.json");
+      const response = await fetch("/testdata/ishikawa/4.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();

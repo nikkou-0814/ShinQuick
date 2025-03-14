@@ -21,12 +21,6 @@ import { useTheme } from "next-themes";
 import { FeatureCollection, Feature } from "geojson";
 import Image from "next/image";
 
-import rawCountriesData10 from "../../public/mapdata/10mCountries.json";
-import rawCountriesData50 from "../../public/mapdata/50mCountries.json";
-import rawCountriesData110 from "../../public/mapdata/110mCountries.json";
-import rawSaibunData from "../../public/mapdata/Saibun.json";
-import rawCitiesData from "../../public/mapdata/Cities.json";
-
 import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
 import { MapProps, SaibunProperties, SaibunFeatureWithBbox } from "@/types/types";
@@ -47,8 +41,51 @@ const intensityFillColors: Record<string, string> = {
   "不明": "#62626B",
 };
 
-const SaibunData = rawSaibunData as FeatureCollection;
-const CitiesData = rawCitiesData as FeatureCollection;
+// 地図データのキャッシュ管理
+const mapDataCache = {
+  countries: {} as Record<string, FeatureCollection>,
+  saibun: null as FeatureCollection | null,
+  cities: null as FeatureCollection | null,
+};
+
+// 国データを読み込むためのワーカー
+const loadCountryData = async (resolution: string): Promise<FeatureCollection> => {
+  // キャッシュにあればそれを返す
+  if (mapDataCache.countries[resolution]) {
+    return mapDataCache.countries[resolution];
+  }
+  
+  let data: FeatureCollection;
+  
+  try {
+    if (resolution === "10m") {
+      const dataModule = await import("../../public/mapdata/10mCountries.json");
+      data = {
+        type: "FeatureCollection" as const,
+        features: (dataModule.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
+          (geometry: GeoJSON.Geometry) => ({
+            type: "Feature" as const,
+            geometry,
+            properties: {},
+          })
+        ),
+      };
+    } else if (resolution === "50m") {
+      const dataModule = await import("../../public/mapdata/50mCountries.json");
+      data = dataModule.default as unknown as FeatureCollection;
+    } else {
+      const dataModule = await import("../../public/mapdata/110mCountries.json");
+      data = dataModule.default as unknown as FeatureCollection;
+    }
+    
+    // キャッシュに保存
+    mapDataCache.countries[resolution] = data;
+    return data;
+  } catch (error) {
+    console.error(`国データの読み込みに失敗 (${resolution}):`, error);
+    throw error;
+  }
+};
 
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
@@ -73,31 +110,56 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   const { resolvedTheme } = useTheme();
   const theme = resolvedTheme || "light";
+  const [saibunDataLoaded, setSaibunDataLoaded] = useState(!!mapDataCache.saibun);
+  const [citiesDataLoaded, setCitiesDataLoaded] = useState(!!mapDataCache.cities);
+  
+  useEffect(() => {
+    const loadMapData = async () => {
+      try {
+        if (!mapDataCache.saibun) {
+          const dataModule = await import("../../public/mapdata/Saibun.json");
+          mapDataCache.saibun = dataModule.default as FeatureCollection;
+          setSaibunDataLoaded(true);
+        }
+  
+        if (!mapDataCache.cities) {
+          const dataModule = await import("../../public/mapdata/Cities.json");
+          mapDataCache.cities = dataModule.default as FeatureCollection;
+          setCitiesDataLoaded(true);
+        }
+      } catch (error) {
+        console.error("地図データの読み込みに失敗:", error);
+      }
+    };
+    
+    loadMapData();
+  }, []);
+  const [countriesData, setCountriesData] = useState<FeatureCollection | null>(null);
+  const [isMapMoving, setIsMapMoving] = useState(false);
 
-  const countriesData = useMemo(() => {
-    if (mapResolution === "10m") {
-      return {
-        type: "FeatureCollection" as const,
-        features: (rawCountriesData10 as { geometries: GeoJSON.Geometry[] }).geometries.map(
-          (geometry: GeoJSON.Geometry) => ({
-            type: "Feature" as const,
-            geometry,
-            properties: {},
-          })
-        ),
-      };
-    } else if (mapResolution === "50m") {
-      return rawCountriesData50 as unknown as FeatureCollection;
-    } else {
-      return rawCountriesData110 as unknown as FeatureCollection;
-    }
+  useEffect(() => {
+    let mounted = true;
+    
+    const fetchCountryData = async () => {
+      try {
+        const data = await loadCountryData(mapResolution);
+        if (mounted) {
+          setCountriesData(data);
+        }
+      } catch (error) {
+        console.error("国データの読み込みに失敗:", error);
+      }
+    };
+    
+    fetchCountryData();
+    return () => { mounted = false; };
   }, [mapResolution]);
 
   // 細分化地域のバウンディングボックスをあらかじめ計算
   const saibunFeaturesWithBbox = useMemo<SaibunFeatureWithBbox[]>(() => {
-    const data: FeatureCollection = JSON.parse(JSON.stringify(SaibunData));
-
-    return data.features
+    if (!saibunDataLoaded || !mapDataCache.saibun) return [];
+    
+    return mapDataCache.saibun.features
       .filter((feature) => feature.geometry && feature.geometry.type)
       .map((feature) => {
         let minLat = 90,
@@ -133,27 +195,39 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
           bbox: [minLng, minLat, maxLng, maxLat],
         };
       });
-  }, []);
+  }, [saibunDataLoaded]);
+
+  const affectedRegionCodesSet = useMemo(() => {
+    return new Set(Object.keys(regionIntensityMap));
+  }, [regionIntensityMap]);
+
+  const warningRegionCodesSet = useMemo(() => {
+    return new Set(warningRegionCodes);
+  }, [warningRegionCodes]);
 
   // 細分化地域の塗りつぶし色などをプロパティに仕込む
   const processedSaibunData = useMemo(() => {
+    if (!saibunDataLoaded || saibunFeaturesWithBbox.length === 0) {
+      return { type: "FeatureCollection", features: [] } as FeatureCollection;
+    }
+
     const clonedFeatures: Feature[] = saibunFeaturesWithBbox.map(({ feature }) => {
       const cloned = JSON.parse(JSON.stringify(feature)) as Feature;
       const fProps = cloned.properties as SaibunProperties;
-      const code = fProps.code;
-      // デフォルト
+      const code = fProps.code ? String(fProps.code) : "";
+
       let fillColor = theme === "dark" ? "#2C2C2C" : "#FFF";
       let fillOpacity = 0.9;
 
       if (code) {
         // 警報領域
-        if (enableMapWarningArea && warningRegionCodes.includes(String(code))) {
+        if (enableMapWarningArea && warningRegionCodesSet.has(code)) {
           fillColor = "#FF0000";
           fillOpacity = 0.9;
         }
         // 震度塗りつぶし
-        else if (enableMapIntensityFill) {
-          const intensity = regionIntensityMap[String(code)];
+        else if (enableMapIntensityFill && affectedRegionCodesSet.has(code)) {
+          const intensity = regionIntensityMap[code];
           if (intensity) {
             fillColor = intensityFillColors[intensity] || "#62626B";
             fillOpacity = 1;
@@ -165,21 +239,22 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       return cloned;
     });
 
-    const featureCollection: FeatureCollection = {
+    return {
       type: "FeatureCollection",
       features: clonedFeatures,
-    };
-    return featureCollection;
+    } as FeatureCollection;
   }, [
+    saibunDataLoaded,
+    saibunFeaturesWithBbox,
     theme,
     enableMapWarningArea,
-    warningRegionCodes,
+    warningRegionCodesSet,
     enableMapIntensityFill,
-    regionIntensityMap,
-    saibunFeaturesWithBbox
+    affectedRegionCodesSet,
+    regionIntensityMap
   ]);
 
-  const initialViewState = getJapanHomePosition();
+  const initialViewState = useMemo(() => getJapanHomePosition(), []);
 
   const [viewState, setViewState] = useState({
     longitude: initialViewState.longitude,
@@ -199,7 +274,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [enableDynamicZoom, mapAutoZoom]);
 
-
   useEffect(() => {
     if (forceAutoZoomTrigger && enableDynamicZoom) {
       setAutoZoomEnabled(true);
@@ -207,44 +281,64 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [forceAutoZoomTrigger, onAutoZoomChange, enableDynamicZoom]);
 
+  const lastAutoZoomTime = useRef(0);
+  const pendingAutoZoom = useRef(false);
+
   // 自動ズーム処理
   useEffect(() => {
     if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) return;
     if (!enableDynamicZoom || !autoZoomEnabled) return;
+    if (!ref || !('current' in ref) || !ref.current) return;
+    const now = nowAppTimeRef.current;
+    if (now - lastAutoZoomTime.current < 200) {
+      if (!pendingAutoZoom.current) {
+        pendingAutoZoom.current = true;
+        setTimeout(() => {
+          pendingAutoZoom.current = false;
+          setAutoZoomEnabled(prev => prev);
+        }, 200);
+      }
+      return;
+    }
+
+    lastAutoZoomTime.current = now;
 
     let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    let hasValidBounds = false;
 
     epicenters.forEach((epi) => {
       if (epi && typeof epi.lat === "number" && typeof epi.lng === "number") {
         const lat = epi.lat;
         const lng = epi.lng;
-        if (lng < minLng) minLng = lng;
-        if (lng > maxLng) maxLng = lng;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
+        minLng = Math.min(minLng, lng);
+        maxLng = Math.max(maxLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+        hasValidBounds = true;
       }
     });
 
-    saibunFeaturesWithBbox.forEach(({ bbox, feature }) => {
-      const code = feature.properties?.code;
-      if (code && regionIntensityMap[String(code)] !== undefined) {
-        const [bMinLng, bMinLat, bMaxLng, bMaxLat] = bbox;
-        if (bMinLng < minLng) minLng = bMinLng;
-        if (bMaxLng > maxLng) maxLng = bMaxLng;
-        if (bMinLat < minLat) minLat = bMinLat;
-        if (bMaxLat > maxLat) maxLat = bMaxLat;
+    if (Object.keys(regionIntensityMap).length > 0) {
+      for (const { bbox, feature } of saibunFeaturesWithBbox) {
+        const code = feature.properties?.code;
+        if (code && regionIntensityMap[String(code)] !== undefined) {
+          const [bMinLng, bMinLat, bMaxLng, bMaxLat] = bbox;
+          minLng = Math.min(minLng, bMinLng);
+          maxLng = Math.max(maxLng, bMaxLng);
+          minLat = Math.min(minLat, bMinLat);
+          maxLat = Math.max(maxLat, bMaxLat);
+          hasValidBounds = true;
+        }
       }
-    });
+    }
 
-    if (minLng > maxLng || minLat > maxLat) {
-      if (ref && 'current' in ref && ref.current) {
-        ref.current.flyTo({
-          center: [136, 35],
-          duration: 1000,
-          zoom: 4.5,
-          essential: true,
-        });
-      }
+    if (!hasValidBounds) {
+      ref.current.flyTo({
+        center: [136, 35],
+        duration: 1000,
+        zoom: 4.5,
+        essential: true,
+      });
       return;
     }
 
@@ -252,28 +346,32 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     if (epicenters.length === 1) {
       maxZoom = epicenters[0].depthval > 150 ? 5 : 7;
     } else if (epicenters.length > 1) {
-      maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 5 : 9;
+      maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 5 : 6;
     }
 
-    const viewport = new WebMercatorViewport({
-      width: window.innerWidth,
-      height: window.innerHeight,
-    }).fitBounds(
-      [
-        [minLng, minLat],
-        [maxLng, maxLat],
-      ],
-      { padding: 50, maxZoom }
-    );
+    try {
+      const viewport = new WebMercatorViewport({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }).fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: 50, maxZoom }
+      );
 
-    if (ref && 'current' in ref && ref.current) {
       ref.current.flyTo({
-      center: [viewport.longitude, viewport.latitude],
-      duration: 500,
-      zoom: viewport.zoom,
-      essential: true,
-    })};
-    onAutoZoomChange?.(true);
+        center: [viewport.longitude, viewport.latitude],
+        duration: 500,
+        zoom: viewport.zoom,
+        essential: true,
+      });
+      
+      onAutoZoomChange?.(true);
+    } catch (e) {
+      console.error("Auto-zoom calculation failed:", e);
+    }
   }, [
     epicenters,
     regionIntensityMap,
@@ -282,7 +380,9 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     onAutoZoomChange,
     saibunFeaturesWithBbox,
     ref,
+    nowAppTimeRef
   ]);
+
   const autoZoomTimeoutRef = useRef<number | null>(null);
 
   const setHomePosition = useCallback(() => {
@@ -299,6 +399,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const handleUserInteractionStart = useCallback(() => {
     if (autoZoomTimeoutRef.current) {
       clearTimeout(autoZoomTimeoutRef.current);
+      autoZoomTimeoutRef.current = null;
     }
     if (enableDynamicZoom) {
       setAutoZoomEnabled(false);
@@ -319,110 +420,175 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [enableDynamicZoom, onAutoZoomChange, setHomePosition]);
 
-  const onMove = (evt: ViewStateChangeEvent) => {
+  const reorderMapLayers = useCallback(() => {
+    if (ref && "current" in ref && ref.current) {
+      requestAnimationFrame(() => {
+        if (!ref.current) return;
+        const map = ref.current;
+        const layerOrder = [
+          "countries-fill",
+          "countries-outline",
+          "saibun-layer",
+          "cities-layer",
+          "site-layer",
+          "pWave-layer",
+          "sWave-layer"
+        ];
+        
+        for (let i = 0; i < layerOrder.length; i++) {
+          const layerId = layerOrder[i];
+          if (map.getLayer(layerId)) {
+            map.moveLayer(layerId);
+          }
+        }
+      });
+    }
+  }, [ref]);
+
+  const handleMoveStart = useCallback(() => {
+    setIsMapMoving(true);
+    window.dispatchEvent(new Event('movestart'));
+  }, []);
+
+  const handleMoveEnd = useCallback(() => {
+    reorderMapLayers();
+    setIsMapMoving(false);
+    window.dispatchEvent(new Event('moveend'));
+  }, [reorderMapLayers]);
+
+  const onMove = useCallback((evt: ViewStateChangeEvent) => {
     setViewState(evt.viewState);
-  };
+  }, []);
 
   // マップのロード完了
   const onMapLoadHandler = useCallback(() => {
-    if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
-      ref.current.moveLayer("site-layer");
-      ref.current.moveLayer("pWave-layer");
-      ref.current.moveLayer("sWave-layer");
-    }
+    reorderMapLayers();
     onMapLoad?.();
-  }, [onMapLoad, enableKyoshinMonitor, ref]);
+  }, [onMapLoad, reorderMapLayers]);
 
+  // レイヤーの順序を整理
   useEffect(() => {
-    if (enableKyoshinMonitor && ref && "current" in ref && ref.current) {
-      ref.current.moveLayer("site-layer");
-    }
-  }, [enableKyoshinMonitor, ref]);
+    reorderMapLayers();
+  }, [reorderMapLayers]);
+
+  const countriesFillPaint = useMemo(() => ({
+    "fill-color": theme === "dark" ? "#252525" : "#737A8A",
+    "fill-opacity": 0.6,
+  }), [theme]);
+
+  const countriesOutlinePaint = useMemo(() => ({
+    "line-color": theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
+    "line-width": 0.8,
+  }), [theme]);
+
+  const saibunLayerPaint = useMemo(() => ({
+    "fill-color": (["get", "computedFillColor"] as unknown) as maplibregl.DataDrivenPropertyValueSpecification<string>,
+    "fill-opacity": (["get", "computedFillOpacity"] as unknown) as maplibregl.DataDrivenPropertyValueSpecification<number>,
+    "fill-outline-color": theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
+  }), [theme]);
+
+  const citiesLayerPaint = useMemo(() => ({
+    "line-color": theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+    "line-width": theme === "dark" ? 0.3 : 0.4,
+  }), [theme]);
+
+  const bgColor = useMemo(() => 
+    theme === "dark" ? "#18181C" : "#AAD3DF"
+  , [theme]);
+
+  const memoizedEpicenters = useMemo(() => {
+    return epicenters.map((epi) => (
+      <Marker
+        key={`epi-${epi.eventId}`}
+        longitude={epi.lng}
+        latitude={epi.lat}
+        anchor="center"
+      >
+        <Image
+          src={epi.icon}
+          alt="epicenter"
+          width={48}
+          height={48}
+          className={isCancel ? "opacity-30" : "blink"}
+          priority={true}
+        />
+      </Marker>
+    ));
+  }, [epicenters, isCancel]);
 
   return (
     <div
       style={{
         width: "100%",
         height: "100vh",
-        backgroundColor: theme === "dark" ? "#18181C" : "#AAD3DF",
+        backgroundColor: bgColor,
         overflow: "hidden",
       }}
     >
       <Map
         ref={ref as RefObject<MapRef>}
-        {...viewState}
+        longitude={viewState.longitude}
+        latitude={viewState.latitude}
+        zoom={viewState.zoom}
         mapLib={maplibregl}
         onMove={onMove}
-        onMoveStart={handleUserInteractionStart}
-        onMoveEnd={handleUserInteractionEnd}
+        onMoveStart={() => {
+          handleMoveStart();
+          handleUserInteractionStart();
+        }}
+        onMoveEnd={() => {
+          handleMoveEnd();
+          handleUserInteractionEnd();
+        }}
         onLoad={onMapLoadHandler}
+        reuseMaps
+        maxPitch={0}
+        maxZoom={12}
       >
-        <Source id="countries" type="geojson" data={countriesData}>
-          <Layer
-            id="countries-fill"
-            type="fill"
-            paint={{
-              "fill-color": theme === "dark" ? "#252525" : "#737A8A",
-              "fill-opacity": 0.6,
-            }}
-          />
-          <Layer
-            id="countries-outline"
-            type="line"
-            paint={{
-              "line-color": theme === "dark" ? "rgba(180,180,180,0.4)" : "rgba(80,80,80,0.4)",
-              "line-width": 0.8,
-            }}
-          />
-        </Source>
-
-        <Source id="saibun" type="geojson" data={processedSaibunData}>
-          <Layer
-            id="saibun-layer"
-            type="fill"
-            paint={{
-              "fill-color": ["get", "computedFillColor"],
-              "fill-opacity": ["get", "computedFillOpacity"],
-              "fill-outline-color":
-                theme === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)",
-            }}
-          />
-        </Source>
-
-        <Source id="cities" type="geojson" data={CitiesData}>
-          <Layer
-            id="cities-layer"
-            type="line"
-            minzoom={9}
-            paint={{
-              "line-color": theme === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
-              "line-width": theme === "dark" ? 0.3 : 0.4,
-            }}
-          />
-        </Source>
-
-        {epicenters.map((epi, index) => (
-          <Marker
-            key={`epi-${index}`}
-            longitude={epi.lng}
-            latitude={epi.lat}
-            anchor="center"
-          >
-            <Image
-              src={epi.icon}
-              alt="epicenter"
-              width={48}
-              height={48}
-              className={isCancel ? "opacity-30" : "blink"}
+        {countriesData && (
+          <Source id="countries" type="geojson" data={countriesData} generateId>
+            <Layer
+              id="countries-fill"
+              type="fill"
+              paint={countriesFillPaint}
             />
-          </Marker>
-        ))}
+            <Layer
+              id="countries-outline"
+              type="line"
+              paint={countriesOutlinePaint}
+            />
+          </Source>
+        )}
+
+        {saibunDataLoaded && (
+          <Source id="saibun" type="geojson" data={processedSaibunData} generateId>
+            <Layer
+              id="saibun-layer"
+              type="fill"
+              paint={saibunLayerPaint}
+            />
+          </Source>
+        )}
+
+        {citiesDataLoaded && mapDataCache.cities && (
+          <Source id="cities" type="geojson" data={mapDataCache.cities} generateId>
+            <Layer
+              id="cities-layer"
+              type="line"
+              minzoom={9}
+              paint={citiesLayerPaint}
+            />
+          </Source>
+        )}
+
+        {memoizedEpicenters}
 
         <PsWave
           epicenters={epicenters}
           psWaveUpdateInterval={psWaveUpdateInterval}
           isCancel={isCancel}
           nowAppTimeRef={nowAppTimeRef}
+          isMapMoving={isMapMoving}
           ref={ref}
         />
         <KyoshinMonitor
