@@ -147,4 +147,4 @@ Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊�
 * **フィードバックの提供**: 実際に使ってみて気づいた点を共有
 
 ### 貢献の方法
-Pull Request（PR）は`main`ブランチに対して送ってください。  
+Pull Request（PR）は`dev`ブランチに対して送ってください。  
