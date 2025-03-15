@@ -20,7 +20,8 @@ const isEewInformationMain = (
     data !== null &&
     "_schema" in data &&
     (data as EewInformation.Latest.Main)._schema.type === "eew-information" &&
-    (data as EewInformation.Latest.Main)._schema.version === "1.0.0"
+    (data as EewInformation.Latest.Main)._schema.version === "1.0.0" &&
+    (data as EewInformation.Latest.PublicCommon).type === "緊急地震速報（地震動予報）"
   );
 };
 
@@ -81,7 +82,7 @@ export const WebSocketProvider = ({
       classifications: ["eew.forecast"],
       types: ["VXSE45"],
       test: enableDrillTestInfo ? "including" : "no",
-      appName: "Shin-Quick",
+      appName: "ShinQuick",
       formatMode: "json",
     };
 
