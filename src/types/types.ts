@@ -15,6 +15,8 @@ export interface Settings {
   enable_map_warning_area: boolean;
   world_map_resolution: "10m" | "50m" | "110m";
   ps_wave_update_interval: number;
+  enable_intensity_filter: boolean;
+  intensity_filter_value: string;
 }
 
 // EEW表示用コンポーネントに渡すprops
@@ -91,6 +93,7 @@ export interface WebSocketContextType {
   connectWebSocket: (token: string, enableDrillTestInfo: boolean) => Promise<void>;
   disconnectWebSocket: () => Promise<void>;
   injectTestData: (data: { body: string }) => void;
+  passedIntensityFilterRef: React.RefObject<Set<string>>;
 }
 
 // 強震モニタ用データ

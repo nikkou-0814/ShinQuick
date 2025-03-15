@@ -243,6 +243,40 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     }
                   />
                 </SettingItem>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 緊急地震速報設定 */}
+          <TabsContent value="eew">
+            <Card>
+              <CardContent className="space-y-4 pt-4">
+                <SettingItem
+                  title="精度の低い緊急地震速報を表示する（1点観測）"
+                  description="十分に知識がある方のみご利用ください。誤報の可能性が高くなります。※DM-D.S.Sを利用しない場合は使用できません。"
+                >
+                  <Switch
+                  checked={isAuthenticated ? settings.enable_low_accuracy_eew : false}
+                  onCheckedChange={(checked) => {
+                    if (checked) setShowAlert(true);
+                    else handleSettingChange("enable_low_accuracy_eew", false);
+                  }}
+                  disabled={!isAuthenticated}
+                  />
+                </SettingItem>
+
+                <SettingItem
+                  title="緊急地震速報の精度情報を表示する"
+                  description="イベント毎の情報が長くなるため、見切れる場合があります。※DM-D.S.Sを利用しない場合は使用できません。"
+                >
+                  <Switch
+                  checked={isAuthenticated ? settings.enable_accuracy_info : false}
+                  onCheckedChange={(checked) =>
+                    handleSettingChange("enable_accuracy_info", checked)
+                  }
+                  disabled={!isAuthenticated}
+                  />
+                </SettingItem>
 
                 <SettingItem
                   title="細分化地域の予想震度を表示する"
@@ -286,40 +320,90 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     disabled={!isAuthenticated}
                   />
                 </SettingItem>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
-          {/* 緊急地震速報設定 */}
-          <TabsContent value="eew">
-            <Card>
-              <CardContent className="space-y-4 pt-4">
                 <SettingItem
-                  title="精度の低い緊急地震速報を表示する（1点観測）"
-                  description="十分に知識がある方のみご利用ください。誤報の可能性が高くなります。※DM-D.S.Sを利用しない場合は使用できません。"
+                  title="震度フィルターを有効にする"
+                  description="設定した震度に基づいて緊急地震速報の表示をフィルタリングします。一度条件を満たしたイベントは継続して表示されます。"
                 >
                   <Switch
-                  checked={isAuthenticated ? settings.enable_low_accuracy_eew : false}
-                  onCheckedChange={(checked) => {
-                    if (checked) setShowAlert(true);
-                    else handleSettingChange("enable_low_accuracy_eew", false);
-                  }}
-                  disabled={!isAuthenticated}
+                    checked={settings.enable_intensity_filter}
+                    onCheckedChange={(checked) =>
+                      handleSettingChange("enable_intensity_filter", checked)
+                    }
                   />
                 </SettingItem>
 
-                <SettingItem
-                  title="緊急地震速報の精度情報を表示する"
-                  description="イベント毎の情報が長くなるため、見切れる場合があります。※DM-D.S.Sを利用しない場合は使用できません。"
-                >
-                  <Switch
-                  checked={isAuthenticated ? settings.enable_accuracy_info : false}
-                  onCheckedChange={(checked) =>
-                    handleSettingChange("enable_accuracy_info", checked)
-                  }
-                  disabled={!isAuthenticated}
-                  />
-                </SettingItem>
+                {settings.enable_intensity_filter && (
+                  <>
+                    <SettingItem
+                      title="フィルター震度"
+                      description="指定した震度以上の緊急地震速報を表示します。"
+                    >
+
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" role="combobox">
+                            {
+                              {
+                                "1": "震度1以上",
+                                "2": "震度2以上",
+                                "3": "震度3以上",
+                                "4": "震度4以上",
+                                "5-": "震度5弱以上",
+                                "5+": "震度5強以上",
+                                "6-": "震度6弱以上",
+                                "6+": "震度6強以上",
+                                "7": "震度7以上",
+                              }[settings.intensity_filter_value]
+                            }
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+
+                        <PopoverContent className="w-fit p-0">
+                          <Command>
+                            <CommandList>
+                              <CommandGroup>
+                                {[
+                                  { value: "1", label: "震度1以上" },
+                                  { value: "2", label: "震度2以上" },
+                                  { value: "3", label: "震度3以上" },
+                                  { value: "4", label: "震度4以上" },
+                                  { value: "5-", label: "震度5弱以上" },
+                                  { value: "5+", label: "震度5強以上" },
+                                  { value: "6-", label: "震度6弱以上" },
+                                  { value: "6+", label: "震度6強以上" },
+                                  { value: "7", label: "震度7以上" },
+                                ].map((option) => (
+                                  <CommandItem
+                                    key={option.value}
+                                    value={option.value}
+                                    onSelect={() =>
+                                      handleSettingChange(
+                                        "intensity_filter_value",
+                                        option.value
+                                      )
+                                    }
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        settings.intensity_filter_value === option.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    {option.label}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </SettingItem>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -430,10 +514,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog
-          open={showDisconnectAlert}
-          onOpenChange={setShowDisconnectAlert}
-        >
+        <AlertDialog open={showDisconnectAlert} onOpenChange={setShowDisconnectAlert}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>本当にアカウントとの連携を解除しますか？</AlertDialogTitle>

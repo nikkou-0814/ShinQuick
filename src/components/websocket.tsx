@@ -64,6 +64,7 @@ export const WebSocketProvider = ({
     useState<EewInformation.Latest.Main | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const socketIdRef = useRef<number | null>(null);
+  const passedIntensityFilterRef = useRef<Set<string>>(new Set());
 
   const connectWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
     if (
@@ -214,6 +215,7 @@ export const WebSocketProvider = ({
         connectWebSocket,
         disconnectWebSocket,
         injectTestData,
+        passedIntensityFilterRef,
       }}
     >
       {children}

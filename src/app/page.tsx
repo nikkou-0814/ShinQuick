@@ -44,6 +44,8 @@ const DEFAULT_SETTINGS: Settings = {
   enable_map_warning_area: false,
   world_map_resolution: "50m",
   ps_wave_update_interval: 10,
+  enable_intensity_filter: false,
+  intensity_filter_value: "3",
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -101,7 +103,9 @@ function PageContent() {
     connectWebSocket,
     disconnectWebSocket,
     injectTestData,
+    passedIntensityFilterRef,
   } = useWebSocket();
+
   const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
   const nowAppTimeRef = useRef<number>(0);
   const rAFBaseRef = useRef<number | null>(null);
@@ -179,18 +183,99 @@ function PageContent() {
     setMapAutoZoomEnabled(settings.map_auto_zoom);
   }, [settings.map_auto_zoom]);
 
+  const getIntensityRank = useCallback((intensity: string): number => {
+    const intensityMap: Record<string, number> = {
+      "0": 0,
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5-": 5,
+      "5+": 6,
+      "6-": 7,
+      "6+": 8,
+      "7": 9,
+      "不明": -1,
+    };
+    return intensityMap[intensity] ?? -1;
+  }, []);
+
+  const getMaxIntensity = useCallback(
+    (data: EewInformation.Latest.Main): string => {
+      const { body } = data;
+      if (!body || body.isCanceled || !("intensity" in body)) {
+        return "不明";
+      }
+
+      const intensityData = (body as EewInformation.Latest.PublicCommonBody).intensity;
+      if (!intensityData || !intensityData.forecastMaxInt) {
+        return "不明";
+      }
+
+      const { from = "不明", to = "不明" } = intensityData.forecastMaxInt;
+      if (to === "over") {
+        return from;
+      }
+      return to;
+    },
+    []
+  );
+
+  const shouldDisplayEarthquake = useCallback(
+    (data: EewInformation.Latest.Main): boolean => {
+      // すでに条件を満たしたイベントは表示する
+      if (passedIntensityFilterRef.current.has(data.eventId)) {
+        return true;
+      }
+
+      if (!settings.enable_intensity_filter) {
+        return true;
+      }
+
+      if (data.body?.isCanceled) {
+        return true;
+      }
+
+      const maxIntensity = getMaxIntensity(data);
+      const intensityRank = getIntensityRank(maxIntensity);
+      const filterRank = getIntensityRank(settings.intensity_filter_value);
+
+      if (intensityRank === -1) {
+        return true;
+      }
+
+      const display = intensityRank >= filterRank;
+
+      if (display) {
+        passedIntensityFilterRef.current.add(data.eventId);
+      }
+
+      return display;
+    },
+    [
+      settings.enable_intensity_filter,
+      settings.intensity_filter_value,
+      getIntensityRank,
+      getMaxIntensity,
+      passedIntensityFilterRef, 
+    ]
+  );
+
   useEffect(() => {
     if (receivedData) {
       const newData = receivedData as EewInformation.Latest.Main;
-      setDisplayDataList((prevList) => {
-        const filtered = prevList.filter(
-          (data) => data.eventId !== newData.eventId
-        );
-        return [newData, ...filtered];
-      });
-      setForceAutoZoomTrigger(Date.now());
+
+      if (shouldDisplayEarthquake(newData)) {
+        setDisplayDataList((prevList) => {
+          const filtered = prevList.filter(
+            (data) => data.eventId !== newData.eventId
+          );
+          return [newData, ...filtered];
+        });
+        setForceAutoZoomTrigger(Date.now());
+      }
     }
-  }, [receivedData]);
+  }, [receivedData, shouldDisplayEarthquake]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
