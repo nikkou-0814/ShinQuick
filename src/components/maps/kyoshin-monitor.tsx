@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Source, Layer, LayerProps, useMap } from "react-map-gl/maplibre";
+import type { GeoJSONSource } from "maplibre-gl";
 import { KmoniData, SiteListData, KyoshinMonitorProps } from "@/types/types";
 import { Feature, GeoJsonProperties, Point, FeatureCollection } from "geojson";
 
@@ -210,7 +211,7 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
       if (sourceInitializedRef.current && map) {
         const source = map.getSource('siteSource');
         if (source) {
-          (source as any).setData(geoJSONRef.current);
+          (source as GeoJSONSource).setData(geoJSONRef.current);
         }
       }
     };

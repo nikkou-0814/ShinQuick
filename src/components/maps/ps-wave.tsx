@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import React, { useEffect, useRef, useCallback, useMemo } from "react";
 import { Source, Layer, useMap } from "react-map-gl/maplibre";
+import type { GeoJSONSource } from "maplibre-gl";
 import * as turf from "@turf/turf";
 import { TravelTableRow, PsWaveProps, EpicenterInfo } from "@/types/types";
 import { Feature, FeatureCollection, Polygon } from "geojson";
@@ -231,7 +232,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
         if (sourceInitializedRef.current && map) {
           const source = map.getSource('psWaveSource');
           if (source) {
-            (source as any).setData(circleGeoJSONRef.current);
+            (source as GeoJSONSource).setData(circleGeoJSONRef.current);
           }
         }
         
@@ -269,7 +270,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
       if (sourceInitializedRef.current && map) {
         const source = map.getSource('psWaveSource');
         if (source) {
-          (source as any).setData(circleGeoJSONRef.current);
+          (source as GeoJSONSource).setData(circleGeoJSONRef.current);
         }
       }
       
@@ -339,7 +340,7 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
       if (sourceInitializedRef.current && map) {
         const source = map.getSource('psWaveSource');
         if (source) {
-          (source as any).setData(circleGeoJSONRef.current);
+          (source as GeoJSONSource).setData(circleGeoJSONRef.current);
         }
       }
       
