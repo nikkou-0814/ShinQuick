@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Source, Layer, LayerProps } from "react-map-gl/maplibre";
+import { Source, Layer, LayerProps, useMap } from "react-map-gl/maplibre";
 import { KmoniData, SiteListData, KyoshinMonitorProps } from "@/types/types";
-import { Feature, GeoJsonProperties, Point } from "geojson";
+import { Feature, GeoJsonProperties, Point, FeatureCollection } from "geojson";
 
 // 強震モニタデータのキャッシュ
 const kyoshinDataCache = {
@@ -17,8 +17,11 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
   onTimeUpdate,
   nowAppTimeRef,
 }) => {
+  const { current: map } = useMap();
   const [pointList, setPointList] = useState<Array<[number, number]>>(kyoshinDataCache.pointList || []);
-  const [kmoniData, setKmoniData] = useState<KmoniData | null>(null);
+  const kmoniDataRef = useRef<KmoniData | null>(null);
+  const geoJSONRef = useRef<FeatureCollection>({ type: "FeatureCollection", features: [] });
+  const sourceInitializedRef = useRef<boolean>(false);
   const fetchingRef = useRef(false);
   const lastFetchTime = useRef(kyoshinDataCache.lastFetchedTime);
   const isMountedRef = useRef(true);
@@ -170,6 +173,48 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
       }
     };
 
+    // GeoJSONデータを直接更新
+    const updateGeoJSONData = (data: KmoniData) => {
+      if (!data?.realTimeData?.intensity || pointList.length === 0) return;
+      
+      const intensityStr = data.realTimeData.intensity;
+      const features: Feature<Point, GeoJsonProperties>[] = [];
+      const maxPoints = Math.min(pointList.length, intensityStr.length);
+      
+      for (let idx = 0; idx < maxPoints; idx++) {
+        const [lat, lng] = pointList[idx];
+        const char = intensityStr.charAt(idx);
+
+        if (char === 'a' || char === 'b' || char === 'c') {
+          continue;
+        }
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [lng, lat],
+          } as Point,
+          properties: {
+            color: convertStringToColor(char),
+            radius: 3,
+          },
+        });
+      }
+      
+      geoJSONRef.current = { 
+        type: "FeatureCollection", 
+        features 
+      };
+      
+      // MapLibre GLのソースを直接更新
+      if (sourceInitializedRef.current && map) {
+        const source = map.getSource('siteSource');
+        if (source) {
+          (source as any).setData(geoJSONRef.current);
+        }
+      }
+    };
+
     const fetchKyoshinMonitorData = async () => {
       if (!nowAppTimeRef.current) return;
       const now = nowAppTimeRef.current;
@@ -212,10 +257,9 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         const data = await res.json();
         
         if (isMountedRef.current) {
-          requestAnimationFrame(() => {
-            setKmoniData(data);
-            updateTimeDisplay(data);
-          });
+          kmoniDataRef.current = data;
+          updateTimeDisplay(data);
+          updateGeoJSONData(data);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -237,37 +281,27 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         kyoshinDataCache.abortController = null;
       }
     };    
-  }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef]);
+  }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef, pointList, map, convertStringToColor]);
 
-  // 座標配列を作成
-  const siteGeoJSON = useMemo(() => {
-    if (!enableKyoshinMonitor || !kmoniData?.realTimeData?.intensity || pointList.length === 0) {
-      return { type: "FeatureCollection" as const, features: [] };
-    }
-    const intensityStr = kmoniData.realTimeData.intensity;
-    const features: Feature<Point, GeoJsonProperties>[] = [];
-    const maxPoints = Math.min(pointList.length, intensityStr.length);
-    for (let idx = 0; idx < maxPoints; idx++) {
-      const [lat, lng] = pointList[idx];
-      const char = intensityStr.charAt(idx);
-
-      if (char === 'a' || char === 'b' || char === 'c') {
-        continue;
+  // ソースの初期化を検知するためのエフェクト
+  useEffect(() => {
+    if (!map || !enableKyoshinMonitor) return;
+    
+    const checkSource = () => {
+      const source = map.getSource('siteSource');
+      if (source) {
+        sourceInitializedRef.current = true;
+      } else {
+        setTimeout(checkSource, 100);
       }
-      features.push({
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [lng, lat],
-        } as Point,
-        properties: {
-          color: convertStringToColor(char),
-          radius: 3,
-        },
-      });
-    }
-    return { type: "FeatureCollection" as const, features };
-  }, [enableKyoshinMonitor, kmoniData, pointList, convertStringToColor]);
+    };
+    
+    checkSource();
+    
+    return () => {
+      sourceInitializedRef.current = false;
+    };
+  }, [map, enableKyoshinMonitor]);
 
   const siteLayer = useMemo<LayerProps>(() => ({
     id: "site-layer",
@@ -290,12 +324,16 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
     },
   }), []);
 
-  if (siteGeoJSON.features.length === 0) {
+  const initialGeoJSON = useMemo(() => {
+    return { type: "FeatureCollection" as const, features: [] };
+  }, []);
+
+  if (!enableKyoshinMonitor) {
     return null;
   }
 
   return (
-    <Source id="siteSource" type="geojson" data={siteGeoJSON} generateId>
+    <Source id="siteSource" type="geojson" data={initialGeoJSON} generateId>
       <Layer {...siteLayer} />
     </Source>
   );

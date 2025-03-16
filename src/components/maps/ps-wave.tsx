@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
-import { Source, Layer } from "react-map-gl/maplibre";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { Source, Layer, useMap } from "react-map-gl/maplibre";
 import * as turf from "@turf/turf";
 import { TravelTableRow, PsWaveProps, EpicenterInfo } from "@/types/types";
 import { Feature, FeatureCollection, Polygon } from "geojson";
@@ -123,10 +123,12 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
   nowAppTimeRef,
   isMapMoving = false,
 }) => {
-  const [circleGeoJSON, setCircleGeoJSON] = useState<FeatureCollection<Polygon>>({
+  const { current: map } = useMap();
+  const circleGeoJSONRef = useRef<FeatureCollection<Polygon>>({
     type: "FeatureCollection",
     features: [],
   });
+  const sourceInitializedRef = useRef<boolean>(false);
   const travelTableRef = useRef<TravelTableRow[]>([]);
   const animationFrameIdRef = useRef<number | null>(null);
   const timeoutIdRef = useRef<number | null>(null);
@@ -223,7 +225,16 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
       isUpdatingRef.current = true;
 
       if (!epicenters.length || !travelTableRef.current?.length || !nowAppTimeRef.current) {
-        setCircleGeoJSON({ type: "FeatureCollection", features: [] });
+        circleGeoJSONRef.current = { type: "FeatureCollection", features: [] };
+        
+        // MapLibre GLのソースを直接更新
+        if (sourceInitializedRef.current && map) {
+          const source = map.getSource('psWaveSource');
+          if (source) {
+            (source as any).setData(circleGeoJSONRef.current);
+          }
+        }
+        
         isUpdatingRef.current = false;
         return;
       }
@@ -252,7 +263,16 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
       );
 
       // GeoJSONを更新
-      setCircleGeoJSON({ type: "FeatureCollection", features });
+      circleGeoJSONRef.current = { type: "FeatureCollection", features };
+      
+      // MapLibre GLのソースを直接更新
+      if (sourceInitializedRef.current && map) {
+        const source = map.getSource('psWaveSource');
+        if (source) {
+          (source as any).setData(circleGeoJSONRef.current);
+        }
+      }
+      
       lastUpdateTimeRef.current = now;
 
       // 次の更新をスケジュール
@@ -280,7 +300,26 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
         }
       }, psWaveUpdateInterval);
     }
-  }, [epicenters, psWaveUpdateInterval, nowAppTimeRef, isMapMoving, calculateWavePositions]);
+  }, [epicenters, psWaveUpdateInterval, nowAppTimeRef, isMapMoving, calculateWavePositions, map]);
+
+  useEffect(() => {
+    if (!map) return;
+    
+    const checkSource = () => {
+      const source = map.getSource('psWaveSource');
+      if (source) {
+        sourceInitializedRef.current = true;
+      } else {
+        setTimeout(checkSource, 100);
+      }
+    };
+    
+    checkSource();
+    
+    return () => {
+      sourceInitializedRef.current = false;
+    };
+  }, [map]);
 
   useEffect(() => {
     if (timeoutIdRef.current) {
@@ -294,7 +333,16 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
     }
 
     if (!epicenters.length || !travelTableRef.current?.length) {
-      setCircleGeoJSON({ type: "FeatureCollection", features: [] });
+      circleGeoJSONRef.current = { type: "FeatureCollection", features: [] };
+      
+      // MapLibre GLのソースを直接更新
+      if (sourceInitializedRef.current && map) {
+        const source = map.getSource('psWaveSource');
+        if (source) {
+          (source as any).setData(circleGeoJSONRef.current);
+        }
+      }
+      
       return;
     }
 
@@ -313,10 +361,15 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
         animationFrameIdRef.current = null;
       }
     };
-  }, [epicenters, psWaveUpdateInterval, isMapMoving, updateGeoJSON]);
+  }, [epicenters, psWaveUpdateInterval, isMapMoving, updateGeoJSON, map]);
+
+  // 初期GeoJSONデータ
+  const initialGeoJSON = useMemo(() => {
+    return { type: "FeatureCollection" as const, features: [] };
+  }, []);
 
   return (
-    <Source id="psWaveSource" type="geojson" data={circleGeoJSON}>
+    <Source id="psWaveSource" type="geojson" data={initialGeoJSON}>
       <Layer
         id="pWave-layer"
         type="line"
