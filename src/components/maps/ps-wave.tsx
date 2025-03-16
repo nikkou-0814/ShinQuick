@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useCallback, useMemo } from "react";
 import { Source, Layer, useMap } from "react-map-gl/maplibre";
 import type { GeoJSONSource } from "maplibre-gl";
 import * as turf from "@turf/turf";
-import { TravelTableRow, PsWaveProps, EpicenterInfo } from "@/types/types";
+import { TravelTableRow, EpicenterInfo, ModifiedPsWaveProps } from "@/types/types";
 import { Feature, FeatureCollection, Polygon } from "geojson";
 
 // 走時表のキャッシュ
@@ -111,11 +111,6 @@ function getValue(
   const sDistance = ((time - s1.s) / (s2.s - s1.s)) * (s2.distance - s1.distance) + s1.distance;
 
   return [pDistance, sDistance];
-}
-
-interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
-  nowAppTimeRef: React.RefObject<number>;
-  isMapMoving?: boolean;
 }
 
 const PsWave: React.FC<ModifiedPsWaveProps> = ({ 

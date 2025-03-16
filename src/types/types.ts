@@ -54,7 +54,6 @@ export type RegionIntensityMap = Record<string, string>;
 // マップコンポーネントのProps
 export interface MapProps {
   enableKyoshinMonitor: boolean;
-  onTimeUpdate?: (time: string) => void;
   isConnected: boolean;
   epicenters: EpicenterInfo[];
   regionIntensityMap: RegionIntensityMap;
@@ -125,7 +124,6 @@ export interface BaseKyoshinMonitorProps {
   enableKyoshinMonitor: boolean;
   isConnected: boolean;
   nowAppTimeRef: React.RefObject<number>;
-  onTimeUpdate?: (time: string) => void;
 }
 
 // P/S波用のProps
@@ -158,4 +156,15 @@ export type KyoshinMonitorProps = Omit<BaseKyoshinMonitorProps, "nowAppTime"> & 
 export interface SaibunFeatureWithBbox {
   feature: Feature;
   bbox: [number, number, number, number];
+}
+
+// 時計表示用のProps
+export interface ClockDisplayProps {
+  nowAppTimeRef: React.RefObject<number>;
+  KyoshinMonitor: boolean;
+}
+
+export interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
+  nowAppTimeRef: React.RefObject<number>;
+  isMapMoving?: boolean;
 }

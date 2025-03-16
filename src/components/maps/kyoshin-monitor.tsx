@@ -15,7 +15,6 @@ const kyoshinDataCache = {
 
 const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
   enableKyoshinMonitor,
-  onTimeUpdate,
   nowAppTimeRef,
 }) => {
   const { current: map } = useMap();
@@ -145,34 +144,6 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
              ("0" + date.getDate()).slice(-2)
       };
     };
-    
-    // 時刻表示の更新
-    const updateTimeDisplay = (data: KmoniData) => {
-      if (!onTimeUpdate) return;
-      
-      if (data.realTimeData?.timestamp) {
-        const dateISO = new Date(data.realTimeData.timestamp);
-        const formattedTime = dateISO.toLocaleString("ja-JP", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-        onTimeUpdate(formattedTime);
-      } else {
-        const fallbackTime = new Date().toLocaleString("ja-JP", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-        onTimeUpdate(fallbackTime);
-      }
-    };
 
     // GeoJSONデータを直接更新
     const updateGeoJSONData = (data: KmoniData) => {
@@ -259,7 +230,6 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         
         if (isMountedRef.current) {
           kmoniDataRef.current = data;
-          updateTimeDisplay(data);
           updateGeoJSONData(data);
         }
       } catch (err) {
@@ -282,7 +252,7 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         kyoshinDataCache.abortController = null;
       }
     };    
-  }, [enableKyoshinMonitor, onTimeUpdate, nowAppTimeRef, pointList, map, convertStringToColor]);
+  }, [enableKyoshinMonitor, nowAppTimeRef, pointList, map, convertStringToColor]);
 
   // ソースの初期化を検知するためのエフェクト
   useEffect(() => {

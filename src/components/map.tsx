@@ -90,7 +90,6 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
     enableKyoshinMonitor,
-    onTimeUpdate,
     isConnected,
     epicenters,
     regionIntensityMap,
@@ -445,6 +444,15 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [ref]);
 
+  useEffect(() => {
+    if (enableKyoshinMonitor) {
+      const timer = setTimeout(() => {
+        reorderMapLayers();
+      }, 400); 
+      return () => clearTimeout(timer);
+    }
+  }, [enableKyoshinMonitor, reorderMapLayers]);
+
   const handleMoveStart = useCallback(() => {
     setIsMapMoving(true);
     window.dispatchEvent(new Event('movestart'));
@@ -593,7 +601,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         />
         <KyoshinMonitor
           enableKyoshinMonitor={enableKyoshinMonitor}
-          onTimeUpdate={onTimeUpdate}
           isConnected={isConnected}
           nowAppTimeRef={nowAppTimeRef}
         />

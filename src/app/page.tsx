@@ -119,7 +119,6 @@ function PageContent() {
   const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [currentTime, setCurrentTime] = useState("----/--/-- --:--:--");
 
   const shindoColors = useMemo(
     () => [
@@ -311,10 +310,6 @@ function PageContent() {
     }
     updateSettings({ [key]: value });
   };
-
-  const handleTimeUpdate = useCallback((newTime: string) => {
-    setCurrentTime(newTime);
-  }, []);
 
   const handleConnectWebSocket = () => {
     const token = localStorage.getItem("dmdata_access_token");
@@ -733,7 +728,6 @@ function PageContent() {
           <DynamicMap
             ref={mapRef}
             enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-            onTimeUpdate={handleTimeUpdate}
             isConnected={isConnected}
             epicenters={epicenters}
             regionIntensityMap={mergedRegionMap}
@@ -775,9 +769,7 @@ function PageContent() {
             <div className="flex flex-col">
               <ClockDisplay
                 nowAppTimeRef={nowAppTimeRef}
-                overrideTime={
-                  settings.enable_kyoshin_monitor ? currentTime : undefined
-                }
+                KyoshinMonitor={settings.enable_kyoshin_monitor}
               />
               {isConnected && (
                 <div className="flex items-center text-xs text-green-500 space-x-1 text-right">

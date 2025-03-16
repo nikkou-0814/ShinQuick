@@ -1,19 +1,15 @@
 import React, { useEffect, useState } from "react"
+import { ClockDisplayProps } from "@/types/types"
 
-const ClockDisplay: React.FC<{
-  nowAppTimeRef: React.RefObject<number>;
-  overrideTime?: string;
-}> = React.memo(({ nowAppTimeRef, overrideTime }) => {
-  const [displayTime, setDisplayTime] = useState(
-    overrideTime ?? "----/--/-- --:--:--"
-  );
+const ClockDisplay: React.FC<ClockDisplayProps> = React.memo(
+  ({ nowAppTimeRef, KyoshinMonitor }) => {
+    const [displayTime, setDisplayTime] = useState("----/--/-- --:--:--");
 
-  useEffect(() => {
-    if (overrideTime !== undefined) {
-      setDisplayTime(overrideTime);
-    } else {
+    useEffect(() => {
       const interval = setInterval(() => {
-        const dateObj = new Date(nowAppTimeRef.current);
+        const adjustedTime =
+          nowAppTimeRef.current - (KyoshinMonitor ? 2000 : 0);
+        const dateObj = new Date(adjustedTime);
         const formatted = dateObj.toLocaleString("ja-JP", {
           year: "numeric",
           month: "2-digit",
@@ -25,11 +21,11 @@ const ClockDisplay: React.FC<{
         setDisplayTime(formatted);
       }, 1000);
       return () => clearInterval(interval);
-    }
-  }, [nowAppTimeRef, overrideTime]);
+    }, [nowAppTimeRef, KyoshinMonitor]);
 
-  return <p className="pr-1">{displayTime}</p>;
-});
+    return <p className="pr-1">{displayTime}</p>;
+  }
+);
 
 ClockDisplay.displayName = "ClockDisplay";
 export { ClockDisplay }
