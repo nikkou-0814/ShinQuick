@@ -362,7 +362,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
       ref.current.flyTo({
         center: [viewport.longitude, viewport.latitude],
-        duration: 500,
+        duration: 300,
         zoom: viewport.zoom,
         essential: true,
       });
