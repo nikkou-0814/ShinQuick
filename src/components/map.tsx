@@ -584,13 +584,15 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       clearTimeout(autoZoomTimeoutRef.current);
     }
     if (enableDynamicZoom) {
-      autoZoomTimeoutRef.current = window.setTimeout(() => {
-        setHomePosition();
-        setAutoZoomEnabled(true);
-        onAutoZoomChange?.(true);
-      }, 10000);
+      if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) {
+        autoZoomTimeoutRef.current = window.setTimeout(() => {
+          setHomePosition();
+          setAutoZoomEnabled(true);
+          onAutoZoomChange?.(true);
+        }, 10000);
+      }
     }
-  }, [enableDynamicZoom, onAutoZoomChange, setHomePosition]);
+  }, [enableDynamicZoom, onAutoZoomChange, setHomePosition, epicenters, regionIntensityMap]);
 
   const reorderMapLayers = useCallback(() => {
     if (ref && "current" in ref && ref.current) {
