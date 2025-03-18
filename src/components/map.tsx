@@ -336,7 +336,18 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   // 自動ズーム処理
   useEffect(() => {
-    if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) return;
+    if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) {
+      if (enableDynamicZoom && autoZoomEnabled && ref && 'current' in ref && ref.current) {
+        ref.current.flyTo({
+          center: [136, 35],
+          duration: 1000,
+          zoom: 4.5,
+          essential: true,
+        });
+      }
+      return;
+    }
+
     if (!enableDynamicZoom || !autoZoomEnabled) return;
     if (!ref || !('current' in ref) || !ref.current) return;
     
