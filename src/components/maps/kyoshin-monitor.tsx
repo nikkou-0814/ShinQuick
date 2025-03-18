@@ -29,48 +29,49 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
   const isMountedRef = useRef(true);
 
   // 色定義
-  const colorList: Record<string, string> = {
-    "a": "#00000000",
-    "b": "#00000000",
-    "c": "#00000000",
-    "d": "#0000FF",
-    "e": "#0033FF",
-    "f": "#0066FF",
-    "g": "#0099FF",
-    "h": "#00CCFF",
-    "i": "#00FF99",
-    "j": "#00FF66",
-    "k": "#44FF00",
-    "l": "#88FF00",
-    "m": "#CCFF00",
-    "n": "#FFFF00",
-    "o": "#FFCC00",
-    "p": "#FF9900",
-    "q": "#FF6600",
-    "r": "#FF3300",
-    "s": "#FF0000",
-    "t": "#CC0000",
-    "u": "#990000",
-    "v": "#660000",
-    "w": "#330000",
-    "x": "#331A1A",
-    "y": "#663333",
-    "z": "#993333",
-  };
+  const colorList: Record<string, string> = useMemo(
+    () => ({
+      a: "#00000000",
+      b: "#00000000",
+      c: "#00000000",
+      d: "#0000FF",
+      e: "#0033FF",
+      f: "#0066FF",
+      g: "#0099FF",
+      h: "#00CCFF",
+      i: "#00FF99",
+      j: "#00FF66",
+      k: "#44FF00",
+      l: "#88FF00",
+      m: "#CCFF00",
+      n: "#FFFF00",
+      o: "#FFCC00",
+      p: "#FF9900",
+      q: "#FF6600",
+      r: "#FF3300",
+      s: "#FF0000",
+      t: "#CC0000",
+      u: "#990000",
+      v: "#660000",
+      w: "#330000",
+      x: "#331A1A",
+      y: "#663333",
+      z: "#993333",
+    }),
+    []
+  );
 
   const convertStringToColor = useCallback((ch: string): string => {
     const lowerCh = ch.toLowerCase();
-    
     // キャッシュにあればそれを返す
     if (kyoshinDataCache.colorCache.has(lowerCh)) {
       return kyoshinDataCache.colorCache.get(lowerCh)!;
     }
-    
     // 新しい色を計算してキャッシュに保存
     const color = colorList[lowerCh] || "#b00201";
     kyoshinDataCache.colorCache.set(lowerCh, color);
     return color;
-  }, []);
+  }, [colorList]);
 
   // コンポーネントのマウント状態を追跡
   useEffect(() => {
