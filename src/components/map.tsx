@@ -101,21 +101,6 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
   return loadPromise;
 };
 
-// 他の解像度のデータを事前に読み込む
-const preloadMapData = (currentResolution: string) => {
-  const resolutions = ["50m", "110m", "10m"];
-  const otherResolutions = resolutions.filter(r => r !== currentResolution);
-
-  for (const resolution of otherResolutions) {
-    if (!mapDataCache.countries[resolution] && !mapDataCache.loading[resolution]) {
-      setTimeout(() => {
-        loadCountryData(resolution).catch(() => {
-        });
-      }, 2000);
-    }
-  }
-};
-
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
     enableKyoshinMonitor,
