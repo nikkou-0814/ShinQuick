@@ -338,10 +338,11 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   useEffect(() => {
     if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) {
       if (enableDynamicZoom && autoZoomEnabled && ref && 'current' in ref && ref.current) {
+        const { longitude, latitude, zoom } = getJapanHomePosition();
         ref.current.flyTo({
-          center: [136, 35],
+          center: [longitude, latitude],
           duration: 1000,
-          zoom: 4.5,
+          zoom: zoom,
           essential: true,
         });
       }
@@ -399,10 +400,11 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
 
     if (!hasValidBounds) {
+      const { longitude, latitude, zoom } = getJapanHomePosition();
       ref.current.flyTo({
-        center: [136, 35],
+        center: [longitude, latitude],
         duration: 1000,
-        zoom: 4.5,
+        zoom: zoom,
         essential: true,
       });
       return;
