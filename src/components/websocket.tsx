@@ -10,7 +10,7 @@ import React, {
 import { toast } from "sonner";
 import pako from "pako";
 import { EewInformation } from "@dmdata/telegram-json-types";
-import { WebSocketContextType } from "@/types/types";
+import { WebSocketContextType, SchemaCheck } from "@/types/types";
 
 // 型チェック
 const isEewInformationMain = (
@@ -19,7 +19,7 @@ const isEewInformationMain = (
   if (!data || typeof data !== "object") return false;
   
   // 必須プロパティの存在チェック
-  const obj = data as any;
+  const obj = data as SchemaCheck;
   if (!obj._schema || !obj.type) return false;
   const schema = obj._schema;
   if (schema.type !== "eew-information" || schema.version !== "1.0.0") return false;

@@ -168,3 +168,11 @@ export interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
   nowAppTimeRef: React.RefObject<number>;
   isMapMoving?: boolean;
 }
+
+export interface SchemaCheck {
+  _schema: {
+    type: string;
+    version: string;
+  };
+  type: string;
+}

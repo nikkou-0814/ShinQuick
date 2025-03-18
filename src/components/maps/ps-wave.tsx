@@ -118,7 +118,6 @@ function getValue(
 const PsWave: React.FC<ModifiedPsWaveProps> = ({ 
   epicenters, 
   psWaveUpdateInterval, 
-  isCancel,
   nowAppTimeRef,
   isMapMoving = false,
 }) => {
