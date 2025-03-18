@@ -90,7 +90,6 @@ function PageContent() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const allRegionMapsRef = useRef<Record<string, RegionIntensityMap>>({});
   const [mergedRegionMap, setMergedRegionMap] = useState<RegionIntensityMap>({});
-  const [, setMultiRegionMap] = useState<Record<string, string[]>>({});
   const allWarningRegionsRef = useRef<
     Record<string, { code: string; name: string }[]>
   >({});
@@ -408,45 +407,54 @@ function PageContent() {
     }
   };
 
+  // 地域震度情報の更新処理
   const onRegionIntensityUpdate = useCallback(
     (regionMap: Record<string, string>, eventId: string) => {
+      // イベントIDごとの地域震度マップを更新
       if (Object.keys(regionMap).length === 0) {
         delete allRegionMapsRef.current[eventId];
       } else {
         allRegionMapsRef.current[eventId] = regionMap;
       }
 
+      // 最大震度を計算するための一時マップ
       const merged: Record<string, string> = {};
       const multi: Record<string, string[]> = {};
-
-      Object.entries(allRegionMapsRef.current).forEach(([, map]) => {
-        Object.entries(map).forEach(([code, intensity]) => {
+      
+      // 各地域コードごとに全イベントの震度を収集
+      for (const [, map] of Object.entries(allRegionMapsRef.current)) {
+        for (const [code, intensity] of Object.entries(map)) {
           if (!multi[code]) {
             multi[code] = [];
           }
           multi[code].push(intensity);
-        });
-      });
+        }
+      }
 
-      Object.entries(multi).forEach(([code, intensities]) => {
+      // 各地域コードごとに最大震度を計算
+      for (const [code, intensities] of Object.entries(multi)) {
         let maxRank = -1;
         let maxIntensity = "0";
-        intensities.forEach((val) => {
+
+        for (const val of intensities) {
           const idx = INTENSITY_ORDER.indexOf(val);
           if (idx > maxRank) {
             maxRank = idx;
             maxIntensity = val;
           }
-        });
+        }
+        
         merged[code] = maxIntensity;
-      });
+      }
 
-      if (JSON.stringify(prevMultiRef.current) !== JSON.stringify(multi)) {
-        setMultiRegionMap(multi);
+      // 前回の値と比較して変更があれば状態を更新
+      const multiStr = JSON.stringify(multi);
+      if (JSON.stringify(prevMultiRef.current) !== multiStr) {
         prevMultiRef.current = multi;
       }
 
-      if (JSON.stringify(prevMergedRef.current) !== JSON.stringify(merged)) {
+      const mergedStr = JSON.stringify(merged);
+      if (JSON.stringify(prevMergedRef.current) !== mergedStr) {
         setMergedRegionMap(merged);
         prevMergedRef.current = merged;
       }
@@ -454,81 +462,119 @@ function PageContent() {
     []
   );
 
+  // 警報地域の更新処理
   const onWarningRegionUpdate = useCallback(
     (warningRegions: { code: string; name: string }[], eventId: string) => {
+      // イベントIDごとの警報地域を更新
       if (!warningRegions || warningRegions.length === 0) {
         delete allWarningRegionsRef.current[eventId];
       } else {
         allWarningRegionsRef.current[eventId] = warningRegions;
       }
+      
+      // 全イベントの警報地域をフラット化
       const merged = Object.values(allWarningRegionsRef.current).flat();
-
-      const unique = merged.reduce((acc, region) => {
-        if (!acc.find((r) => r.code === region.code)) {
-          acc.push(region);
+      
+      // 重複を除去
+      const uniqueCodes = new Set<string>();
+      const unique: { code: string; name: string }[] = [];
+      
+      for (const region of merged) {
+        if (!uniqueCodes.has(region.code)) {
+          uniqueCodes.add(region.code);
+          unique.push(region);
         }
-        return acc;
-      }, [] as { code: string; name: string }[]);
+      }
+      
+      // 状態を更新
       setMergedWarningRegions(unique);
     },
     []
   );
 
+  // 震源情報のクリーンアップ処理
   useEffect(() => {
+    // 更新間隔を動的に調整
     const intervalTime =
       settings.enable_dynamic_zoom && mapAutoZoomEnabled ? 2000 : 10000;
 
     const timer = setInterval(() => {
       setEpicenters((prev) => {
         const now = Date.now();
-        const filtered = prev.filter(
-          (e) => e.startTime && now - e.startTime < 3 * 60 * 1000
-        );
-        const removed = prev.filter(
-          (e) => e.startTime && now - e.startTime >= 3 * 60 * 1000
-        );
-
-        removed.forEach((e) => {
-          onRegionIntensityUpdate({}, e.eventId);
-          onWarningRegionUpdate([], e.eventId);
-        });
-
-        if (filtered.length === 0 && prev.length > 0) {
-          setDisplayDataList([]);
+        const timeThreshold = 3 * 60 * 1000;
+        const filtered: EpicenterInfo[] = [];
+        const removed: EpicenterInfo[] = [];
+        
+        for (const e of prev) {
+          if (e.startTime && now - e.startTime < timeThreshold) {
+            filtered.push(e);
+          } else {
+            removed.push(e);
+          }
         }
+
+        // 削除された震源の関連データをクリーンアップ
+        if (removed.length > 0) {
+          requestAnimationFrame(() => {
+            for (const e of removed) {
+              onRegionIntensityUpdate({}, e.eventId);
+              onWarningRegionUpdate([], e.eventId);
+            }
+
+            if (filtered.length === 0 && prev.length > 0) {
+              setDisplayDataList([]);
+            }
+          });
+        }
+        
         return filtered;
       });
     }, intervalTime);
 
     return () => clearInterval(timer);
   }, [
-    displayDataList,
     onRegionIntensityUpdate,
     onWarningRegionUpdate,
     settings.enable_dynamic_zoom,
     mapAutoZoomEnabled,
   ]);
 
+  // キャンセルされた地震情報の処理
   useEffect(() => {
-    displayDataList.forEach((data) => {
-      if (!data.body?.isCanceled) return;
-      if (canceledRemoveScheduledRef.current.has(data.eventId)) return;
-
-      setTimeout(() => {
+    const canceledEvents: string[] = [];
+    
+    for (const data of displayDataList) {
+      if (!data.body?.isCanceled) continue;
+      if (canceledRemoveScheduledRef.current.has(data.eventId)) continue;
+      canceledRemoveScheduledRef.current.add(data.eventId);
+      canceledEvents.push(data.eventId);
+    }
+    
+    // キャンセルされたイベントがあれば処理をスケジュール
+    if (canceledEvents.length > 0) {
+      const timeoutId = setTimeout(() => {
         setDisplayDataList((prev) =>
-          prev.filter((x) => x.eventId !== data.eventId)
+          prev.filter((x) => !canceledEvents.includes(x.eventId))
         );
+        
         setEpicenters((prev) =>
-          prev.filter((epi) => epi.eventId !== data.eventId)
+          prev.filter((epi) => !canceledEvents.includes(epi.eventId))
         );
-        onRegionIntensityUpdate({}, data.eventId);
-        onWarningRegionUpdate([], data.eventId);
-
-        canceledRemoveScheduledRef.current.delete(data.eventId);
+        
+        // 関連データのクリーンアップ
+        for (const eventId of canceledEvents) {
+          onRegionIntensityUpdate({}, eventId);
+          onWarningRegionUpdate([], eventId);
+          canceledRemoveScheduledRef.current.delete(eventId);
+        }
       }, 10000);
-    });
+      
+      // クリーンアップ関数
+      return () => clearTimeout(timeoutId);
+    }
   }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
+  // 震源情報の更新処理
   const handleEpicenterUpdate = useCallback(
     ({
       eventId,
@@ -546,9 +592,11 @@ function PageContent() {
       originTime: number;
     }) => {
       if (!eventId) return;
+      
       setEpicenters((prev) => {
-        const existing = prev.find((p) => p.eventId === eventId);
-        if (!existing) {
+        const existingIndex = prev.findIndex((p) => p.eventId === eventId);
+
+        if (existingIndex === -1) {
           const newEpi: EpicenterInfo = {
             eventId,
             lat,
@@ -558,47 +606,67 @@ function PageContent() {
             originTime,
             depthval,
           };
-          setForceAutoZoomTrigger(Date.now());
+          
+          // 自動ズームをトリガー
+          requestAnimationFrame(() => {
+            setForceAutoZoomTrigger(Date.now());
+          });
           return [...prev, newEpi];
-        } else {
-          return prev.map((p) =>
-            p.eventId === eventId
-              ? (() => {
-                  setForceAutoZoomTrigger(Date.now());
-                  return {
-                    ...p,
-                    lat,
-                    lng,
-                    icon,
-                    depthval,
-                    originTime: originTime,
-                  };
-                })()
-              : p
-          );
+        } 
+        else {
+          const newEpicenters = [...prev];
+          const p = newEpicenters[existingIndex];
+          
+          // 位置が変わった場合のみ自動ズームをトリガー
+          if (p.lat !== lat || p.lng !== lng) {
+            requestAnimationFrame(() => {
+              setForceAutoZoomTrigger(Date.now());
+            });
+          }
+          newEpicenters[existingIndex] = {
+            ...p,
+            lat,
+            lng,
+            icon,
+            depthval,
+            originTime,
+          };
+          
+          return newEpicenters;
         }
       });
     },
     []
   );
 
+  // 地域震度マップのフィルタリング
   const filteredMergedRegionMap = useMemo(() => {
+    // 警報地域が無効の場合はフィルタリングしない
     if (!settings.enable_map_warning_area) return mergedRegionMap;
+    
+    // 警報地域のコードをSetに変換して高速検索
     const warningCodes = new Set(mergedWarningRegions.map((r) => r.code));
+    
+    // 警報地域以外の地域のみを含む新しいマップを作成
     const result: RegionIntensityMap = {};
-    for (const code in mergedRegionMap) {
+
+    for (const [code, intensity] of Object.entries(mergedRegionMap)) {
       if (!warningCodes.has(code)) {
-        result[code] = mergedRegionMap[code];
+        result[code] = intensity;
       }
     }
+    
     return result;
   }, [mergedRegionMap, mergedWarningRegions, settings.enable_map_warning_area]);
 
+  // 表示する震度
   const displayedIntensitySet = useMemo(() => {
     return new Set(Object.values(filteredMergedRegionMap));
   }, [filteredMergedRegionMap]);
 
+  // 表示する震度色
   const displayedShindoColors = useMemo(() => {
+    if (displayedIntensitySet.size === 0) return [];
     return shindoColors.filter(({ level }) => {
       const intensity = levelToIntensity[level];
       return displayedIntensitySet.has(intensity);

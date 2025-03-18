@@ -12,17 +12,18 @@ import pako from "pako";
 import { EewInformation } from "@dmdata/telegram-json-types";
 import { WebSocketContextType } from "@/types/types";
 
+// 型チェック
 const isEewInformationMain = (
   data: unknown
 ): data is EewInformation.Latest.Main => {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "_schema" in data &&
-    (data as EewInformation.Latest.Main)._schema.type === "eew-information" &&
-    (data as EewInformation.Latest.Main)._schema.version === "1.0.0" &&
-    (data as EewInformation.Latest.PublicCommon).type === "緊急地震速報（地震動予報）"
-  );
+  if (!data || typeof data !== "object") return false;
+  
+  // 必須プロパティの存在チェック
+  const obj = data as any;
+  if (!obj._schema || !obj.type) return false;
+  const schema = obj._schema;
+  if (schema.type !== "eew-information" || schema.version !== "1.0.0") return false;
+  return obj.type === "緊急地震速報（地震動予報）";
 };
 
 // Gzip Base64 Decode
@@ -31,19 +32,21 @@ const decodeAndDecompress = (
 ): EewInformation.Latest.Main | null => {
   try {
     const binaryString = atob(base64Body);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
+    const bytes = new Uint8Array(binaryString.length);
+    
+    for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
     const decompressed = pako.ungzip(bytes, { to: "string" });
     const jsonData = JSON.parse(decompressed);
-    console.log("data:", jsonData);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("data:", jsonData);
+    }
 
     if (isEewInformationMain(jsonData)) {
       return jsonData;
     } else {
-      console.warn("データが形式と一致しません。");
+      console.warn("データが緊急地震速報の形式と一致しません。");
       return null;
     }
   } catch (error) {
@@ -67,6 +70,7 @@ export const WebSocketProvider = ({
   const socketIdRef = useRef<number | null>(null);
   const passedIntensityFilterRef = useRef<Set<string>>(new Set());
 
+  // WebSocket接続処理
   const connectWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
     if (
       wsRef.current &&
@@ -87,6 +91,9 @@ export const WebSocketProvider = ({
     };
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
       const response = await fetch(socketStartUrl, {
         method: "POST",
         headers: {
@@ -94,8 +101,12 @@ export const WebSocketProvider = ({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
+      // エラーハンドリング
       if (!response.ok) {
         const text = await response.text();
         if (response.status === 409) {
@@ -104,21 +115,25 @@ export const WebSocketProvider = ({
         throw new Error(`WebSocket接続エラー: ${response.status} / ${text}`);
       }
 
+      // レスポンス処理
       const data = await response.json();
       if (!data.websocket || !data.websocket.url || !data.websocket.id) {
         throw new Error("websocket.urlまたはwebsocket.idが見つかりません。");
       }
 
+      // WebSocket接続
       const ws = new WebSocket(data.websocket.url, ["dmdata.v2"]);
       wsRef.current = ws;
       socketIdRef.current = data.websocket.id;
 
+      // 接続イベント
       ws.addEventListener("open", () => {
         setIsConnected(true);
         console.log("WebSocket connected");
         toast.success("WebSocketに接続しました！");
       });
 
+      // メッセージ受信イベント
       ws.addEventListener("message", async (ev) => {
         try {
           const msg = JSON.parse(ev.data);
@@ -126,25 +141,31 @@ export const WebSocketProvider = ({
             ws.send(JSON.stringify({ type: "pong", pingId: msg.pingId }));
             return;
           }
+          
+          // データメッセージの処理
           if (msg.type === "data" && msg.format === "json") {
-            const decoded = decodeAndDecompress(msg.body);
-            if (decoded) {
-              setReceivedData(decoded);
-            } else {
-              console.warn("受信したデータ形式が無効です。");
-            }
+            requestAnimationFrame(() => {
+              const decoded = decodeAndDecompress(msg.body);
+              if (decoded) {
+                setReceivedData(decoded);
+              } else {
+                console.warn("受信したデータ形式が無効です。");
+              }
+            });
           }
         } catch (e) {
           console.error("メッセージ処理エラー:", e);
         }
       });
 
+      // 切断イベント
       ws.addEventListener("close", () => {
         setIsConnected(false);
         socketIdRef.current = null;
         console.log("WebSocketが切断されました。");
       });
 
+      // エラーイベント
       ws.addEventListener("error", (err) => {
         console.error("WebSocketエラー:", err);
         toast.error("WebSocketでエラーが発生しました。");
@@ -155,6 +176,7 @@ export const WebSocketProvider = ({
     }
   };
 
+  // WebSocket切断処理
   const disconnectWebSocket = async () => {
     if (!socketIdRef.current) {
       toast.warning(
@@ -164,48 +186,67 @@ export const WebSocketProvider = ({
     }
 
     const socketCloseUrl = `https://api.dmdata.jp/v2/socket/${socketIdRef.current}`;
+    const token = localStorage.getItem("dmdata_access_token") || "";
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       const response = await fetch(socketCloseUrl, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${
-            localStorage.getItem("dmdata_access_token") || ""
-          }`,
+          Authorization: `Bearer ${token}`,
         },
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         if (wsRef.current) {
           wsRef.current.close();
           wsRef.current = null;
         }
+        
+        // 状態のリセット
         socketIdRef.current = null;
         setReceivedData(null);
         setIsConnected(false);
         toast.info("WebSocketを正常に切断しました。");
       } else {
+        // エラーレスポンスの処理
         const errorData = await response.json();
         throw new Error(
-          `WebSocket切断エラー: ${errorData.error.message} (コード: ${errorData.error.code})`
+          `WebSocket切断エラー: ${errorData.error?.message || '不明なエラー'} (コード: ${errorData.error?.code || 'なし'})`
         );
       }
     } catch (err) {
       console.error("WebSocket切断に失敗しました:", err);
-      toast.error(
-        `WebSocketの切断に失敗しました: ${(err as Error).message}`
-      );
+      
+      // エラーメッセージの整形
+      const errorMessage = err instanceof Error ? err.message : '不明なエラー';
+      toast.error(`WebSocketの切断に失敗しました: ${errorMessage}`);
+      
+      // 接続が既に切れている可能性があるため、状態をリセット
+      if (wsRef.current) {
+        wsRef.current = null;
+      }
+      socketIdRef.current = null;
+      setIsConnected(false);
     }
   };
 
+  // テストデータ注入処理の最適化
   const injectTestData = useCallback((testData: { body: string }) => {
-    const decodedData = decodeAndDecompress(testData.body);
-    if (decodedData) {
-      setReceivedData(decodedData);
-      toast.success("テストデータOK");
-    } else {
-      toast.error("形式が無効");
-    }
+    requestAnimationFrame(() => {
+      const decodedData = decodeAndDecompress(testData.body);
+      if (decodedData) {
+        setReceivedData(decodedData);
+        toast.success("テストデータOK");
+      } else {
+        toast.error("形式が無効");
+      }
+    });
   }, []);
 
   return (

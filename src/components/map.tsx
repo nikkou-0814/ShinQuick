@@ -46,6 +46,7 @@ const mapDataCache = {
   countries: {} as Record<string, FeatureCollection>,
   saibun: null as FeatureCollection | null,
   cities: null as FeatureCollection | null,
+  loading: {} as Record<string, Promise<FeatureCollection>>,
 };
 
 // 国データを読み込むためのワーカー
@@ -55,35 +56,63 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
     return mapDataCache.countries[resolution];
   }
   
-  let data: FeatureCollection;
+  // 既に読み込み中の場合は、その Promise を返す
+  if (mapDataCache.loading[resolution] !== undefined) {
+    return mapDataCache.loading[resolution];
+  }
   
-  try {
-    if (resolution === "10m") {
-      const dataModule = await import("../../public/mapdata/10mCountries.json");
-      data = {
-        type: "FeatureCollection" as const,
-        features: (dataModule.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
-          (geometry: GeoJSON.Geometry) => ({
-            type: "Feature" as const,
-            geometry,
-            properties: {},
-          })
-        ),
-      };
-    } else if (resolution === "50m") {
-      const dataModule = await import("../../public/mapdata/50mCountries.json");
-      data = dataModule.default as unknown as FeatureCollection;
-    } else {
-      const dataModule = await import("../../public/mapdata/110mCountries.json");
-      data = dataModule.default as unknown as FeatureCollection;
+  // 新しい読み込みを開始し、Promise をキャッシュ
+  const loadPromise = (async () => {
+    try {
+      let data: FeatureCollection;
+      
+      if (resolution === "10m") {
+        const dataModule = await import("../../public/mapdata/10mCountries.json");
+        data = {
+          type: "FeatureCollection" as const,
+          features: (dataModule.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
+            (geometry: GeoJSON.Geometry) => ({
+              type: "Feature" as const,
+              geometry,
+              properties: {},
+            })
+          ),
+        };
+      } else if (resolution === "50m") {
+        const dataModule = await import("../../public/mapdata/50mCountries.json");
+        data = dataModule.default as unknown as FeatureCollection;
+      } else {
+        const dataModule = await import("../../public/mapdata/110mCountries.json");
+        data = dataModule.default as unknown as FeatureCollection;
+      }
+      
+      // キャッシュに保存
+      mapDataCache.countries[resolution] = data;
+      delete mapDataCache.loading[resolution];
+      return data;
+    } catch (error) {
+      console.error(`国データの読み込みに失敗 (${resolution}):`, error);
+      delete mapDataCache.loading[resolution];
+      throw error;
     }
-    
-    // キャッシュに保存
-    mapDataCache.countries[resolution] = data;
-    return data;
-  } catch (error) {
-    console.error(`国データの読み込みに失敗 (${resolution}):`, error);
-    throw error;
+  })();
+  
+  mapDataCache.loading[resolution] = loadPromise;
+  return loadPromise;
+};
+
+// 他の解像度のデータを事前に読み込む
+const preloadMapData = (currentResolution: string) => {
+  const resolutions = ["50m", "110m", "10m"];
+  const otherResolutions = resolutions.filter(r => r !== currentResolution);
+
+  for (const resolution of otherResolutions) {
+    if (!mapDataCache.countries[resolution] && !mapDataCache.loading[resolution]) {
+      setTimeout(() => {
+        loadCountryData(resolution).catch(() => {
+        });
+      }, 2000);
+    }
   }
 };
 
@@ -161,32 +190,42 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     return mapDataCache.saibun.features
       .filter((feature) => feature.geometry && feature.geometry.type)
       .map((feature) => {
+        // 既にbboxプロパティがある場合はそれを使用
+        if (feature.bbox && feature.bbox.length === 4) {
+          return {
+            feature,
+            bbox: feature.bbox as [number, number, number, number],
+          };
+        }
+        
         let minLat = 90,
           maxLat = -90,
           minLng = 180,
           maxLng = -180;
+          
+        // 座標処理
+        const processCoord = (coord: number[]) => {
+          const [lng, lat] = coord;
+          minLng = lng < minLng ? lng : minLng;
+          maxLng = lng > maxLng ? lng : maxLng;
+          minLat = lat < minLat ? lat : minLat;
+          maxLat = lat > maxLat ? lat : maxLat;
+        };
+        
         if (feature.geometry.type === "Polygon") {
-          (feature.geometry.coordinates || []).forEach((coordArr) => {
-            coordArr.forEach((coord) => {
-              const [lng, lat] = coord;
-              if (lng < minLng) minLng = lng;
-              if (lng > maxLng) maxLng = lng;
-              if (lat < minLat) minLat = lat;
-              if (lat > maxLat) maxLat = lat;
-            });
-          });
+          for (const coordArr of feature.geometry.coordinates || []) {
+            for (const coord of coordArr) {
+              processCoord(coord);
+            }
+          }
         } else if (feature.geometry.type === "MultiPolygon") {
-          (feature.geometry.coordinates || []).forEach((polygon) => {
-            polygon.forEach((coordArr) => {
-              coordArr.forEach((coord) => {
-                const [lng, lat] = coord;
-                if (lng < minLng) minLng = lng;
-                if (lng > maxLng) maxLng = lng;
-                if (lat < minLat) minLat = lat;
-                if (lat > maxLat) maxLat = lat;
-              });
-            });
-          });
+          for (const polygon of feature.geometry.coordinates || []) {
+            for (const coordArr of polygon) {
+              for (const coord of coordArr) {
+                processCoord(coord);
+              }
+            }
+          }
         }
 
         return {
@@ -204,14 +243,21 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     return new Set(warningRegionCodes);
   }, [warningRegionCodes]);
 
+  const prevPropsMapRef = useRef<Record<string, {color: string, opacity: number}>>({});
+  
   // 細分化地域の塗りつぶし色などをプロパティに仕込む
   const processedSaibunData = useMemo(() => {
     if (!saibunDataLoaded || saibunFeaturesWithBbox.length === 0) {
       return { type: "FeatureCollection", features: [] } as FeatureCollection;
     }
 
+    const currentPropsMap: Record<string, {color: string, opacity: number}> = {};    
     const clonedFeatures: Feature[] = saibunFeaturesWithBbox.map(({ feature }) => {
-      const cloned = JSON.parse(JSON.stringify(feature)) as Feature;
+      const cloned = {
+        ...feature,
+        properties: { ...feature.properties } as SaibunProperties,
+      };
+      
       const fProps = cloned.properties as SaibunProperties;
       const code = fProps.code ? String(fProps.code) : "";
 
@@ -233,10 +279,26 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
           }
         }
       }
-      fProps.computedFillColor = fillColor;
-      fProps.computedFillOpacity = fillOpacity;
+      
+      // 前回と同じプロパティなら再計算をスキップ
+      const prevProps = prevPropsMapRef.current[code];
+      if (prevProps && prevProps.color === fillColor && prevProps.opacity === fillOpacity) {
+        // 前回の値を再利用
+        fProps.computedFillColor = fillColor;
+        fProps.computedFillOpacity = fillOpacity;
+      } else {
+        // 新しい値を設定
+        fProps.computedFillColor = fillColor;
+        fProps.computedFillOpacity = fillOpacity;
+      }
+      
+      // 現在の値をマップに保存
+      currentPropsMap[code] = {color: fillColor, opacity: fillOpacity};
+      
       return cloned;
     });
+
+    prevPropsMapRef.current = currentPropsMap;
 
     return {
       type: "FeatureCollection",
@@ -308,28 +370,33 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     // 震源と塗りつぶし地域の境界を計算
     let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
     let hasValidBounds = false;
-
-    epicenters.forEach((epi) => {
+    
+    // 震源の境界を計算
+    for (let i = 0; i < epicenters.length; i++) {
+      const epi = epicenters[i];
       if (epi && typeof epi.lat === "number" && typeof epi.lng === "number") {
-        const lat = epi.lat;
-        const lng = epi.lng;
-        minLng = Math.min(minLng, lng);
-        maxLng = Math.max(maxLng, lng);
-        minLat = Math.min(minLat, lat);
-        maxLat = Math.max(maxLat, lat);
+        minLng = epi.lng < minLng ? epi.lng : minLng;
+        maxLng = epi.lng > maxLng ? epi.lng : maxLng;
+        minLat = epi.lat < minLat ? epi.lat : minLat;
+        maxLat = epi.lat > maxLat ? epi.lat : maxLat;
         hasValidBounds = true;
       }
-    });
+    }
 
-    if (Object.keys(regionIntensityMap).length > 0) {
-      for (const { bbox, feature } of saibunFeaturesWithBbox) {
+    // 塗りつぶし地域の境界を計算
+    const regionKeys = Object.keys(regionIntensityMap);
+    if (regionKeys.length > 0) {
+      const regionCodesSet = new Set(regionKeys);
+      
+      for (let i = 0; i < saibunFeaturesWithBbox.length; i++) {
+        const { bbox, feature } = saibunFeaturesWithBbox[i];
         const code = feature.properties?.code;
-        if (code && regionIntensityMap[String(code)] !== undefined) {
+        if (code && regionCodesSet.has(String(code))) {
           const [bMinLng, bMinLat, bMaxLng, bMaxLat] = bbox;
-          minLng = Math.min(minLng, bMinLng);
-          maxLng = Math.max(maxLng, bMaxLng);
-          minLat = Math.min(minLat, bMinLat);
-          maxLat = Math.max(maxLat, bMaxLat);
+          minLng = bMinLng < minLng ? bMinLng : minLng;
+          maxLng = bMaxLng > maxLng ? bMaxLng : maxLng;
+          minLat = bMinLat < minLat ? bMinLat : minLat;
+          maxLat = bMaxLat > maxLat ? bMaxLat : maxLat;
           hasValidBounds = true;
         }
       }
@@ -362,14 +429,23 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     let zoomUpdateReason = "";
 
     // 初報の場合は必ずズーム
-    const newEventIds = epicenters.filter(epi => !processedEventIds.current.has(epi.eventId));
+    const newEventIds = [];
+    for (let i = 0; i < epicenters.length; i++) {
+      if (!processedEventIds.current.has(epicenters[i].eventId)) {
+        newEventIds.push(epicenters[i]);
+      }
+    }
+    
     if (newEventIds.length > 0) {
       shouldUpdateZoom = true;
       zoomUpdateReason = "初報のため";
-      newEventIds.forEach(epi => processedEventIds.current.add(epi.eventId));
+      for (let i = 0; i < newEventIds.length; i++) {
+        processedEventIds.current.add(newEventIds[i].eventId);
+      }
     } 
     else {
-      for (const epi of epicenters) {
+      for (let i = 0; i < epicenters.length; i++) {
+        const epi = epicenters[i];
         const prevEpi = prevEpicenters.current.find(p => p.eventId === epi.eventId);
         if (prevEpi) {
           const latDiff = Math.abs(epi.lat - prevEpi.lat);
@@ -395,23 +471,31 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       }
       
       // 塗りつぶし地域が更新されたかチェック
-      const currentRegionKeys = Object.keys(regionIntensityMap);
-      const prevRegionKeys = prevRegionIntensityMapKeys.current;
-      
-      // 地域数が変わった場合
-      if (currentRegionKeys.length !== prevRegionKeys.length) {
-        shouldUpdateZoom = true;
-        zoomUpdateReason = "塗りつぶし地域が更新";
-      } 
-      // 地域が同じ数でも内容が変わった場合
-      else if (currentRegionKeys.some(key => !prevRegionKeys.includes(key))) {
-        shouldUpdateZoom = true;
-        zoomUpdateReason = "塗りつぶし地域が更新";
+      if (!shouldUpdateZoom) {
+        const currentRegionKeys = regionKeys;
+        const prevRegionKeys = prevRegionIntensityMapKeys.current;
+        
+        // 地域数が変わった場合
+        if (currentRegionKeys.length !== prevRegionKeys.length) {
+          shouldUpdateZoom = true;
+          zoomUpdateReason = "塗りつぶし地域が更新";
+        } 
+        // 地域が同じ数でも内容が変わった場合
+        else if (currentRegionKeys.length > 0) {
+          const prevKeysSet = new Set(prevRegionKeys);
+          for (let i = 0; i < currentRegionKeys.length; i++) {
+            if (!prevKeysSet.has(currentRegionKeys[i])) {
+              shouldUpdateZoom = true;
+              zoomUpdateReason = "塗りつぶし地域が更新";
+              break;
+            }
+          }
+        }
       }
     }
 
     prevEpicenters.current = [...epicenters];
-    prevRegionIntensityMapKeys.current = Object.keys(regionIntensityMap);
+    prevRegionIntensityMapKeys.current = regionKeys;
 
     if (!shouldUpdateZoom) {
       return;
@@ -419,38 +503,49 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
     lastAutoZoomTime.current = now;
 
+    // 最適なズームレベルを決定
     let maxZoom = 10;
     if (epicenters.length === 1) {
       maxZoom = epicenters[0].depthval > 150 ? 5 : 7;
     } else if (epicenters.length > 1) {
-      maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 5 : 6;
+      let hasDeepEpicenter = false;
+      for (let i = 0; i < epicenters.length; i++) {
+        if (epicenters[i].depthval > 150) {
+          hasDeepEpicenter = true;
+          break;
+        }
+      }
+      maxZoom = hasDeepEpicenter ? 5 : 6;
     }
 
-    try {
-      const viewport = new WebMercatorViewport({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }).fitBounds(
-        [
-          [minLng, minLat],
-          [maxLng, maxLat],
-        ],
-        { padding: 50, maxZoom }
-      );
+    // requestAnimationFrameを使用して視覚的な更新
+    requestAnimationFrame(() => {
+      try {
+        const viewport = new WebMercatorViewport({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }).fitBounds(
+          [
+            [minLng, minLat],
+            [maxLng, maxLat],
+          ],
+          { padding: 50, maxZoom }
+        );
 
-      const duration = zoomUpdateReason === "塗りつぶし地域が更新" ? 100 : 300;
+        const duration = zoomUpdateReason === "塗りつぶし地域が更新" ? 100 : 300;
 
-      ref.current.flyTo({
-        center: [viewport.longitude, viewport.latitude],
-        duration: duration,
-        zoom: viewport.zoom,
-        essential: true,
-      });
-      
-      onAutoZoomChange?.(true);
-    } catch (e) {
-      console.error("Auto-zoom calculation failed:", e);
-    }
+        ref.current?.flyTo({
+          center: [viewport.longitude, viewport.latitude],
+          duration: duration,
+          zoom: viewport.zoom,
+          essential: true,
+        });
+        
+        onAutoZoomChange?.(true);
+      } catch (e) {
+        console.error("Auto-zoom calculation failed:", e);
+      }
+    });
   }, [
     epicenters,
     regionIntensityMap,
