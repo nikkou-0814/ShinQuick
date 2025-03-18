@@ -23,7 +23,7 @@ import Image from "next/image";
 
 import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
-import { MapProps, SaibunProperties, SaibunFeatureWithBbox } from "@/types/types";
+import { MapProps, SaibunProperties, SaibunFeatureWithBbox, EpicenterInfo } from "@/types/types";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getJapanHomePosition } from "@/utils/home-position";
 
@@ -282,12 +282,17 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   const lastAutoZoomTime = useRef(0);
   const pendingAutoZoom = useRef(false);
+  const processedEventIds = useRef<Set<string>>(new Set());
+  const prevEpicenters = useRef<EpicenterInfo[]>([]);
+  const prevRegionIntensityMapKeys = useRef<string[]>([]);
+  const currentViewBounds = useRef<{minLng: number, maxLng: number, minLat: number, maxLat: number} | null>(null);
 
   // 自動ズーム処理
   useEffect(() => {
     if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) return;
     if (!enableDynamicZoom || !autoZoomEnabled) return;
     if (!ref || !('current' in ref) || !ref.current) return;
+    
     const now = nowAppTimeRef.current;
     if (now - lastAutoZoomTime.current < 200) {
       if (!pendingAutoZoom.current) {
@@ -300,8 +305,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       return;
     }
 
-    lastAutoZoomTime.current = now;
-
+    // 震源と塗りつぶし地域の境界を計算
     let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
     let hasValidBounds = false;
 
@@ -341,6 +345,80 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       return;
     }
 
+    if (ref.current) {
+      const bounds = ref.current.getBounds();
+      if (bounds) {
+        currentViewBounds.current = {
+          minLng: bounds.getWest(),
+          maxLng: bounds.getEast(),
+          minLat: bounds.getSouth(),
+          maxLat: bounds.getNorth()
+        };
+      }
+    }
+
+    // ズームを更新するかどうかの判断
+    let shouldUpdateZoom = false;
+    let zoomUpdateReason = "";
+
+    // 初報の場合は必ずズーム
+    const newEventIds = epicenters.filter(epi => !processedEventIds.current.has(epi.eventId));
+    if (newEventIds.length > 0) {
+      shouldUpdateZoom = true;
+      zoomUpdateReason = "初報のため";
+      newEventIds.forEach(epi => processedEventIds.current.add(epi.eventId));
+    } 
+    else {
+      for (const epi of epicenters) {
+        const prevEpi = prevEpicenters.current.find(p => p.eventId === epi.eventId);
+        if (prevEpi) {
+          const latDiff = Math.abs(epi.lat - prevEpi.lat);
+          const lngDiff = Math.abs(epi.lng - prevEpi.lng);
+          
+          // 位置が大幅に変わった場合（0.5度以上の変化）
+          if (latDiff > 0.5 || lngDiff > 0.5) {
+            shouldUpdateZoom = true;
+            zoomUpdateReason = "震源位置が大幅に変化";
+            break;
+          }
+          
+          // 現在の表示範囲から震源が外れた場合
+          if (currentViewBounds.current) {
+            const { minLng, maxLng, minLat, maxLat } = currentViewBounds.current;
+            if (epi.lng < minLng || epi.lng > maxLng || epi.lat < minLat || epi.lat > maxLat) {
+              shouldUpdateZoom = true;
+              zoomUpdateReason = "震源が表示範囲外";
+              break;
+            }
+          }
+        }
+      }
+      
+      // 塗りつぶし地域が更新されたかチェック
+      const currentRegionKeys = Object.keys(regionIntensityMap);
+      const prevRegionKeys = prevRegionIntensityMapKeys.current;
+      
+      // 地域数が変わった場合
+      if (currentRegionKeys.length !== prevRegionKeys.length) {
+        shouldUpdateZoom = true;
+        zoomUpdateReason = "塗りつぶし地域が更新";
+      } 
+      // 地域が同じ数でも内容が変わった場合
+      else if (currentRegionKeys.some(key => !prevRegionKeys.includes(key))) {
+        shouldUpdateZoom = true;
+        zoomUpdateReason = "塗りつぶし地域が更新";
+      }
+    }
+
+    prevEpicenters.current = [...epicenters];
+    prevRegionIntensityMapKeys.current = Object.keys(regionIntensityMap);
+
+    if (!shouldUpdateZoom) {
+      return;
+    }
+
+    lastAutoZoomTime.current = now;
+
     let maxZoom = 10;
     if (epicenters.length === 1) {
       maxZoom = epicenters[0].depthval > 150 ? 5 : 7;
@@ -360,9 +438,11 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         { padding: 50, maxZoom }
       );
 
+      const duration = zoomUpdateReason === "塗りつぶし地域が更新" ? 100 : 300;
+
       ref.current.flyTo({
         center: [viewport.longitude, viewport.latitude],
-        duration: 300,
+        duration: duration,
         zoom: viewport.zoom,
         essential: true,
       });
