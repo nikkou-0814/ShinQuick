@@ -44,10 +44,12 @@ export const Sidebar: React.FC<{
   const [width, setWidth] = useState(SIDEBAR_CONFIG.DEFAULT_WIDTH);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [height, setHeight] = useState(0);
-  const sidebarRef = useRef(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(SIDEBAR_CONFIG.DEFAULT_WIDTH);
   const isDraggingRef = useRef(false);
+  const handleResizeMoveRef = useRef<(e: MouseEvent) => void>(null);
+  const handleResizeEndRef = useRef<() => void>(null);
 
   useEffect(() => {
     const updateHeight = () => setHeight(window.innerHeight);
@@ -56,6 +58,31 @@ export const Sidebar: React.FC<{
     return () => window.removeEventListener('resize', updateHeight);
   }, []);
 
+  handleResizeMoveRef.current = (e: MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    
+    const diff = startXRef.current - e.clientX;
+    const newWidth = Math.max(
+      Math.min(startWidthRef.current + diff, SIDEBAR_CONFIG.MAX_WIDTH),
+      SIDEBAR_CONFIG.MIN_WIDTH
+    );
+  
+    if (newWidth <= SIDEBAR_CONFIG.MIN_WIDTH) {
+      setIsCollapsed(true);
+      if (handleResizeEndRef.current) {
+        handleResizeEndRef.current();
+      }
+    } else {
+      setWidth(newWidth);
+    }
+  };  
+
+  handleResizeEndRef.current = () => {
+    isDraggingRef.current = false;
+    document.removeEventListener('mousemove', handleResizeMoveRef.current!);
+    document.removeEventListener('mouseup', handleResizeEndRef.current!);
+  };
+  
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     if (isCollapsed) return;
     
@@ -64,36 +91,9 @@ export const Sidebar: React.FC<{
     startWidthRef.current = width;
     isDraggingRef.current = true;
     
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
+    document.addEventListener('mousemove', handleResizeMoveRef.current!);
+    document.addEventListener('mouseup', handleResizeEndRef.current!);
   }, [isCollapsed, width]);
-
-  const handleResizeMove = useCallback((e: MouseEvent) => {
-    if (!isDraggingRef.current) return;
-    
-    const diff = startXRef.current - e.clientX;
-    const newWidth = Math.max(
-      Math.min(startWidthRef.current + diff, SIDEBAR_CONFIG.MAX_WIDTH),
-      SIDEBAR_CONFIG.MIN_WIDTH
-    );
-
-    if (newWidth <= SIDEBAR_CONFIG.MIN_WIDTH) {
-      setIsCollapsed(true);
-      handleResizeEnd();
-    } else {
-      setWidth(newWidth);
-    }
-  }, []);
-
-  const handleResizeEnd = useCallback(() => {
-    isDraggingRef.current = false;
-    document.removeEventListener('mousemove', handleResizeMove);
-    document.removeEventListener('mouseup', handleResizeEnd);
-  }, [handleResizeMove]);
-
-  const collapseSidebar = useCallback(() => {
-    setIsCollapsed(true);
-  }, []);
 
   const expandSidebar = useCallback(() => {
     setIsCollapsed(false);
