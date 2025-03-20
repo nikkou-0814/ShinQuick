@@ -19,13 +19,8 @@ import {
 } from "lucide-react";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
-import EewDisplay from "@/components/eew-display";
 import { EewInformation } from "@dmdata/telegram-json-types";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
+import { Sidebar } from "@/components/sidebar";
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
 import { MapRef } from "react-map-gl/maplibre";
@@ -118,6 +113,17 @@ function PageContent() {
   const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    // 初回判定
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const shindoColors = useMemo(
     () => [
@@ -849,45 +855,16 @@ function PageContent() {
           </div>
         </div>
 
-        <div className="w-[400px]">
-          <Sidebar variant="sidebar" side="right" className="w-fit">
-            <SidebarContent className="overflow-y-auto p-2">
-              {(() => {
-                const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                  ? displayDataList
-                  : displayDataList.filter((data) => {
-                      const body = data.body as EewInformation.Latest.PublicCommonBody;
-                      const earthquake = body.earthquake;
-                      if (!earthquake) return true;
-                      const method = getHypocenterMethod(earthquake);
-                      return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                    });
-
-                return filteredDisplayDataList.length > 0 ? (
-                  filteredDisplayDataList.map((data) => (
-                    <EewDisplay
-                      key={data.eventId}
-                      parsedData={data}
-                      isAccuracy={settings.enable_accuracy_info}
-                      isLowAccuracy={settings.enable_low_accuracy_eew}
-                      onEpicenterUpdate={handleEpicenterUpdate}
-                      onRegionIntensityUpdate={(regionMap) =>
-                        onRegionIntensityUpdate(regionMap, data.eventId)
-                      }
-                      onWarningRegionUpdate={(regions) =>
-                        onWarningRegionUpdate(regions, data.eventId)
-                      }
-                    />
-                  ))
-                ) : (
-                  <div className="w-[385px] h-full flex justify-center items-center">
-                    <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                  </div>
-                );
-              })()}
-            </SidebarContent>
-          </Sidebar>
-        </div>
+        {!isMobile && (
+          <Sidebar
+            displayDataList={displayDataList}
+            settings={settings}
+            onEpicenterUpdate={handleEpicenterUpdate}
+            onRegionIntensityUpdate={onRegionIntensityUpdate}
+            onWarningRegionUpdate={onWarningRegionUpdate}
+            getHypocenterMethod={getHypocenterMethod}
+          />
+        )}
       </main>
     </>
   );
@@ -896,9 +873,7 @@ function PageContent() {
 export default function Page() {
   return (
     <WebSocketProvider>
-      <SidebarProvider>
-        <PageContent />
-      </SidebarProvider>
+      <PageContent />
     </WebSocketProvider>
   );
 }

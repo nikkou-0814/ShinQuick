@@ -597,7 +597,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   const isTest = status === "訓練" || status === "試験";
 
   return (
-    <Card className="w-96 shadow-xl bg-white/90 dark:bg-black/75 border">
+    <Card className="shadow-xl bg-white/90 dark:bg-black/75 border">
       <CardHeader className="pb-4">
         <CardTitle
           className={`flex flex-wrap items-center gap-2 text-lg p-2 rounded-lg ${
@@ -610,11 +610,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
         >
           <div className="flex items-center gap-2 w-full text-nowrap">
             {isCanceled ? (
-              <XCircle className="h-5 w-5 text-gray-500" />
+              <XCircle className="h-5 w-5 text-gray-500 shrink-0" />
             ) : isWarning ? (
-              <AlertCircle className="h-5 w-5 text-red-500" />
+              <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
             ) : (
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
             )}
             {`緊急地震速報（${
               isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
