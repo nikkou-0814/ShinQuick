@@ -188,8 +188,6 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
     isWarning = false,
     earthquake,
     intensity,
-    prefectures = [],
-    zones = [],
   } = body as EewInformation.Latest.PublicCommonBody;
 
   const {
@@ -254,11 +252,6 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
       : convertIntensity(forecastMaxInt.to || "不明")
     : "不明";
 
-  const maxLgInt =
-    forecastMaxLgInt?.to === "over"
-      ? `${forecastMaxLgInt.from || "不明"}程度以上`
-      : forecastMaxLgInt?.to || "不明";
-
   const method = (() => {
     const condition = earthquakeCondition || "不明";
     const accuracyEpicenters = hypocenterAccuracy?.epicenters || [];
@@ -313,20 +306,6 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
     "6弱程度以上": { background: "#A50C6B", text: "white" },
     "6強程度以上": { background: "#930A7A", text: "white" },
     "7程度以上": { background: "#5F0CA2", text: "white" },
-  };
-
-  const lgintcolors: Record<string, { background: string; text: string }> = {
-    "0": { background: "#2B8EB2", text: "white" },
-    "1": { background: "#F6CB51", text: "black" },
-    "2": { background: "#E54812", text: "white" },
-    "3": { background: "#C31B1B", text: "white" },
-    "4": { background: "#930A7A", text: "white" },
-    "不明": { background: "#62626B", text: "white" },
-    "0程度以上": { background: "#2B8EB2", text: "white" },
-    "1程度以上": { background: "#F6CB51", text: "black" },
-    "2程度以上": { background: "#E54812", text: "white" },
-    "3程度以上": { background: "#C31B1B", text: "white" },
-    "4程度以上": { background: "#930A7A", text: "white" },
   };
 
   const backgroundColor = intensityColors[maxIntensity]?.background || "#CCCCCC";
