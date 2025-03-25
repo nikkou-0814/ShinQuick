@@ -115,6 +115,8 @@ function PageContent() {
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const cancellationStartRef = useRef<Record<string, number>>({});
+  const cancellationTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     const handleResize = () => {
@@ -501,50 +503,52 @@ function PageContent() {
 
   // 震源情報のクリーンアップ処理
   useEffect(() => {
-    // 更新間隔を動的に調整
-    const intervalTime =
-      settings.enable_dynamic_zoom && mapAutoZoomEnabled ? 2000 : 10000;
+    Object.keys(cancellationTimersRef.current).forEach((eventId) => {
+      const event = displayDataList.find((d) => d.eventId === eventId);
+      if (!event || !event.body?.isCanceled) {
+        clearTimeout(cancellationTimersRef.current[eventId]);
+        delete cancellationTimersRef.current[eventId];
+        delete cancellationStartRef.current[eventId];
+      }
+    });
 
-    const timer = setInterval(() => {
-      setEpicenters((prev) => {
-        const now = Date.now();
-        const timeThreshold = 3 * 60 * 1000;
-        const filtered: EpicenterInfo[] = [];
-        const removed: EpicenterInfo[] = [];
-        
-        for (const e of prev) {
-          if (e.startTime && now - e.startTime < timeThreshold) {
-            filtered.push(e);
-          } else {
-            removed.push(e);
-          }
+    displayDataList.forEach((data) => {
+      if (!data.body?.isCanceled) return;
+      const eventId = data.eventId;
+      if (!cancellationStartRef.current[eventId]) {
+        cancellationStartRef.current[eventId] = Date.now();
+      }
+      const gracePeriod =
+        (data.body && "isFinal" in data.body && data.body.isFinal)
+          ? 3 * 60 * 1000
+          : 5 * 60 * 1000;
+      const elapsed = Date.now() - cancellationStartRef.current[eventId];
+      const remaining = gracePeriod - elapsed;
+
+      if (remaining <= 0) {
+        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete cancellationStartRef.current[eventId];
+        if (cancellationTimersRef.current[eventId]) {
+          clearTimeout(cancellationTimersRef.current[eventId]);
+          delete cancellationTimersRef.current[eventId];
         }
-
-        // 削除された震源の関連データをクリーンアップ
-        if (removed.length > 0) {
-          requestAnimationFrame(() => {
-            for (const e of removed) {
-              onRegionIntensityUpdate({}, e.eventId);
-              onWarningRegionUpdate([], e.eventId);
-            }
-
-            if (filtered.length === 0 && prev.length > 0) {
-              setDisplayDataList([]);
-            }
-          });
+      } else {
+        if (!cancellationTimersRef.current[eventId]) {
+          cancellationTimersRef.current[eventId] = setTimeout(() => {
+            setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+            setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+            onRegionIntensityUpdate({}, eventId);
+            onWarningRegionUpdate([], eventId);
+            delete cancellationStartRef.current[eventId];
+            delete cancellationTimersRef.current[eventId];
+          }, remaining);
         }
-        
-        return filtered;
-      });
-    }, intervalTime);
-
-    return () => clearInterval(timer);
-  }, [
-    onRegionIntensityUpdate,
-    onWarningRegionUpdate,
-    settings.enable_dynamic_zoom,
-    mapAutoZoomEnabled,
-  ]);
+      }
+    });
+  }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
   // キャンセルされた地震情報の処理
   useEffect(() => {
