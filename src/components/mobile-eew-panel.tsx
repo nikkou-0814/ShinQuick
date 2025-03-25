@@ -211,7 +211,6 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
     magnitudeValue !== "不明" ? `${magnitudeValue}` : magnitudeCondition || "不明";
 
   const forecastMaxInt = intensity?.forecastMaxInt;
-  const forecastMaxLgInt = intensity?.forecastMaxLgInt;
   let isThreshold = false;
 
   const convertIntensity = (
