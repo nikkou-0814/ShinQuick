@@ -21,6 +21,7 @@ import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
 import { EewInformation } from "@dmdata/telegram-json-types";
 import { Sidebar } from "@/components/sidebar";
+import { MobileEewPanel } from "@/components/mobile-eew-panel";
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
 import { MapRef } from "react-map-gl/maplibre";
@@ -348,7 +349,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/ishikawa/1.json");
+      const response = await fetch("/testdata/testdata9.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
@@ -361,7 +362,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/ishikawa/4.json");
+      const response = await fetch("/testdata/testdata3.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
@@ -374,7 +375,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/test/testmiyagi.json");
+      const response = await fetch("/testdata/testdata4.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
@@ -828,13 +829,13 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
+            <Button variant="outline" onClick={handleTest} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest2} className="hidden">
+            <Button variant="outline" onClick={handleTest2} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest3} className="hidden">
+            <Button variant="outline" onClick={handleTest3} className="">
               <FlaskConical />
             </Button>
             <Button variant="outline" onClick={handleSendAllTests} className="hidden">
@@ -855,7 +856,7 @@ function PageContent() {
           </div>
         </div>
 
-        {!isMobile && (
+        {!isMobile ? (
           <Sidebar
             displayDataList={displayDataList}
             settings={settings}
@@ -863,6 +864,15 @@ function PageContent() {
             onRegionIntensityUpdate={onRegionIntensityUpdate}
             onWarningRegionUpdate={onWarningRegionUpdate}
             getHypocenterMethod={getHypocenterMethod}
+          />
+        ) : (
+          <MobileEewPanel
+            parsedData={displayDataList.length > 0 ? displayDataList[0] : null}
+            isAccuracy={settings.enable_accuracy_info}
+            isLowAccuracy={settings.enable_low_accuracy_eew}
+            onEpicenterUpdate={handleEpicenterUpdate}
+            onRegionIntensityUpdate={(regionMap) => onRegionIntensityUpdate(regionMap, displayDataList[0]?.eventId || "")}
+            onWarningRegionUpdate={(regions) => onWarningRegionUpdate(regions, displayDataList[0]?.eventId || "")}
           />
         )}
       </main>
