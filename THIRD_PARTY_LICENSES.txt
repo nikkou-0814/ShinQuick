@@ -42,7 +42,7 @@ License File: node_modules/@next/eslint-plugin-next/README.md
 Repository: https://github.com/radix-ui/primitives
 License File: node_modules/@radix-ui/react-alert-dialog/README.md
 
-@radix-ui/react-dialog@1.1.5 (MIT)
+@radix-ui/react-dialog@1.1.6 (MIT)
 Repository: https://github.com/radix-ui/primitives
 License File: node_modules/@radix-ui/react-dialog/README.md
 
@@ -198,7 +198,7 @@ next-themes@0.4.4 (MIT)
 Repository: https://github.com/pacocoursey/next-themes
 License File: node_modules/next-themes/license.md
 
-next@15.1.6 (MIT)
+next@15.2.4 (MIT)
 Repository: https://github.com/vercel/next.js
 License File: node_modules/next/license.md
 
@@ -242,9 +242,9 @@ framer-motion@12.4.7 (MIT)
 Repository: https://github.com/motiondivision/motion
 License File: node_modules/framer-motion/LICENSE.md
 
-sntp@3.0.2 (BSD-3-Clause)
-Repository: https://github.com/hueniverse/sntp
-License File: node_modules/sntp/LICENSE
+@hapi/sntp@3.0.2 (BSD-3-Clause)
+Repository: https://github.com/hapijs/sntp
+License File: node_modules/@hapi/sntp/LICENSE.md
 
 MIT License
 
