@@ -18,11 +18,6 @@ import {
   FlaskConical,
 } from "lucide-react";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
-import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -943,9 +938,7 @@ function PageContent() {
 export default function Page() {
   return (
     <WebSocketProvider>
-      <SidebarProvider>
-        <PageContent />
-      </SidebarProvider>
+      <PageContent />
     </WebSocketProvider>
   );
 }
