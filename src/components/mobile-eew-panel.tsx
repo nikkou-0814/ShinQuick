@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { EewInformation } from "@dmdata/telegram-json-types";
 import { AlertCircle, AlertTriangle, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -31,18 +31,18 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
   
     if (JSON.stringify(prevWarningRegionsRef.current) !== JSON.stringify(regions)) {
       onWarningRegionUpdate(regions);
-      prevWarningRegionsRef.current = regions;
+      prevWarningRegionsRef.current = [...regions];
     }
-  }, [parsedData, onWarningRegionUpdate]);
+  }, [parsedData, onWarningRegionUpdate, prevWarningRegionsRef]);
 
-  const getJstTime = (timestamp: string | undefined): Date | null => {
+  const getJstTime = useCallback((timestamp: string | undefined): Date | null => {
+    if (!timestamp) return null;
     try {
-      if (!timestamp) return null;
       return new Date(timestamp);
     } catch {
       return null;
     }
-  };  
+  }, []);
 
   let originDt: Date | null = null;
   if (parsedData) {
@@ -130,7 +130,8 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
   
     if (isNaN(latVal) || isNaN(lngVal) || isNaN(depthVal)) return;
   
-    onEpicenterUpdate({
+    // Store the values in a ref to avoid recreating the object on every render
+    const epicenterData = {
       eventId,
       serialNo,
       lat: latVal,
@@ -138,8 +139,11 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
       icon,
       depthval: depthVal,
       originTime: quakeOriginTime,
-    });
-  }, [parsedData, onEpicenterUpdate, isLowAccuracy]);
+    };
+    
+    // Use a stable reference to avoid infinite updates
+    onEpicenterUpdate(epicenterData);
+  }, [parsedData, onEpicenterUpdate, isLowAccuracy, getJstTime]);
 
   useEffect(() => {
     if (!parsedData || !onRegionIntensityUpdate) return;
@@ -157,7 +161,11 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
       onRegionIntensityUpdate({});
       return;
     }
+    
+    // Create a new map object to store intensity data
     const newMap: Record<string, string> = {};
+    
+    // Process each region
     intensityData.regions.forEach((region) => {
       const code = region.code;
       if (!region.forecastMaxInt) return;
@@ -169,7 +177,8 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
       newMap[code] = final;
     });
 
-    onRegionIntensityUpdate(newMap);
+    // Create a stable reference to the map
+    onRegionIntensityUpdate({...newMap});
   }, [parsedData, onRegionIntensityUpdate]);
 
   if (!parsedData) {
@@ -499,7 +508,7 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-y-auto">
+    <div className="relative top-0 left-0 right-0 z-40 max-h-[80vh] overflow-y-auto">
       <div className="p-2 space-y-2">
         <Card 
           className="bg-white/90 dark:bg-black/90 border overflow-hidden"

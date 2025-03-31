@@ -641,7 +641,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
     setViewState(evt.viewState);
-  }, []);
+  }, [setViewState]);
 
   // マップのロード完了
   const onMapLoadHandler = useCallback(() => {

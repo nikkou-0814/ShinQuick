@@ -17,10 +17,20 @@ import {
   Send,
   FlaskConical,
 } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
+import EewDisplay from "@/components/eew-display";
 import { EewInformation } from "@dmdata/telegram-json-types";
-import { Sidebar } from "@/components/sidebar";
 import { MobileEewPanel } from "@/components/mobile-eew-panel";
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
@@ -126,7 +136,7 @@ function PageContent() {
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [setIsMobile]);
 
   const shindoColors = useMemo(
     () => [
@@ -602,52 +612,55 @@ function PageContent() {
       depthval: number;
       originTime: number;
     }) => {
-      if (!eventId) return;
-      
       setEpicenters((prev) => {
         const existingIndex = prev.findIndex((p) => p.eventId === eventId);
-
+  
         if (existingIndex === -1) {
           const newEpi: EpicenterInfo = {
             eventId,
             lat,
             lng,
             icon,
-            startTime: Date.now(),
-            originTime,
             depthval,
+            originTime,
+            startTime: Date.now(),
           };
-          
-          // 自動ズームをトリガー
+  
+          // 自動ズームのトリガーをかける
           requestAnimationFrame(() => {
             setForceAutoZoomTrigger(Date.now());
           });
+  
           return [...prev, newEpi];
-        } 
-        else {
+        } else {
           const newEpicenters = [...prev];
-          const p = newEpicenters[existingIndex];
-          
-          // 位置が変わった場合のみ自動ズームをトリガー
-          if (p.lat !== lat || p.lng !== lng) {
-            requestAnimationFrame(() => {
-              setForceAutoZoomTrigger(Date.now());
-            });
+          const old = newEpicenters[existingIndex];
+
+          if (
+            old.lat === lat &&
+            old.lng === lng &&
+            old.icon === icon &&
+            old.depthval === depthval &&
+            old.originTime === originTime
+          ) {
+            return prev;
           }
           newEpicenters[existingIndex] = {
-            ...p,
+            ...old,
             lat,
             lng,
             icon,
             depthval,
             originTime,
           };
-          
+          requestAnimationFrame(() => {
+            setForceAutoZoomTrigger(Date.now());
+          });
           return newEpicenters;
         }
       });
     },
-    []
+    [setEpicenters, setForceAutoZoomTrigger]
   );
 
   // 地域震度マップのフィルタリング
@@ -756,13 +769,14 @@ function PageContent() {
         </div>
       )}
 
-      <main className="h-full w-full flex">
-        <div className="flex-1 relative">
-          <LoadingMapOverlay isVisible={!isMapLoaded} />
-          {(settings.enable_map_intensity_fill ||
-            settings.enable_map_warning_area) &&
-            showLegend && (
-              <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
+      <main className="h-full w-full flex flex-col">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          <ResizablePanel defaultSize={75} minSize={50} className="relative">
+            <LoadingMapOverlay isVisible={!isMapLoaded} />
+            {(settings.enable_map_intensity_fill ||
+              settings.enable_map_warning_area) &&
+              showLegend && (
+                <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
                 <h3 className="text-center font-bold mb-2 px-3 pt-3">
                   地図の凡例
                 </h3>
@@ -804,26 +818,88 @@ function PageContent() {
               </div>
             )}
 
-          <DynamicMap
-            ref={mapRef}
-            enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-            isConnected={isConnected}
-            epicenters={epicenters}
-            regionIntensityMap={mergedRegionMap}
-            enableMapIntensityFill={settings.enable_map_intensity_fill}
-            enableDynamicZoom={settings.enable_dynamic_zoom}
-            mapAutoZoom={mapAutoZoomEnabled}
-            mapResolution={settings.world_map_resolution}
-            onAutoZoomChange={setMapAutoZoomEnabled}
-            forceAutoZoomTrigger={forceAutoZoomTrigger}
-            enableMapWarningArea={settings.enable_map_warning_area}
-            warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
-            isCancel={isCancel}
-            psWaveUpdateInterval={settings.ps_wave_update_interval}
-            nowAppTimeRef={nowAppTimeRef}
-            onMapLoad={() => setIsMapLoaded(true)}
-          />
-        </div>
+            <DynamicMap
+              ref={mapRef}
+              enableKyoshinMonitor={settings.enable_kyoshin_monitor}
+              isConnected={isConnected}
+              epicenters={epicenters}
+              regionIntensityMap={mergedRegionMap}
+              enableMapIntensityFill={settings.enable_map_intensity_fill}
+              enableDynamicZoom={settings.enable_dynamic_zoom}
+              mapAutoZoom={mapAutoZoomEnabled}
+              mapResolution={settings.world_map_resolution}
+              onAutoZoomChange={setMapAutoZoomEnabled}
+              forceAutoZoomTrigger={forceAutoZoomTrigger}
+              enableMapWarningArea={settings.enable_map_warning_area}
+              warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
+              isCancel={isCancel}
+              psWaveUpdateInterval={settings.ps_wave_update_interval}
+              nowAppTimeRef={nowAppTimeRef}
+              onMapLoad={() => setIsMapLoaded(true)}
+            />
+          </ResizablePanel>
+          
+          <ResizableHandle withHandle />
+          
+          {!isMobile ? (
+            <ResizablePanel defaultSize={25} minSize={0} maxSize={40} className="h-full overflow-hidden">
+              <div className="h-full max-h-screen overflow-y-auto">
+                {(() => {
+                  const filteredDisplayDataList = settings.enable_low_accuracy_eew
+                    ? displayDataList
+                    : displayDataList.filter((data) => {
+                      const body = data.body as EewInformation.Latest.PublicCommonBody;
+                      const earthquake = body.earthquake;
+                      if (!earthquake) return true;
+                      const method = getHypocenterMethod(earthquake);
+                      return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
+                    });
+
+                  return filteredDisplayDataList.length > 0 ? (
+                    filteredDisplayDataList.map((data) => (
+                      <EewDisplay
+                        key={data.eventId}
+                        parsedData={data}
+                        isAccuracy={settings.enable_accuracy_info}
+                        isLowAccuracy={settings.enable_low_accuracy_eew}
+                        onEpicenterUpdate={handleEpicenterUpdate}
+                        onRegionIntensityUpdate={(regionMap) =>
+                          onRegionIntensityUpdate(regionMap, data.eventId)
+                        }
+                        onWarningRegionUpdate={(regions) =>
+                          onWarningRegionUpdate(regions, data.eventId)
+                        }
+                      />
+                    ))
+                  ) : (
+                    <div className="w-full h-full min-h-screen flex justify-center items-center">
+                      <h1 className="text-xl">緊急地震速報受信待機中</h1>
+                    </div>
+                  )
+                })()}
+              </div>
+            </ResizablePanel>
+          ) : (
+            <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
+            {displayDataList.map((data) => (
+              <div key={data.eventId} className="inline-block align-top w-[95%]">
+                <MobileEewPanel
+                  parsedData={data}
+                  isAccuracy={settings.enable_accuracy_info}
+                  isLowAccuracy={settings.enable_low_accuracy_eew}
+                  onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                  onRegionIntensityUpdate={(regionMap) =>
+                    onRegionIntensityUpdate(regionMap, data.eventId)
+                  }
+                  onWarningRegionUpdate={(regions) =>
+                    onWarningRegionUpdate(regions, data.eventId)
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          )}
+        </ResizablePanelGroup>
 
         <div className="fixed bottom-4 left-4 shadow-lg bg-white/50 dark:bg-black/50 rounded-lg space-x-4 border">
           <div className="flex space-x-3 p-3 justify-start items-center">
@@ -859,26 +935,6 @@ function PageContent() {
             </div>
           </div>
         </div>
-
-        {!isMobile ? (
-          <Sidebar
-            displayDataList={displayDataList}
-            settings={settings}
-            onEpicenterUpdate={handleEpicenterUpdate}
-            onRegionIntensityUpdate={onRegionIntensityUpdate}
-            onWarningRegionUpdate={onWarningRegionUpdate}
-            getHypocenterMethod={getHypocenterMethod}
-          />
-        ) : (
-          <MobileEewPanel
-            parsedData={displayDataList.length > 0 ? displayDataList[0] : null}
-            isAccuracy={settings.enable_accuracy_info}
-            isLowAccuracy={settings.enable_low_accuracy_eew}
-            onEpicenterUpdate={handleEpicenterUpdate}
-            onRegionIntensityUpdate={(regionMap) => onRegionIntensityUpdate(regionMap, displayDataList[0]?.eventId || "")}
-            onWarningRegionUpdate={(regions) => onWarningRegionUpdate(regions, displayDataList[0]?.eventId || "")}
-          />
-        )}
       </main>
     </>
   );
@@ -887,7 +943,9 @@ function PageContent() {
 export default function Page() {
   return (
     <WebSocketProvider>
-      <PageContent />
+      <SidebarProvider>
+        <PageContent />
+      </SidebarProvider>
     </WebSocketProvider>
   );
 }

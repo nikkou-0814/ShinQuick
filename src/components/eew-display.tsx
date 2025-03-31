@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import {
   Card,
   CardHeader,
@@ -38,18 +38,18 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   
     if (JSON.stringify(prevWarningRegionsRef.current) !== JSON.stringify(regions)) {
       onWarningRegionUpdate(regions);
-      prevWarningRegionsRef.current = regions;
+      prevWarningRegionsRef.current = [...regions];
     }
-  }, [parsedData, onWarningRegionUpdate]);
+  }, [parsedData, onWarningRegionUpdate, prevWarningRegionsRef]);
 
-  const getJstTime = (timestamp: string | undefined): Date | null => {
+  const getJstTime = useCallback((timestamp: string | undefined): Date | null => {
+    if (!timestamp) return null;
     try {
-      if (!timestamp) return null;
       return new Date(timestamp);
     } catch {
       return null;
     }
-  };  
+  }, []);
 
   let originDt: Date | null = null;
   if (parsedData) {
@@ -137,7 +137,8 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   
     if (isNaN(latVal) || isNaN(lngVal) || isNaN(depthVal)) return;
   
-    onEpicenterUpdate({
+    // Store the values in a ref to avoid recreating the object on every render
+    const epicenterData = {
       eventId,
       serialNo,
       lat: latVal,
@@ -145,8 +146,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       icon,
       depthval: depthVal,
       originTime: quakeOriginTime,
-    });
-  }, [parsedData, onEpicenterUpdate, isLowAccuracy]);
+    };
+    
+    // Use a stable reference to avoid infinite updates
+    onEpicenterUpdate(epicenterData);
+  }, [parsedData, onEpicenterUpdate, isLowAccuracy, getJstTime]);
 
   useEffect(() => {
     if (!parsedData || !onRegionIntensityUpdate) return;
@@ -164,7 +168,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       onRegionIntensityUpdate({});
       return;
     }
+    
+    // Create a new map object to store intensity data
     const newMap: Record<string, string> = {};
+    
+    // Process each region
     intensityData.regions.forEach((region) => {
       const code = region.code;
       if (!region.forecastMaxInt) return;
@@ -176,7 +184,8 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       newMap[code] = final;
     });
 
-    onRegionIntensityUpdate(newMap);
+    // Create a stable reference to the map
+    onRegionIntensityUpdate({...newMap});
   }, [parsedData, onRegionIntensityUpdate]);
 
   if (!parsedData) {
@@ -597,10 +606,10 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   const isTest = status === "訓練" || status === "試験";
 
   return (
-    <Card className="shadow-xl bg-white/90 dark:bg-black/75 border">
+    <Card className="shadow-xl bg-white/90 dark:bg-black/75 border m-2">
       <CardHeader className="pb-4">
         <CardTitle
-          className={`flex flex-wrap items-center gap-2 text-lg p-2 rounded-lg ${
+          className={`flex flex-col items-start gap-2 text-lg p-2 rounded-lg ${
             isCanceled
               ? "bg-gray-200 dark:bg-gray-600/20"
               : isWarning
@@ -608,7 +617,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
               : "bg-yellow-100 dark:bg-yellow-950/30"
           }`}
         >
-          <div className="flex items-center gap-2 w-full text-nowrap">
+          <div className="flex items-center gap-2 w-full">
             {isCanceled ? (
               <XCircle className="h-5 w-5 text-gray-500 shrink-0" />
             ) : isWarning ? (
@@ -616,11 +625,13 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
             ) : (
               <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
             )}
-            {`緊急地震速報（${
-              isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
-            }）`}
+            <span className="break-keep">
+              {`緊急地震速報（${
+                isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
+              }）`}
+            </span>
             {!isTest && (
-              <span className="text-sm ml-auto mr-2 text-nowrap">
+              <span className="text-sm ml-auto break-keep">
                 {isLastInfo ? `第${serialNo}報 （最終）` : `第${serialNo}報`}
               </span>
             )}
@@ -628,9 +639,9 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
 
           {isTest && (
             <div className="flex w-full justify-between items-center text-sm">
-              <span className="text-xs text-nowrap">訓練・試験報</span>
+              <span className="text-xs break-keep">訓練・試験報</span>
               {!isCanceled && (
-                <span className="ml-auto text-nowrap">
+                <span className="ml-auto break-keep">
                   {isLastInfo ? `第${serialNo}報 （最終）` : `第${serialNo}報`}
                 </span>
               )}
@@ -639,15 +650,15 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!isCanceled &&(
-            <div
+        {!isCanceled && (
+          <div
             className={`rounded-lg border-2 p-4 ${
               isWarning
                 ? "border-red-500/50 bg-red-200/30 dark:bg-red-950/30"
                 : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
             }`}
           >
-            <h1 className="text-2xl font-bold mb-2">
+            <h1 className="text-2xl font-bold mb-2 break-words">
               {hypName}で{eventType}
             </h1>
             <p className="text-sm text-gray-800 dark:text-gray-300">
@@ -685,7 +696,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                 : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
             }`}
           >
-            <p className="text-sm font-medium">{description}</p>
+            <p className="text-sm font-medium break-words">{description}</p>
           </div>
         )}
         {isCanceled && (
@@ -697,30 +708,30 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
         )}    
         {!isCanceled && (
           <>
-          {method === "PLUM法" || method === "レベル法" ? (
-            <div className="space-y-1 w-full">
-              <p className="font-medium text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
-                {method === "PLUM法"
-                  ? "PLUM法による仮定震源"
-                  : "レベル法による仮定震源"}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1 p-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  マグニチュード
+            {method === "PLUM法" || method === "レベル法" ? (
+              <div className="space-y-1 w-full">
+                <p className="font-medium text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
+                  {method === "PLUM法"
+                    ? "PLUM法による仮定震源"
+                    : "レベル法による仮定震源"}
                 </p>
-                <p className="font-medium">{magnitudeDisplay}</p>
               </div>
-              <div className="space-y-1 p-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  深さ
-                </p>
-                <p className="font-medium">{depthValue} km</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1 p-2">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    マグニチュード
+                  </p>
+                  <p className="font-medium">{magnitudeDisplay}</p>
+                </div>
+                <div className="space-y-1 p-2">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    深さ
+                  </p>
+                  <p className="font-medium">{depthValue} km</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
           </>
         )}
 
@@ -732,12 +743,12 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                 <Info className="h-4 w-4 text-blue-500" />
                 <h3 className="font-medium">精度情報</h3>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div className="p-2">
                   <p className="text-gray-500 dark:text-gray-400">
                     震央精度
                   </p>
-                  <p className="mt-1">
+                  <p className="mt-1 break-words">
                     {mapAccuracyValue(
                       epicenterAccuracy0,
                       "epicenters"
@@ -748,7 +759,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                   <p className="text-gray-500 dark:text-gray-400">
                     震源精度
                   </p>
-                  <p className="mt-1">
+                  <p className="mt-1 break-words">
                     {mapAccuracyValue(
                       epicenterAccuracy1,
                       "epicenters"
@@ -759,7 +770,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                   <p className="text-gray-500 dark:text-gray-400">
                     深さ精度
                   </p>
-                  <p className="mt-1">
+                  <p className="mt-1 break-words">
                     {mapAccuracyValue(
                       accuracyDepthLabel,
                       "depth"
@@ -770,7 +781,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                   <p className="text-gray-500 dark:text-gray-400">
                     M精度
                   </p>
-                  <p className="mt-1">
+                  <p className="mt-1 break-words">
                     {mapAccuracyValue(
                       accuracyMagnitudeCalc,
                       "magnitudeCalculation"
@@ -781,7 +792,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                   <p className="text-gray-500 dark:text-gray-400">
                     M計算使用観測点数
                   </p>
-                  <p className="mt-1">
+                  <p className="mt-1 break-words">
                     {mapAccuracyValue(
                       accuracyNumberOfMagCalc,
                       "numberOfMagnitudeCalculation"
@@ -792,7 +803,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
                   <p className="text-gray-500 dark:text-gray-400">
                     予測手法
                   </p>
-                  <p className="mt-1">{method}</p>
+                  <p className="mt-1 break-words">{method}</p>
                 </div>
               </div>
             </div>

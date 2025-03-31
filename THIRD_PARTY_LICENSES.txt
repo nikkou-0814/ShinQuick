@@ -54,11 +54,11 @@ License File: node_modules/@radix-ui/react-dropdown-menu/README.md
 Repository: https://github.com/radix-ui/primitives
 License File: node_modules/@radix-ui/react-popover/README.md
 
-@radix-ui/react-separator@1.1.1 (MIT)
+@radix-ui/react-separator@1.1.2 (MIT)
 Repository: https://github.com/radix-ui/primitives
 License File: node_modules/@radix-ui/react-separator/README.md
 
-@radix-ui/react-slot@1.1.1 (MIT)
+@radix-ui/react-slot@1.1.2 (MIT)
 Repository: https://github.com/radix-ui/primitives
 License File: node_modules/@radix-ui/react-slot/README.md
 
@@ -70,7 +70,7 @@ License File: node_modules/@radix-ui/react-switch/README.md
 Repository: https://github.com/radix-ui/primitives
 License File: node_modules/@radix-ui/react-tabs/README.md
 
-@radix-ui/react-tooltip@1.1.7 (MIT)
+@radix-ui/react-tooltip@1.1.8 (MIT)
 Repository: https://github.com/radix-ui/primitives
 License File: node_modules/@radix-ui/react-tooltip/README.md
 
@@ -245,6 +245,10 @@ License File: node_modules/framer-motion/LICENSE.md
 @hapi/sntp@3.0.2 (BSD-3-Clause)
 Repository: https://github.com/hapijs/sntp
 License File: node_modules/@hapi/sntp/LICENSE.md
+
+react-resizable-panels@2.1.7 (MIT)
+Repository: https://github.com/bvaughn/react-resizable-panels
+License File: node_modules/react-resizable-panels/LICENSE
 
 MIT License
 
