@@ -106,7 +106,8 @@ function PageContent() {
     passedIntensityFilterRef,
   } = useWebSocket();
 
-  const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
+  const canceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const nonCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nowAppTimeRef = useRef<number>(0);
   const rAFBaseRef = useRef<number | null>(null);
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(
@@ -120,8 +121,6 @@ function PageContent() {
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const cancellationStartRef = useRef<Record<string, number>>({});
-  const cancellationTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     const handleResize = () => {
@@ -508,86 +507,56 @@ function PageContent() {
 
   // 震源情報のクリーンアップ処理
   useEffect(() => {
-    Object.keys(cancellationTimersRef.current).forEach((eventId) => {
-      const event = displayDataList.find((d) => d.eventId === eventId);
-      if (!event || !event.body?.isCanceled) {
-        clearTimeout(cancellationTimersRef.current[eventId]);
-        delete cancellationTimersRef.current[eventId];
-        delete cancellationStartRef.current[eventId];
+    Object.keys(canceledTimersRef.current).forEach((eventId) => {
+      const stillExist = displayDataList.some(
+        (d) => d.eventId === eventId && d.body?.isCanceled
+      );
+      if (!stillExist) {
+        clearTimeout(canceledTimersRef.current[eventId]);
+        delete canceledTimersRef.current[eventId];
       }
     });
 
     displayDataList.forEach((data) => {
       if (!data.body?.isCanceled) return;
       const eventId = data.eventId;
-      if (!cancellationStartRef.current[eventId]) {
-        cancellationStartRef.current[eventId] = Date.now();
-      }
-      const gracePeriod =
-        (data.body && "isFinal" in data.body && data.body.isFinal)
-          ? 3 * 60 * 1000
-          : 5 * 60 * 1000;
-      const elapsed = Date.now() - cancellationStartRef.current[eventId];
-      const remaining = gracePeriod - elapsed;
+      if (canceledTimersRef.current[eventId]) return;
 
-      if (remaining <= 0) {
+      canceledTimersRef.current[eventId] = setTimeout(() => {
         setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
         setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
         onRegionIntensityUpdate({}, eventId);
         onWarningRegionUpdate([], eventId);
-        delete cancellationStartRef.current[eventId];
-        if (cancellationTimersRef.current[eventId]) {
-          clearTimeout(cancellationTimersRef.current[eventId]);
-          delete cancellationTimersRef.current[eventId];
-        }
-      } else {
-        if (!cancellationTimersRef.current[eventId]) {
-          cancellationTimersRef.current[eventId] = setTimeout(() => {
-            setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
-            setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
-            onRegionIntensityUpdate({}, eventId);
-            onWarningRegionUpdate([], eventId);
-            delete cancellationStartRef.current[eventId];
-            delete cancellationTimersRef.current[eventId];
-          }, remaining);
-        }
-      }
+        delete canceledTimersRef.current[eventId];
+      }, 10000);
     });
   }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
-  // キャンセルされた地震情報の処理
   useEffect(() => {
-    const canceledEvents: string[] = [];
-    
-    for (const data of displayDataList) {
-      if (!data.body?.isCanceled) continue;
-      if (canceledRemoveScheduledRef.current.has(data.eventId)) continue;
-      canceledRemoveScheduledRef.current.add(data.eventId);
-      canceledEvents.push(data.eventId);
-    }
-    
-    // キャンセルされたイベントがあれば処理をスケジュール
-    if (canceledEvents.length > 0) {
-      const timeoutId = setTimeout(() => {
-        setDisplayDataList((prev) =>
-          prev.filter((x) => !canceledEvents.includes(x.eventId))
-        );
-        
-        setEpicenters((prev) =>
-          prev.filter((epi) => !canceledEvents.includes(epi.eventId))
-        );
-        
-        // 関連データのクリーンアップ
-        for (const eventId of canceledEvents) {
-          onRegionIntensityUpdate({}, eventId);
-          onWarningRegionUpdate([], eventId);
-          canceledRemoveScheduledRef.current.delete(eventId);
-        }
-      }, 10000);
-      
-      // クリーンアップ関数
-      return () => clearTimeout(timeoutId);
-    }
+    Object.keys(nonCanceledTimersRef.current).forEach((eventId) => {
+      const target = displayDataList.find((d) => d.eventId === eventId);
+      if (!target || target.body?.isCanceled) {
+        clearTimeout(nonCanceledTimersRef.current[eventId]);
+        delete nonCanceledTimersRef.current[eventId];
+      }
+    });
+
+    displayDataList.forEach((data) => {
+      if (data.body?.isCanceled) return;
+      const eventId = data.eventId;
+      if (nonCanceledTimersRef.current[eventId]) return;
+
+      const isFinal = (data.body && "isFinal" in data.body && data.body.isFinal);
+      const removalTime = isFinal ? 3 * 60 * 1000 : 5 * 60 * 1000;
+
+      nonCanceledTimersRef.current[eventId] = setTimeout(() => {
+        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete nonCanceledTimersRef.current[eventId];
+      }, removalTime);
+    });
   }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
   // 震源情報の更新処理
@@ -904,13 +873,13 @@ function PageContent() {
             <Button variant="outline" onClick={setHomePosition}>
               <LocateFixed />
             </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
+            <Button variant="outline" onClick={handleTest} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest2} className="hidden">
+            <Button variant="outline" onClick={handleTest2} className="">
               <FlaskConical />
             </Button>
-            <Button variant="outline" onClick={handleTest3} className="hidden">
+            <Button variant="outline" onClick={handleTest3} className="">
               <FlaskConical />
             </Button>
             <Button variant="outline" onClick={handleSendAllTests} className="hidden">
