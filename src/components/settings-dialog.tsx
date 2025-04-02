@@ -75,6 +75,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   onDisconnectWebSocket,
   isConnected,
   onSyncClock,
+  onResetPanelSizes,
 }) => {
   const [openTheme, setOpenTheme] = useState(false);
   const [openWorldMapRes, setOpenWorldMapRes] = useState(false);
@@ -210,6 +211,15 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     variant="outline"
                   >
                     時計を合わせる
+                  </Button>
+                </SettingItem>
+
+                <SettingItem
+                  title="サイドパネルのサイズリセット"
+                  description="サイドパネルのサイズをデフォルトに戻します。"
+                >
+                  <Button variant="outline" onClick={onResetPanelSizes}>
+                    リセット
                   </Button>
                 </SettingItem>
               </CardContent>

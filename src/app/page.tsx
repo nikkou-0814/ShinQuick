@@ -47,6 +47,8 @@ const DEFAULT_SETTINGS: Settings = {
   ps_wave_update_interval: 10,
   enable_intensity_filter: false,
   intensity_filter_value: "3",
+  leftPanelSize: 75,
+  rightPanelSize: 25,
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -121,6 +123,8 @@ function PageContent() {
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [panelSizesLoaded, setPanelSizesLoaded] = useState<boolean>(false);
+  const [panelKey, setPanelKey] = useState(0);
 
   useEffect(() => {
     const handleResize = () => {
@@ -298,10 +302,11 @@ function PageContent() {
       if (token) {
         setIsAuthenticated(true);
       }
+      setPanelSizesLoaded(true);
     }
   }, []);
 
-  const updateSettings = (newSettings: Partial<Settings>) => {
+  const updateSettings = useCallback((newSettings: Partial<Settings>) => {
     setSettings((prevSettings) => {
       const updatedSettings = { ...prevSettings, ...newSettings };
       if (typeof window !== "undefined") {
@@ -309,6 +314,20 @@ function PageContent() {
       }
       return updatedSettings;
     });
+  }, []);
+
+  const handlePanelResize = useCallback((sizes: number[]) => {
+    if (sizes.length === 2) {
+      updateSettings({ leftPanelSize: sizes[0], rightPanelSize: sizes[1] });
+    }
+  }, [updateSettings]);
+
+  const resetPanelSizes = () => {
+    updateSettings({
+      leftPanelSize: DEFAULT_SETTINGS.leftPanelSize,
+      rightPanelSize: DEFAULT_SETTINGS.rightPanelSize,
+    });
+    setPanelKey(prev => prev + 1);
   };
 
   const handleSettingChange = <K extends keyof Settings>(
@@ -725,6 +744,7 @@ function PageContent() {
         onDisconnectAuthentication={handleDisconnectAuthentication}
         onDisconnectWebSocket={handleWebSocketDisconnect}
         onSyncClock={handleClockSync}
+        onResetPanelSizes={resetPanelSizes}
       />
 
       {version && (
@@ -734,136 +754,138 @@ function PageContent() {
       )}
 
       <main className="h-full w-full flex flex-col">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          <ResizablePanel defaultSize={75} minSize={50} className="relative">
-            <LoadingMapOverlay isVisible={!isMapLoaded} />
-            {(settings.enable_map_intensity_fill ||
-              settings.enable_map_warning_area) &&
-              showLegend && (
-                <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
-                <h3 className="text-center font-bold mb-2 px-3 pt-3">
-                  地図の凡例
-                </h3>
-                <div className="border-t my-2 w-full"></div>
-                <div className="space-y-1.5 px-3 pb-3">
-                  {settings.enable_map_warning_area &&
-                    mergedWarningRegions.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-full rounded shadow-sm text-left p-1"
-                          style={{
-                            backgroundColor: "red",
-                            color: "white",
-                          }}
-                        >
-                          <span className="text-xs font-medium">
-                            警報地域
-                          </span>
+        {panelSizesLoaded && (
+          <ResizablePanelGroup key={`panel-${panelKey}`} direction="horizontal" className="h-full" onLayout={handlePanelResize}>
+            <ResizablePanel defaultSize={settings.leftPanelSize} minSize={50} className="relative">
+              <LoadingMapOverlay isVisible={!isMapLoaded} />
+              {(settings.enable_map_intensity_fill ||
+                settings.enable_map_warning_area) &&
+                showLegend && (
+                  <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
+                  <h3 className="text-center font-bold mb-2 px-3 pt-3">
+                    地図の凡例
+                  </h3>
+                  <div className="border-t my-2 w-full"></div>
+                  <div className="space-y-1.5 px-3 pb-3">
+                    {settings.enable_map_warning_area &&
+                      mergedWarningRegions.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-full rounded shadow-sm text-left p-1"
+                            style={{
+                              backgroundColor: "red",
+                              color: "white",
+                            }}
+                          >
+                            <span className="text-xs font-medium">
+                              警報地域
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  {settings.enable_map_intensity_fill &&
-                    displayedShindoColors.map(({ level, bgcolor, color }) => (
-                      <div key={level} className="flex items-center gap-2">
-                        <div
-                          className="w-full rounded shadow-sm text-left p-1"
-                          style={{
-                            backgroundColor: bgcolor,
-                            color: color,
-                          }}
-                        >
-                          <span className="text-xs font-medium">
-                            {level}
-                          </span>
+                      )}
+                    {settings.enable_map_intensity_fill &&
+                      displayedShindoColors.map(({ level, bgcolor, color }) => (
+                        <div key={level} className="flex items-center gap-2">
+                          <div
+                            className="w-full rounded shadow-sm text-left p-1"
+                            style={{
+                              backgroundColor: bgcolor,
+                              color: color,
+                            }}
+                          >
+                            <span className="text-xs font-medium">
+                              {level}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <DynamicMap
-              ref={mapRef}
-              enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-              isConnected={isConnected}
-              epicenters={epicenters}
-              regionIntensityMap={mergedRegionMap}
-              enableMapIntensityFill={settings.enable_map_intensity_fill}
-              enableDynamicZoom={settings.enable_dynamic_zoom}
-              mapAutoZoom={mapAutoZoomEnabled}
-              mapResolution={settings.world_map_resolution}
-              onAutoZoomChange={setMapAutoZoomEnabled}
-              forceAutoZoomTrigger={forceAutoZoomTrigger}
-              enableMapWarningArea={settings.enable_map_warning_area}
-              warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
-              isCancel={isCancel}
-              psWaveUpdateInterval={settings.ps_wave_update_interval}
-              nowAppTimeRef={nowAppTimeRef}
-              onMapLoad={() => setIsMapLoaded(true)}
-            />
-          </ResizablePanel>
-          
-          <ResizableHandle withHandle />
-          
-          {!isMobile ? (
-            <ResizablePanel defaultSize={25} minSize={0} maxSize={40} className="h-full overflow-hidden">
-              <div className="h-full max-h-screen overflow-y-auto">
-                {(() => {
-                  const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                    ? displayDataList
-                    : displayDataList.filter((data) => {
-                      const body = data.body as EewInformation.Latest.PublicCommonBody;
-                      const earthquake = body.earthquake;
-                      if (!earthquake) return true;
-                      const method = getHypocenterMethod(earthquake);
-                      return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                    });
-
-                  return filteredDisplayDataList.length > 0 ? (
-                    filteredDisplayDataList.map((data) => (
-                      <EewDisplay
-                        key={data.eventId}
-                        parsedData={data}
-                        isAccuracy={settings.enable_accuracy_info}
-                        isLowAccuracy={settings.enable_low_accuracy_eew}
-                        onEpicenterUpdate={handleEpicenterUpdate}
-                        onRegionIntensityUpdate={(regionMap) =>
-                          onRegionIntensityUpdate(regionMap, data.eventId)
-                        }
-                        onWarningRegionUpdate={(regions) =>
-                          onWarningRegionUpdate(regions, data.eventId)
-                        }
-                      />
-                    ))
-                  ) : (
-                    <div className="w-full h-full min-h-screen flex justify-center items-center">
-                      <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                    </div>
-                  )
-                })()}
-              </div>
+              <DynamicMap
+                ref={mapRef}
+                enableKyoshinMonitor={settings.enable_kyoshin_monitor}
+                isConnected={isConnected}
+                epicenters={epicenters}
+                regionIntensityMap={mergedRegionMap}
+                enableMapIntensityFill={settings.enable_map_intensity_fill}
+                enableDynamicZoom={settings.enable_dynamic_zoom}
+                mapAutoZoom={mapAutoZoomEnabled}
+                mapResolution={settings.world_map_resolution}
+                onAutoZoomChange={setMapAutoZoomEnabled}
+                forceAutoZoomTrigger={forceAutoZoomTrigger}
+                enableMapWarningArea={settings.enable_map_warning_area}
+                warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
+                isCancel={isCancel}
+                psWaveUpdateInterval={settings.ps_wave_update_interval}
+                nowAppTimeRef={nowAppTimeRef}
+                onMapLoad={() => setIsMapLoaded(true)}
+              />
             </ResizablePanel>
-          ) : (
-            <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
-            {displayDataList.map((data) => (
-              <div key={data.eventId} className="inline-block align-top w-[95%]">
-                <MobileEewPanel
-                  parsedData={data}
-                  isAccuracy={settings.enable_accuracy_info}
-                  isLowAccuracy={settings.enable_low_accuracy_eew}
-                  onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
-                  onRegionIntensityUpdate={(regionMap) =>
-                    onRegionIntensityUpdate(regionMap, data.eventId)
-                  }
-                  onWarningRegionUpdate={(regions) =>
-                    onWarningRegionUpdate(regions, data.eventId)
-                  }
-                />
-              </div>
-            ))}
-          </div>
-          )}
-        </ResizablePanelGroup>
+            
+            <ResizableHandle withHandle />
+            
+            {!isMobile ? (
+              <ResizablePanel defaultSize={settings.rightPanelSize} minSize={0} maxSize={40} className="h-full overflow-hidden">
+                <div className="h-full max-h-screen overflow-y-auto">
+                  {(() => {
+                    const filteredDisplayDataList = settings.enable_low_accuracy_eew
+                      ? displayDataList
+                      : displayDataList.filter((data) => {
+                        const body = data.body as EewInformation.Latest.PublicCommonBody;
+                        const earthquake = body.earthquake;
+                        if (!earthquake) return true;
+                        const method = getHypocenterMethod(earthquake);
+                        return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
+                      });
+
+                    return filteredDisplayDataList.length > 0 ? (
+                      filteredDisplayDataList.map((data) => (
+                        <EewDisplay
+                          key={data.eventId}
+                          parsedData={data}
+                          isAccuracy={settings.enable_accuracy_info}
+                          isLowAccuracy={settings.enable_low_accuracy_eew}
+                          onEpicenterUpdate={handleEpicenterUpdate}
+                          onRegionIntensityUpdate={(regionMap) =>
+                            onRegionIntensityUpdate(regionMap, data.eventId)
+                          }
+                          onWarningRegionUpdate={(regions) =>
+                            onWarningRegionUpdate(regions, data.eventId)
+                          }
+                        />
+                      ))
+                    ) : (
+                      <div className="w-full h-full min-h-screen flex justify-center items-center">
+                        <h1 className="text-xl">緊急地震速報受信待機中</h1>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </ResizablePanel>
+            ) : (
+              <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
+              {displayDataList.map((data) => (
+                <div key={data.eventId} className="inline-block align-top w-[95%]">
+                  <MobileEewPanel
+                    parsedData={data}
+                    isAccuracy={settings.enable_accuracy_info}
+                    isLowAccuracy={settings.enable_low_accuracy_eew}
+                    onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                    onRegionIntensityUpdate={(regionMap) =>
+                      onRegionIntensityUpdate(regionMap, data.eventId)
+                    }
+                    onWarningRegionUpdate={(regions) =>
+                      onWarningRegionUpdate(regions, data.eventId)
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            )}
+          </ResizablePanelGroup>
+        )}
 
         <div className="fixed bottom-4 left-4 shadow-lg bg-white/50 dark:bg-black/50 rounded-lg space-x-4 border">
           <div className="flex space-x-3 p-3 justify-start items-center">

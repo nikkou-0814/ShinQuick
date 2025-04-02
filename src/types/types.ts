@@ -17,6 +17,8 @@ export interface Settings {
   ps_wave_update_interval: number;
   enable_intensity_filter: boolean;
   intensity_filter_value: string;
+  leftPanelSize: number;
+  rightPanelSize: number;
 }
 
 // EEW表示用コンポーネントに渡すprops
@@ -83,6 +85,7 @@ export interface SettingsDialogProps {
   onDisconnectWebSocket: () => Promise<void>;
   isConnected: boolean;
   onSyncClock: () => void;
+  onResetPanelSizes: () => void;
 }
 
 // WebSocketコンテキストで扱う型
