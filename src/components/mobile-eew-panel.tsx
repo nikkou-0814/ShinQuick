@@ -287,6 +287,7 @@ export const MobileEewPanel: React.FC<EewDisplayProps> = ({
   if (
     body &&
     !isLowAccuracy &&
+    !isCanceled &&
     (method === "PLUM法" || method === "レベル法" || method === "IPF法 (1点)")
   ) {
     return null;

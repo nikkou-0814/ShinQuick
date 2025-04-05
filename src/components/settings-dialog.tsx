@@ -232,7 +232,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
                   title="強震モニタを有効にする"
-                  description="強震モニタを表示します。この機能をオンにすると地図の動作が重くなります。"
+                  description="強震モニタを表示します。"
                 >
                   <Switch
                     checked={settings.enable_kyoshin_monitor}
@@ -244,7 +244,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="地図の動的ズームを有効にする"
-                  description="地図の表示が自動的に拡大・縮小・移動されるようになります。（この機能は現在開発中なので、不安定です。）"
+                  description="地図の表示が自動的に拡大・縮小・移動されるようになります。（この機能は現在開発中なので不安定です。）"
                 >
                   <Switch
                     checked={settings.enable_dynamic_zoom}
@@ -290,7 +290,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="細分化地域の予想震度を表示する"
-                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。（この機能は現在開発中なので、不安定です。）※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_map_intensity_fill : false}

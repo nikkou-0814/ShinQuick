@@ -16,6 +16,8 @@ import {
   LocateFixed,
   Send,
   FlaskConical,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import {
   ResizableHandle,
@@ -125,6 +127,13 @@ function PageContent() {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [panelSizesLoaded, setPanelSizesLoaded] = useState<boolean>(false);
   const [panelKey, setPanelKey] = useState(0);
+  const isDev = process.env.IS_DEV === "true";
+  const [expanded, setExpanded] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -754,6 +763,9 @@ function PageContent() {
       )}
 
       <main className="h-full w-full flex flex-col">
+        {isMobile && (
+          <LoadingMapOverlay isVisible={!isMapLoaded} />
+        )}
         {panelSizesLoaded && (
           <ResizablePanelGroup key={`panel-${panelKey}`} direction="horizontal" className="h-full" onLayout={handlePanelResize}>
             <ResizablePanel defaultSize={settings.leftPanelSize} minSize={50} className="relative">
@@ -824,46 +836,47 @@ function PageContent() {
               />
             </ResizablePanel>
             
-            <ResizableHandle withHandle />
-            
             {!isMobile ? (
-              <ResizablePanel defaultSize={settings.rightPanelSize} minSize={0} maxSize={40} className="h-full overflow-hidden">
-                <div className="h-full max-h-screen overflow-y-auto">
-                  {(() => {
-                    const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                      ? displayDataList
-                      : displayDataList.filter((data) => {
-                        const body = data.body as EewInformation.Latest.PublicCommonBody;
-                        const earthquake = body.earthquake;
-                        if (!earthquake) return true;
-                        const method = getHypocenterMethod(earthquake);
-                        return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                      });
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={settings.rightPanelSize} minSize={0} maxSize={40} className="h-full overflow-hidden">
+                  <div className="h-full max-h-screen overflow-y-auto">
+                    {(() => {
+                      const filteredDisplayDataList = settings.enable_low_accuracy_eew
+                        ? displayDataList
+                        : displayDataList.filter((data) => {
+                          const body = data.body as EewInformation.Latest.PublicCommonBody;
+                          const earthquake = body.earthquake;
+                          if (!earthquake) return true;
+                          const method = getHypocenterMethod(earthquake);
+                          return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
+                        });
 
-                    return filteredDisplayDataList.length > 0 ? (
-                      filteredDisplayDataList.map((data) => (
-                        <EewDisplay
-                          key={data.eventId}
-                          parsedData={data}
-                          isAccuracy={settings.enable_accuracy_info}
-                          isLowAccuracy={settings.enable_low_accuracy_eew}
-                          onEpicenterUpdate={handleEpicenterUpdate}
-                          onRegionIntensityUpdate={(regionMap) =>
-                            onRegionIntensityUpdate(regionMap, data.eventId)
-                          }
-                          onWarningRegionUpdate={(regions) =>
-                            onWarningRegionUpdate(regions, data.eventId)
-                          }
-                        />
-                      ))
-                    ) : (
-                      <div className="w-full h-full min-h-screen flex justify-center items-center">
-                        <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                      </div>
-                    )
-                  })()}
-                </div>
-              </ResizablePanel>
+                      return filteredDisplayDataList.length > 0 ? (
+                        filteredDisplayDataList.map((data) => (
+                          <EewDisplay
+                            key={data.eventId}
+                            parsedData={data}
+                            isAccuracy={settings.enable_accuracy_info}
+                            isLowAccuracy={settings.enable_low_accuracy_eew}
+                            onEpicenterUpdate={handleEpicenterUpdate}
+                            onRegionIntensityUpdate={(regionMap) =>
+                              onRegionIntensityUpdate(regionMap, data.eventId)
+                            }
+                            onWarningRegionUpdate={(regions) =>
+                              onWarningRegionUpdate(regions, data.eventId)
+                            }
+                          />
+                        ))
+                      ) : (
+                        <div className="w-full h-full min-h-screen flex justify-center items-center">
+                          <h1 className="text-xl">緊急地震速報受信待機中</h1>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </ResizablePanel>
+              </>
             ) : (
               <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
               {displayDataList.map((data) => (
@@ -886,41 +899,122 @@ function PageContent() {
             )}
           </ResizablePanelGroup>
         )}
-
-        <div className="fixed bottom-4 left-4 shadow-lg bg-white/50 dark:bg-black/50 rounded-lg space-x-4 border">
-          <div className="flex space-x-3 p-3 justify-start items-center">
-            <Button variant="outline" onClick={() => setShowSettings(true)}>
-              <SettingsIcon />
-            </Button>
-            <Button variant="outline" onClick={setHomePosition}>
-              <LocateFixed />
-            </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
-              <FlaskConical />
-            </Button>
-            <Button variant="outline" onClick={handleTest2} className="hidden">
-              <FlaskConical />
-            </Button>
-            <Button variant="outline" onClick={handleTest3} className="hidden">
-              <FlaskConical />
-            </Button>
-            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
-              複数
-            </Button>
-            <div className="flex flex-col">
-              <ClockDisplay
-                nowAppTimeRef={nowAppTimeRef}
-                KyoshinMonitor={settings.enable_kyoshin_monitor}
-              />
-              {isConnected && (
-                <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
-                  <Send size={16} />
-                  <p>DM-D.S.S</p>
+        
+        {hasMounted && (
+          <div className="fixed bottom-4 left-4 shadow-lg bg-white/50 dark:bg-black/50 rounded-lg border z-50">
+            <div className={`flex ${isMobile ? 'flex-col' : 'space-x-3'} p-3 items-start`}>
+              {isMobile ? (
+                <>
+                <div className="ml-1 mb-1 justify-start space-y-1">
+                  {isConnected && (
+                    <div className="flex items-center text-xs text-green-500 space-x-1">
+                      <Send size={12} />
+                      <p className="text-xs">DM-D.S.S</p>
+                    </div>
+                  )}
+                  <ClockDisplay
+                    nowAppTimeRef={nowAppTimeRef}
+                    KyoshinMonitor={settings.enable_kyoshin_monitor}
+                  />
                 </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSettings(true)}
+                  >
+                    <SettingsIcon className="h-4 w-4" />
+                    設定
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={setHomePosition}
+                  >
+                    <LocateFixed className="h-4 w-4" />
+                    ホーム
+                  </Button>
+                  {isDev && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExpanded(!expanded)}
+                    >
+                      {expanded ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {expanded && isDev && (
+                  <div className="flex space-x-2 mb-2 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTest}
+                    >
+                      <FlaskConical className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTest2}
+                    >
+                      <FlaskConical className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTest3}
+                    >
+                      <FlaskConical className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex space-x-3 justify-start items-center">
+                  <Button variant="outline" onClick={() => setShowSettings(true)}>
+                    <SettingsIcon />
+                  </Button>
+                  <Button variant="outline" onClick={setHomePosition}>
+                    <LocateFixed />
+                  </Button>
+                  {isDev && (
+                    <>
+                      <Button variant="outline" onClick={handleTest}>
+                        <FlaskConical />
+                      </Button>
+                      <Button variant="outline" onClick={handleTest2}>
+                        <FlaskConical />
+                      </Button>
+                      <Button variant="outline" onClick={handleTest3}>
+                        <FlaskConical />
+                      </Button>
+                    </>
+                  )}
+                  <div className="flex flex-col">
+                    <ClockDisplay
+                      nowAppTimeRef={nowAppTimeRef}
+                      KyoshinMonitor={settings.enable_kyoshin_monitor}
+                    />
+                    {isConnected && (
+                      <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
+                        <Send size={16} />
+                        <p>DM-D.S.S</p>
+                      </div>
+                    )}
+                  </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
-        </div>
+        )}
       </main>
     </>
   );
