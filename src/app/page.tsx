@@ -127,7 +127,7 @@ function PageContent() {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [panelSizesLoaded, setPanelSizesLoaded] = useState<boolean>(false);
   const [panelKey, setPanelKey] = useState(0);
-  const isDev = process.env.IS_DEV === "true";
+  const isDev = process.env.NEXT_PUBLIC_IS_DEV === "true";
   const [expanded, setExpanded] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -972,6 +972,13 @@ function PageContent() {
                     >
                       <FlaskConical className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSendAllTests}
+                    >
+                      複数
+                    </Button>
                   </div>
                 )}
               </>
@@ -994,6 +1001,9 @@ function PageContent() {
                       </Button>
                       <Button variant="outline" onClick={handleTest3}>
                         <FlaskConical />
+                      </Button>
+                      <Button variant="outline" onClick={handleSendAllTests}>
+                        複数
                       </Button>
                     </>
                   )}
