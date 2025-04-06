@@ -56,7 +56,6 @@ export type RegionIntensityMap = Record<string, string>;
 // マップコンポーネントのProps
 export interface MapProps {
   enableKyoshinMonitor: boolean;
-  isConnected: boolean;
   epicenters: EpicenterInfo[];
   regionIntensityMap: RegionIntensityMap;
   enableMapIntensityFill: boolean;
@@ -79,21 +78,21 @@ export interface SettingsDialogProps {
   setShowSettings: (value: boolean) => void;
   settings: Settings;
   handleSettingChange: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  onConnectWebSocket: () => void;
+  onConnectDMDATAWebSocket: () => void;
   isAuthenticated: boolean;
   onDisconnectAuthentication: () => void;
-  onDisconnectWebSocket: () => Promise<void>;
-  isConnected: boolean;
+  onDisconnectDMDATAWebSocket: () => Promise<void>;
+  isDMDATAConnected: boolean;
   onSyncClock: () => void;
   onResetPanelSizes: () => void;
 }
 
 // WebSocketコンテキストで扱う型
 export interface WebSocketContextType {
-  isConnected: boolean;
-  receivedData: EewInformation.Latest.Main | null;
-  connectWebSocket: (token: string, enableDrillTestInfo: boolean) => Promise<void>;
-  disconnectWebSocket: () => Promise<void>;
+  isDMDATAConnected: boolean;
+  DMDATAreceivedData: EewInformation.Latest.Main | null;
+  connectDMDATAWebSocket: (DMDATAtoken: string, enableDrillTestInfo: boolean) => Promise<void>;
+  disconnectDMDATAWebSocket: () => Promise<void>;
   injectTestData: (data: { body: string }) => void;
   passedIntensityFilterRef: React.RefObject<Set<string>>;
 }
@@ -125,7 +124,6 @@ export interface TravelTableRow {
 // 強震モニタ用のベースProps
 export interface BaseKyoshinMonitorProps {
   enableKyoshinMonitor: boolean;
-  isConnected: boolean;
   nowAppTimeRef: React.RefObject<number>;
 }
 
@@ -179,3 +177,37 @@ export interface SchemaCheck {
   };
   type: string;
 }
+
+export type AXISEewInformation = {
+  Title: string;
+  OriginDateTime: string;
+  ReportDateTime: string;
+  EventID: string;
+  Serial: number;
+  Hypocenter: {
+    Code: number;
+    Name: string;
+    Coordinate: [number, number];
+    Depth: string;
+    Description: string;
+  };
+  Intensity: string;
+  Magnitude: string;
+  Flag: {
+    is_final: boolean;
+    is_cancel: boolean;
+    is_training: boolean;
+  };
+  Forecast: AXISForecastRegion[];
+  Text: string;
+};
+
+type AXISForecastRegion = {
+  Code: number;
+  Name: string;
+  Intensity: {
+    From: string;
+    To: string;
+    Description: string;
+  };
+};

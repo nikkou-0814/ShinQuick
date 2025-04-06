@@ -104,7 +104,6 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
     enableKyoshinMonitor,
-    isConnected,
     epicenters,
     regionIntensityMap,
     enableMapIntensityFill,
@@ -776,7 +775,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         />
         <KyoshinMonitor
           enableKyoshinMonitor={enableKyoshinMonitor}
-          isConnected={isConnected}
           nowAppTimeRef={nowAppTimeRef}
         />
       </Map>

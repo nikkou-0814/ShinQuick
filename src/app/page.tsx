@@ -26,9 +26,9 @@ import {
 } from "@/components/ui/resizable";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
-import EewDisplay from "@/components/eew-display";
+import DMDATAEewDisplay from "@/components/dmdata/eew-display";
 import { EewInformation } from "@dmdata/telegram-json-types";
-import { MobileEewPanel } from "@/components/mobile-eew-panel";
+import { DMDATAMobileEewPanel } from "@/components/dmdata/mobile-eew-panel";
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
 import { MapRef } from "react-map-gl/maplibre";
@@ -89,7 +89,7 @@ function PageContent() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [serverBaseTime, setServerBaseTime] = useState<number | null>(null);
   const mapRef = useRef<MapRef | null>(null);
-  const [displayDataList, setDisplayDataList] = useState<
+  const [DMDATAdisplayDataList, setDMDATADisplayDataList] = useState<
     EewInformation.Latest.Main[]
   >([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -102,10 +102,10 @@ function PageContent() {
     { code: string; name: string }[]
   >([]);
   const {
-    isConnected,
-    receivedData,
-    connectWebSocket,
-    disconnectWebSocket,
+    isDMDATAConnected,
+    DMDATAreceivedData,
+    connectDMDATAWebSocket,
+    disconnectDMDATAWebSocket,
     injectTestData,
     passedIntensityFilterRef,
   } = useWebSocket();
@@ -121,7 +121,7 @@ function PageContent() {
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
   const prevMultiRef = useRef<Record<string, string[]>>({});
   const prevMergedRef = useRef<Record<string, string>>({});
-  const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
+  const isCancel = DMDATAdisplayDataList[0]?.body?.isCanceled ?? false;
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
@@ -245,7 +245,7 @@ function PageContent() {
     []
   );
 
-  const shouldDisplayEarthquake = useCallback(
+  const shouldDMDATADisplayEarthquake = useCallback(
     (data: EewInformation.Latest.Main): boolean => {
       // すでに条件を満たしたイベントは表示する
       if (passedIntensityFilterRef.current.has(data.eventId)) {
@@ -286,11 +286,11 @@ function PageContent() {
   );
 
   useEffect(() => {
-    if (receivedData) {
-      const newData = receivedData as EewInformation.Latest.Main;
+    if (DMDATAreceivedData) {
+      const newData = DMDATAreceivedData as EewInformation.Latest.Main;
 
-      if (shouldDisplayEarthquake(newData)) {
-        setDisplayDataList((prevList) => {
+      if (shouldDMDATADisplayEarthquake(newData)) {
+        setDMDATADisplayDataList((prevList) => {
           const filtered = prevList.filter(
             (data) => data.eventId !== newData.eventId
           );
@@ -299,7 +299,7 @@ function PageContent() {
         setForceAutoZoomTrigger(Date.now());
       }
     }
-  }, [receivedData, shouldDisplayEarthquake]);
+  }, [DMDATAreceivedData, shouldDMDATADisplayEarthquake]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -307,8 +307,8 @@ function PageContent() {
       if (savedSettings) {
         setSettings(JSON.parse(savedSettings));
       }
-      const token = localStorage.getItem("dmdata_access_token");
-      if (token) {
+      const DMDATAtoken = localStorage.getItem("dmdata_access_token");
+      if (DMDATAtoken) {
         setIsAuthenticated(true);
       }
       setPanelSizesLoaded(true);
@@ -351,13 +351,13 @@ function PageContent() {
     updateSettings({ [key]: value });
   };
 
-  const handleConnectWebSocket = () => {
-    const token = localStorage.getItem("dmdata_access_token");
-    if (!token) {
+  const handleConnectDMDATAWebSocket = () => {
+    const DMDATAtoken = localStorage.getItem("dmdata_access_token");
+    if (!DMDATAtoken) {
       toast.error("アカウントを認証してください。");
       return;
     }
-    connectWebSocket(token, settings.enable_drill_test_info);
+    connectDMDATAWebSocket(DMDATAtoken, settings.enable_drill_test_info);
   };
 
   const handleDisconnectAuthentication = () => {
@@ -366,8 +366,8 @@ function PageContent() {
     toast.info("アカウントとの連携を解除しました。");
   };
 
-  const handleWebSocketDisconnect = async () => {
-    await disconnectWebSocket();
+  const handleDMDATAWebSocketDisconnect = async () => {
+    await disconnectDMDATAWebSocket();
   };
 
   const setHomePosition = () => {
@@ -536,7 +536,7 @@ function PageContent() {
   // 震源情報のクリーンアップ処理
   useEffect(() => {
     Object.keys(canceledTimersRef.current).forEach((eventId) => {
-      const stillExist = displayDataList.some(
+      const stillExist = DMDATAdisplayDataList.some(
         (d) => d.eventId === eventId && d.body?.isCanceled
       );
       if (!stillExist) {
@@ -545,31 +545,31 @@ function PageContent() {
       }
     });
 
-    displayDataList.forEach((data) => {
+    DMDATAdisplayDataList.forEach((data) => {
       if (!data.body?.isCanceled) return;
       const eventId = data.eventId;
       if (canceledTimersRef.current[eventId]) return;
 
       canceledTimersRef.current[eventId] = setTimeout(() => {
-        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
         setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
         onRegionIntensityUpdate({}, eventId);
         onWarningRegionUpdate([], eventId);
         delete canceledTimersRef.current[eventId];
       }, 10000);
     });
-  }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
   useEffect(() => {
     Object.keys(nonCanceledTimersRef.current).forEach((eventId) => {
-      const target = displayDataList.find((d) => d.eventId === eventId);
+      const target = DMDATAdisplayDataList.find((d) => d.eventId === eventId);
       if (!target || target.body?.isCanceled) {
         clearTimeout(nonCanceledTimersRef.current[eventId]);
         delete nonCanceledTimersRef.current[eventId];
       }
     });
 
-    displayDataList.forEach((data) => {
+    DMDATAdisplayDataList.forEach((data) => {
       if (data.body?.isCanceled) return;
       const eventId = data.eventId;
       if (nonCanceledTimersRef.current[eventId]) return;
@@ -578,14 +578,14 @@ function PageContent() {
       const removalTime = isFinal ? 3 * 60 * 1000 : 5 * 60 * 1000;
 
       nonCanceledTimersRef.current[eventId] = setTimeout(() => {
-        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
         setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
         onRegionIntensityUpdate({}, eventId);
         onWarningRegionUpdate([], eventId);
         delete nonCanceledTimersRef.current[eventId];
       }, removalTime);
     });
-  }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
   // 震源情報の更新処理
   const handleEpicenterUpdate = useCallback(
@@ -747,11 +747,11 @@ function PageContent() {
         setShowSettings={setShowSettings}
         settings={settings}
         handleSettingChange={handleSettingChange}
-        isConnected={isConnected}
-        onConnectWebSocket={handleConnectWebSocket}
+        isDMDATAConnected={isDMDATAConnected}
+        onConnectDMDATAWebSocket={handleConnectDMDATAWebSocket}
         isAuthenticated={isAuthenticated}
         onDisconnectAuthentication={handleDisconnectAuthentication}
-        onDisconnectWebSocket={handleWebSocketDisconnect}
+        onDisconnectDMDATAWebSocket={handleDMDATAWebSocketDisconnect}
         onSyncClock={handleClockSync}
         onResetPanelSizes={resetPanelSizes}
       />
@@ -818,7 +818,6 @@ function PageContent() {
               <DynamicMap
                 ref={mapRef}
                 enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-                isConnected={isConnected}
                 epicenters={epicenters}
                 regionIntensityMap={mergedRegionMap}
                 enableMapIntensityFill={settings.enable_map_intensity_fill}
@@ -843,8 +842,8 @@ function PageContent() {
                   <div className="h-full max-h-screen overflow-y-auto">
                     {(() => {
                       const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                        ? displayDataList
-                        : displayDataList.filter((data) => {
+                        ? DMDATAdisplayDataList
+                        : DMDATAdisplayDataList.filter((data) => {
                           const body = data.body as EewInformation.Latest.PublicCommonBody;
                           const earthquake = body.earthquake;
                           if (!earthquake) return true;
@@ -854,7 +853,7 @@ function PageContent() {
 
                       return filteredDisplayDataList.length > 0 ? (
                         filteredDisplayDataList.map((data) => (
-                          <EewDisplay
+                          <DMDATAEewDisplay
                             key={data.eventId}
                             parsedData={data}
                             isAccuracy={settings.enable_accuracy_info}
@@ -879,9 +878,9 @@ function PageContent() {
               </>
             ) : (
               <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
-              {displayDataList.map((data) => (
+              {DMDATAdisplayDataList.map((data) => (
                 <div key={data.eventId} className="inline-block align-top w-[95%]">
-                  <MobileEewPanel
+                  <DMDATAMobileEewPanel
                     parsedData={data}
                     isAccuracy={settings.enable_accuracy_info}
                     isLowAccuracy={settings.enable_low_accuracy_eew}
@@ -905,120 +904,124 @@ function PageContent() {
             <div className={`flex ${isMobile ? 'flex-col' : 'space-x-3'} p-3 items-start`}>
               {isMobile ? (
                 <>
-                <div className="ml-1 mb-1 justify-start space-y-1">
-                  {isConnected && (
-                    <div className="flex items-center text-xs text-green-500 space-x-1">
-                      <Send size={12} />
-                      <p className="text-xs">DM-D.S.S</p>
-                    </div>
-                  )}
-                  <ClockDisplay
-                    nowAppTimeRef={nowAppTimeRef}
-                    KyoshinMonitor={settings.enable_kyoshin_monitor}
-                  />
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowSettings(true)}
-                  >
-                    <SettingsIcon className="h-4 w-4" />
-                    設定
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={setHomePosition}
-                  >
-                    <LocateFixed className="h-4 w-4" />
-                    ホーム
-                  </Button>
-                  {isDev && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setExpanded(!expanded)}
-                    >
-                      {expanded ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
+                  <div className="ml-1 mb-1 justify-start space-y-1">
+                    <div className="flex items-center space-x-1">
+                      {isDMDATAConnected && (
+                        <div className="flex items-center text-xs text-green-500 space-x-1">
+                          <Send size={12} />
+                          <p className="text-xs">DM-D.S.S</p>
+                        </div>
                       )}
-                    </Button>
-                  )}
-                </div>
-
-                {expanded && isDev && (
-                  <div className="flex space-x-2 mb-2 mt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleTest}
-                    >
-                      <FlaskConical className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleTest2}
-                    >
-                      <FlaskConical className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleTest3}
-                    >
-                      <FlaskConical className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSendAllTests}
-                    >
-                      複数
-                    </Button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="flex space-x-3 justify-start items-center">
-                  <Button variant="outline" onClick={() => setShowSettings(true)}>
-                    <SettingsIcon />
-                  </Button>
-                  <Button variant="outline" onClick={setHomePosition}>
-                    <LocateFixed />
-                  </Button>
-                  {isDev && (
-                    <>
-                      <Button variant="outline" onClick={handleTest}>
-                        <FlaskConical />
-                      </Button>
-                      <Button variant="outline" onClick={handleTest2}>
-                        <FlaskConical />
-                      </Button>
-                      <Button variant="outline" onClick={handleTest3}>
-                        <FlaskConical />
-                      </Button>
-                      <Button variant="outline" onClick={handleSendAllTests}>
-                        複数
-                      </Button>
-                    </>
-                  )}
-                  <div className="flex flex-col">
+                    </div>
                     <ClockDisplay
                       nowAppTimeRef={nowAppTimeRef}
                       KyoshinMonitor={settings.enable_kyoshin_monitor}
                     />
-                    {isConnected && (
-                      <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
-                        <Send size={16} />
-                        <p>DM-D.S.S</p>
-                      </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSettings(true)}
+                    >
+                      <SettingsIcon className="h-4 w-4" />
+                      設定
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={setHomePosition}
+                    >
+                      <LocateFixed className="h-4 w-4" />
+                      ホーム
+                    </Button>
+                    {isDev && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExpanded(!expanded)}
+                      >
+                        {expanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
                     )}
                   </div>
+
+                  {expanded && isDev && (
+                    <div className="flex space-x-2 mb-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTest}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTest2}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTest3}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSendAllTests}
+                      >
+                        複数
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex space-x-3 justify-start items-center">
+                    <Button variant="outline" onClick={() => setShowSettings(true)}>
+                      <SettingsIcon />
+                    </Button>
+                    <Button variant="outline" onClick={setHomePosition}>
+                      <LocateFixed />
+                    </Button>
+                    {isDev && (
+                      <>
+                        <Button variant="outline" onClick={handleTest}>
+                          <FlaskConical />
+                        </Button>
+                        <Button variant="outline" onClick={handleTest2}>
+                          <FlaskConical />
+                        </Button>
+                        <Button variant="outline" onClick={handleTest3}>
+                          <FlaskConical />
+                        </Button>
+                        <Button variant="outline" onClick={handleSendAllTests}>
+                          複数
+                        </Button>
+                      </>
+                    )}
+                    <div className="flex flex-col">
+                      <ClockDisplay
+                        nowAppTimeRef={nowAppTimeRef}
+                        KyoshinMonitor={settings.enable_kyoshin_monitor}
+                      />
+                      <div className="flex items-center space-x-1">
+                        {isDMDATAConnected && (
+                          <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
+                            <Send size={16} />
+                            <p>DM-D.S.S</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}

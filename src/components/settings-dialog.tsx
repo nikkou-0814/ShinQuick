@@ -69,11 +69,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   setShowSettings,
   settings,
   handleSettingChange,
-  onConnectWebSocket,
+  onConnectDMDATAWebSocket,
   isAuthenticated,
   onDisconnectAuthentication,
-  onDisconnectWebSocket,
-  isConnected,
+  onDisconnectDMDATAWebSocket,
+  isDMDATAConnected,
   onSyncClock,
   onResetPanelSizes,
 }) => {
@@ -83,13 +83,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const [showDrillTestAlert, setShowDrillTestAlert] = useState(false);
 
-  const handleWebSocketToggle = useCallback(async () => {
-    if (isConnected) {
-      await onDisconnectWebSocket();
+  const handleDMDATAWebSocketToggle = useCallback(async () => {
+    if (isDMDATAConnected) {
+      await onDisconnectDMDATAWebSocket();
     } else {
-      onConnectWebSocket();
+      onConnectDMDATAWebSocket();
     }
-  }, [isConnected, onConnectWebSocket, onDisconnectWebSocket]);
+  }, [isDMDATAConnected, onConnectDMDATAWebSocket, onDisconnectDMDATAWebSocket]);
 
   return (
     <Dialog open={showSettings} onOpenChange={setShowSettings}>
@@ -470,10 +470,10 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     description="リアルタイム情報を受信するためにWebSocketを接続します。"
                   >
                     <Button
-                      variant={isConnected ? "destructive" : "outline"}
-                      onClick={handleWebSocketToggle}
+                      variant={isDMDATAConnected ? "destructive" : "outline"}
+                      onClick={handleDMDATAWebSocketToggle}
                     >
-                      {isConnected ? "接続を切断" : "接続を開始"}
+                      {isDMDATAConnected ? "接続を切断" : "接続を開始"}
                     </Button>
                   </SettingItem>
                 )}

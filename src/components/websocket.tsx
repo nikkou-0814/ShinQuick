@@ -63,15 +63,15 @@ export const WebSocketProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const [isConnected, setIsConnected] = useState(false);
-  const [receivedData, setReceivedData] =
+  const [isDMDATAConnected, setIsDMDATAConnected] = useState(false);
+  const [DMDATAreceivedData, setDMDATAReceivedData] =
     useState<EewInformation.Latest.Main | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const socketIdRef = useRef<number | null>(null);
   const passedIntensityFilterRef = useRef<Set<string>>(new Set());
 
   // WebSocket接続処理
-  const connectWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
+  const connectDMDATAWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
     if (
       wsRef.current &&
       (wsRef.current.readyState === WebSocket.OPEN ||
@@ -128,7 +128,7 @@ export const WebSocketProvider = ({
 
       // 接続イベント
       ws.addEventListener("open", () => {
-        setIsConnected(true);
+        setIsDMDATAConnected(true);
         console.log("WebSocket connected");
         toast.success("WebSocketに接続しました！");
       });
@@ -147,7 +147,7 @@ export const WebSocketProvider = ({
             requestAnimationFrame(() => {
               const decoded = decodeAndDecompress(msg.body);
               if (decoded) {
-                setReceivedData(decoded);
+                setDMDATAReceivedData(decoded);
               } else {
                 console.warn("受信したデータ形式が無効です。");
               }
@@ -160,7 +160,7 @@ export const WebSocketProvider = ({
 
       // 切断イベント
       ws.addEventListener("close", () => {
-        setIsConnected(false);
+        setIsDMDATAConnected(false);
         socketIdRef.current = null;
         console.log("WebSocketが切断されました。");
       });
@@ -177,7 +177,7 @@ export const WebSocketProvider = ({
   };
 
   // WebSocket切断処理
-  const disconnectWebSocket = async () => {
+  const disconnectDMDATAWebSocket = async () => {
     if (!socketIdRef.current) {
       toast.warning(
         "WebSocket IDが見つかりません。すでに切断されている可能性があります。"
@@ -210,8 +210,8 @@ export const WebSocketProvider = ({
         
         // 状態のリセット
         socketIdRef.current = null;
-        setReceivedData(null);
-        setIsConnected(false);
+        setDMDATAReceivedData(null);
+        setIsDMDATAConnected(false);
         toast.info("WebSocketを正常に切断しました。");
       } else {
         // エラーレスポンスの処理
@@ -232,7 +232,7 @@ export const WebSocketProvider = ({
         wsRef.current = null;
       }
       socketIdRef.current = null;
-      setIsConnected(false);
+      setIsDMDATAConnected(false);
     }
   };
 
@@ -241,7 +241,7 @@ export const WebSocketProvider = ({
     requestAnimationFrame(() => {
       const decodedData = decodeAndDecompress(testData.body);
       if (decodedData) {
-        setReceivedData(decodedData);
+        setDMDATAReceivedData(decodedData);
         toast.success("テストデータOK");
       } else {
         toast.error("形式が無効");
@@ -252,10 +252,10 @@ export const WebSocketProvider = ({
   return (
     <WebSocketContext.Provider
       value={{
-        isConnected,
-        receivedData,
-        connectWebSocket,
-        disconnectWebSocket,
+        isDMDATAConnected,
+        DMDATAreceivedData,
+        connectDMDATAWebSocket,
+        disconnectDMDATAWebSocket,
         injectTestData,
         passedIntensityFilterRef,
       }}
