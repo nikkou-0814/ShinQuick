@@ -211,3 +211,11 @@ type AXISForecastRegion = {
     Description: string;
   };
 };
+
+export interface SettingItemProps {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  className?: string;
+  vertical?: boolean;
+}

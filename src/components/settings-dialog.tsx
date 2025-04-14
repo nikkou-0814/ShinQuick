@@ -93,17 +93,17 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
   return (
     <Dialog open={showSettings} onOpenChange={setShowSettings}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto w-[95vw] sm:w-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">設定</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="display" className="w-full space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="display">表示</TabsTrigger>
-            <TabsTrigger value="features">機能</TabsTrigger>
-            <TabsTrigger value="eew">緊急地震速報</TabsTrigger>
-            <TabsTrigger value="dmdss">Project DM-D.S.S</TabsTrigger>
+          <TabsList className="flex flex-wrap w-full">
+            <TabsTrigger value="display" className="flex-grow">表示</TabsTrigger>
+            <TabsTrigger value="features" className="flex-grow">機能</TabsTrigger>
+            <TabsTrigger value="eew" className="flex-grow">緊急地震速報</TabsTrigger>
+            <TabsTrigger value="dmdss" className="flex-grow">DM-D.S.S</TabsTrigger>
           </TabsList>
 
           {/* 表示設定 */}
@@ -112,7 +112,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
                   title="アプリテーマ"
-                  description="アプリケーションの外観を変更できます。「システム」設定では、デバイスの設定に従います。"
+                  description="アプリケーションの外観を変更できます。"
                 >
                   <Popover open={openTheme} onOpenChange={setOpenTheme}>
                     <PopoverTrigger asChild>
@@ -120,6 +120,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         variant="outline"
                         role="combobox"
                         aria-expanded={openTheme}
+                        className="w-full sm:w-auto"
                       >
                         {THEME_OPTIONS.find(
                           (theme) => theme.value === settings.theme
@@ -167,6 +168,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       <Button
                         variant="outline"
                         role="combobox"
+                        className="w-full sm:w-auto"
                       >
                         {settings.world_map_resolution}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -209,6 +211,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   <Button
                     onClick={onSyncClock}
                     variant="outline"
+                    className="w-full sm:w-auto"
                   >
                     時計を合わせる
                   </Button>
@@ -218,7 +221,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   title="サイドパネルのサイズリセット"
                   description="サイドパネルのサイズをデフォルトに戻します。"
                 >
-                  <Button variant="outline" onClick={onResetPanelSizes}>
+                  <Button 
+                    variant="outline" 
+                    onClick={onResetPanelSizes}
+                    className="w-full sm:w-auto"
+                  >
                     リセット
                   </Button>
                 </SettingItem>
@@ -317,6 +324,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                 <SettingItem
                   title="予測円の更新間隔"
                   description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。※DM-D.S.Sを利用しない場合は使用できません。(${settings.ps_wave_update_interval} ms)`}
+                  vertical
                 >
                   <Slider
                     value={[settings.ps_wave_update_interval]}
@@ -326,7 +334,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     onValueChange={(value) =>
                       handleSettingChange("ps_wave_update_interval", value[0])
                     }
-                    className="ml-4"
+                    className="w-full mt-2 mx-1"
                     disabled={!isAuthenticated}
                   />
                 </SettingItem>
@@ -352,7 +360,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" role="combobox">
+                          <Button variant="outline" role="combobox" className="w-full sm:w-auto">
                             {
                               {
                                 "1": "震度1以上",
@@ -429,23 +437,25 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </CardHeader>
               
               <CardContent className="space-y-4">
-                <Table>
-                  <TableCaption>使用可能な区分のみ表示しています。</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>区分名</TableHead>
-                      <TableHead>区分API名</TableHead>
-                      <TableHead>価格（月）</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>緊急地震（予報）</TableCell>
-                      <TableCell>eew.forecast</TableCell>
-                      <TableCell>1650円</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableCaption>使用可能な区分のみ表示しています。</TableCaption>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>区分名</TableHead>
+                        <TableHead>区分API名</TableHead>
+                        <TableHead>価格（月）</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>緊急地震（予報）</TableCell>
+                        <TableCell>eew.forecast</TableCell>
+                        <TableCell>1650円</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
                 <SettingItem
                   title="アカウント連携"
                   description="DM-D.S.Sアカウントを連携してリアルタイム情報を受信します。"
@@ -459,6 +469,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         window.location.href = "/api/oauth/authorize";
                       }
                     }}
+                    className="w-full sm:w-auto"
                   >
                     {isAuthenticated ? "連携を解除" : "アカウント認証"}
                   </Button>
@@ -472,6 +483,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     <Button
                       variant={isDMDATAConnected ? "destructive" : "outline"}
                       onClick={handleDMDATAWebSocketToggle}
+                      className="w-full sm:w-auto"
                     >
                       {isDMDATAConnected ? "接続を切断" : "接続を開始"}
                     </Button>
@@ -500,7 +512,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
         {/* 各種確認用アラートダイアログ */}
         <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>本当に有効にしますか？</AlertDialogTitle>
               <AlertDialogDescription>
@@ -525,7 +537,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         </AlertDialog>
 
         <AlertDialog open={showDisconnectAlert} onOpenChange={setShowDisconnectAlert}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>本当にアカウントとの連携を解除しますか？</AlertDialogTitle>
               <AlertDialogDescription>
@@ -548,7 +560,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         </AlertDialog>
 
         <AlertDialog open={showDrillTestAlert} onOpenChange={setShowDrillTestAlert}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>本当に有効にしますか？</AlertDialogTitle>
               <AlertDialogDescription>
