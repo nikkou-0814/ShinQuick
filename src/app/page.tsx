@@ -596,6 +596,7 @@ function PageContent() {
       icon,
       depthval,
       originTime,
+      isCancel,
     }: {
       eventId: string;
       lat: number;
@@ -603,6 +604,7 @@ function PageContent() {
       icon: string;
       depthval: number;
       originTime: number;
+      isCancel: boolean;
     }) => {
       setEpicenters((prev) => {
         const existingIndex = prev.findIndex((p) => p.eventId === eventId);
@@ -616,6 +618,7 @@ function PageContent() {
             depthval,
             originTime,
             startTime: Date.now(),
+            isCancel,
           };
   
           // 自動ズームのトリガーをかける
@@ -633,7 +636,8 @@ function PageContent() {
             old.lng === lng &&
             old.icon === icon &&
             old.depthval === depthval &&
-            old.originTime === originTime
+            old.originTime === originTime &&
+            old.isCancel === isCancel
           ) {
             return prev;
           }
@@ -644,6 +648,7 @@ function PageContent() {
             icon,
             depthval,
             originTime,
+            isCancel,
           };
           requestAnimationFrame(() => {
             setForceAutoZoomTrigger(Date.now());
@@ -837,45 +842,48 @@ function PageContent() {
             
             {!isMobile ? (
               <>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={settings.rightPanelSize} minSize={0} maxSize={40} className="h-full overflow-hidden">
-                  <div className="h-full max-h-screen overflow-y-auto">
-                    {(() => {
-                      const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                        ? DMDATAdisplayDataList
-                        : DMDATAdisplayDataList.filter((data) => {
-                          const body = data.body as EewInformation.Latest.PublicCommonBody;
-                          const earthquake = body.earthquake;
-                          if (!earthquake) return true;
-                          const method = getHypocenterMethod(earthquake);
-                          return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                        });
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={settings.rightPanelSize} minSize={0} maxSize={40} className="relative">
+                <div className="h-full max-h-screen overflow-y-auto">
+                  {(() => {
+                    const filteredDisplayDataList = settings.enable_low_accuracy_eew
+                      ? DMDATAdisplayDataList
+                      : DMDATAdisplayDataList.filter((data) => {
+                        const body = data.body as EewInformation.Latest.PublicCommonBody;
+                        const earthquake = body.earthquake;
+                        if (!earthquake) return true;
+                        const method = getHypocenterMethod(earthquake);
+                        return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
+                      });
 
-                      return filteredDisplayDataList.length > 0 ? (
-                        filteredDisplayDataList.map((data) => (
-                          <DMDATAEewDisplay
-                            key={data.eventId}
-                            parsedData={data}
-                            isAccuracy={settings.enable_accuracy_info}
-                            isLowAccuracy={settings.enable_low_accuracy_eew}
-                            onEpicenterUpdate={handleEpicenterUpdate}
-                            onRegionIntensityUpdate={(regionMap) =>
-                              onRegionIntensityUpdate(regionMap, data.eventId)
-                            }
-                            onWarningRegionUpdate={(regions) =>
-                              onWarningRegionUpdate(regions, data.eventId)
-                            }
-                          />
-                        ))
-                      ) : (
-                        <div className="w-full h-full min-h-screen flex justify-center items-center">
-                          <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                        </div>
-                      )
-                    })()}
-                  </div>
-                </ResizablePanel>
-              </>
+                    return filteredDisplayDataList.length > 0 ? (
+                      <div className="space-y-4 p-2">
+                        {filteredDisplayDataList.map((data) => (
+                          <div key={data.eventId}>
+                            <DMDATAEewDisplay
+                              parsedData={data}
+                              isAccuracy={settings.enable_accuracy_info}
+                              isLowAccuracy={settings.enable_low_accuracy_eew}
+                              onEpicenterUpdate={handleEpicenterUpdate}
+                              onRegionIntensityUpdate={(regionMap) =>
+                                onRegionIntensityUpdate(regionMap, data.eventId)
+                              }
+                              onWarningRegionUpdate={(regions) =>
+                                onWarningRegionUpdate(regions, data.eventId)
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="w-full h-full min-h-screen flex justify-center items-center">
+                        <h1 className="text-xl">緊急地震速報受信待機中</h1>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </ResizablePanel>
+            </>
             ) : (
               <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
               {DMDATAdisplayDataList.map((data) => (

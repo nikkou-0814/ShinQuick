@@ -130,7 +130,6 @@ export const DMDATAMobileEewPanel: React.FC<EewDisplayProps> = ({
   
     if (isNaN(latVal) || isNaN(lngVal) || isNaN(depthVal)) return;
   
-    // Store the values in a ref to avoid recreating the object on every render
     const epicenterData = {
       eventId,
       serialNo,
@@ -139,9 +138,9 @@ export const DMDATAMobileEewPanel: React.FC<EewDisplayProps> = ({
       icon,
       depthval: depthVal,
       originTime: quakeOriginTime,
+      isCancel: parsedData.body?.isCanceled || false,
     };
     
-    // Use a stable reference to avoid infinite updates
     onEpicenterUpdate(epicenterData);
   }, [parsedData, onEpicenterUpdate, isLowAccuracy, getJstTime]);
 
@@ -162,10 +161,8 @@ export const DMDATAMobileEewPanel: React.FC<EewDisplayProps> = ({
       return;
     }
     
-    // Create a new map object to store intensity data
     const newMap: Record<string, string> = {};
     
-    // Process each region
     intensityData.regions.forEach((region) => {
       const code = region.code;
       if (!region.forecastMaxInt) return;
@@ -177,7 +174,6 @@ export const DMDATAMobileEewPanel: React.FC<EewDisplayProps> = ({
       newMap[code] = final;
     });
 
-    // Create a stable reference to the map
     onRegionIntensityUpdate({...newMap});
   }, [parsedData, onRegionIntensityUpdate]);
 

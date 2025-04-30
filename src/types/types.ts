@@ -34,6 +34,7 @@ export interface EewDisplayProps {
     icon: string;
     depthval: number;
     originTime: number;
+    isCancel: boolean;
   }) => void;
   onRegionIntensityUpdate?: (regionMap: Record<string, string>) => void;
   onWarningRegionUpdate?: (warningRegions: { code: string; name: string }[]) => void;
@@ -48,6 +49,7 @@ export interface EpicenterInfo {
   startTime?: number;
   originTime: number;
   depthval: number;
+  isCancel: boolean;
 }
 
 // EEWの細分化地域の予想震度マップ

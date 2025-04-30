@@ -691,12 +691,12 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
           alt="epicenter"
           width={48}
           height={48}
-          className={isCancel ? "opacity-30" : "blink"}
+          className={epi.isCancel ? "opacity-30" : "blink"}
           priority={true}
         />
       </Marker>
     ));
-  }, [epicenters, isCancel]);
+  }, [epicenters]);
 
   return (
     <div
