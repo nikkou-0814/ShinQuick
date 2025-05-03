@@ -15,6 +15,10 @@ export interface Settings {
   enable_map_warning_area: boolean;
   world_map_resolution: "10m" | "50m" | "110m";
   ps_wave_update_interval: number;
+  enable_intensity_filter: boolean;
+  intensity_filter_value: string;
+  leftPanelSize: number;
+  rightPanelSize: number;
 }
 
 // EEW表示用コンポーネントに渡すprops
@@ -30,6 +34,7 @@ export interface EewDisplayProps {
     icon: string;
     depthval: number;
     originTime: number;
+    isCancel: boolean;
   }) => void;
   onRegionIntensityUpdate?: (regionMap: Record<string, string>) => void;
   onWarningRegionUpdate?: (warningRegions: { code: string; name: string }[]) => void;
@@ -44,6 +49,7 @@ export interface EpicenterInfo {
   startTime?: number;
   originTime: number;
   depthval: number;
+  isCancel: boolean;
 }
 
 // EEWの細分化地域の予想震度マップ
@@ -52,8 +58,6 @@ export type RegionIntensityMap = Record<string, string>;
 // マップコンポーネントのProps
 export interface MapProps {
   enableKyoshinMonitor: boolean;
-  onTimeUpdate?: (time: string) => void;
-  isConnected: boolean;
   epicenters: EpicenterInfo[];
   regionIntensityMap: RegionIntensityMap;
   enableMapIntensityFill: boolean;
@@ -76,21 +80,23 @@ export interface SettingsDialogProps {
   setShowSettings: (value: boolean) => void;
   settings: Settings;
   handleSettingChange: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  onConnectWebSocket: () => void;
+  onConnectDMDATAWebSocket: () => void;
   isAuthenticated: boolean;
   onDisconnectAuthentication: () => void;
-  onDisconnectWebSocket: () => Promise<void>;
-  isConnected: boolean;
+  onDisconnectDMDATAWebSocket: () => Promise<void>;
+  isDMDATAConnected: boolean;
   onSyncClock: () => void;
+  onResetPanelSizes: () => void;
 }
 
 // WebSocketコンテキストで扱う型
 export interface WebSocketContextType {
-  isConnected: boolean;
-  receivedData: EewInformation.Latest.Main | null;
-  connectWebSocket: (token: string, enableDrillTestInfo: boolean) => Promise<void>;
-  disconnectWebSocket: () => Promise<void>;
+  isDMDATAConnected: boolean;
+  DMDATAreceivedData: EewInformation.Latest.Main | null;
+  connectDMDATAWebSocket: (DMDATAtoken: string, enableDrillTestInfo: boolean) => Promise<void>;
+  disconnectDMDATAWebSocket: () => Promise<void>;
   injectTestData: (data: { body: string }) => void;
+  passedIntensityFilterRef: React.RefObject<Set<string>>;
 }
 
 // 強震モニタ用データ
@@ -120,9 +126,7 @@ export interface TravelTableRow {
 // 強震モニタ用のベースProps
 export interface BaseKyoshinMonitorProps {
   enableKyoshinMonitor: boolean;
-  isConnected: boolean;
   nowAppTimeRef: React.RefObject<number>;
-  onTimeUpdate?: (time: string) => void;
 }
 
 // P/S波用のProps
@@ -155,4 +159,65 @@ export type KyoshinMonitorProps = Omit<BaseKyoshinMonitorProps, "nowAppTime"> & 
 export interface SaibunFeatureWithBbox {
   feature: Feature;
   bbox: [number, number, number, number];
+}
+
+// 時計表示用のProps
+export interface ClockDisplayProps {
+  nowAppTimeRef: React.RefObject<number>;
+  KyoshinMonitor: boolean;
+}
+
+export interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
+  nowAppTimeRef: React.RefObject<number>;
+  isMapMoving?: boolean;
+}
+
+export interface SchemaCheck {
+  _schema: {
+    type: string;
+    version: string;
+  };
+  type: string;
+}
+
+export type AXISEewInformation = {
+  Title: string;
+  OriginDateTime: string;
+  ReportDateTime: string;
+  EventID: string;
+  Serial: number;
+  Hypocenter: {
+    Code: number;
+    Name: string;
+    Coordinate: [number, number];
+    Depth: string;
+    Description: string;
+  };
+  Intensity: string;
+  Magnitude: string;
+  Flag: {
+    is_final: boolean;
+    is_cancel: boolean;
+    is_training: boolean;
+  };
+  Forecast: AXISForecastRegion[];
+  Text: string;
+};
+
+type AXISForecastRegion = {
+  Code: number;
+  Name: string;
+  Intensity: {
+    From: string;
+    To: string;
+    Description: string;
+  };
+};
+
+export interface SettingItemProps {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  className?: string;
+  vertical?: boolean;
 }

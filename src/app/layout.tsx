@@ -33,7 +33,6 @@ export const metadata = {
   },
 };
 
-
 const RootLayout: FC<RootLayoutProps> = (props) => {
   return (
    <html lang="ja" 

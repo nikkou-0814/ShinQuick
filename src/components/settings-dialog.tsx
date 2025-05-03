@@ -69,12 +69,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   setShowSettings,
   settings,
   handleSettingChange,
-  onConnectWebSocket,
+  onConnectDMDATAWebSocket,
   isAuthenticated,
   onDisconnectAuthentication,
-  onDisconnectWebSocket,
-  isConnected,
+  onDisconnectDMDATAWebSocket,
+  isDMDATAConnected,
   onSyncClock,
+  onResetPanelSizes,
 }) => {
   const [openTheme, setOpenTheme] = useState(false);
   const [openWorldMapRes, setOpenWorldMapRes] = useState(false);
@@ -82,27 +83,27 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const [showDrillTestAlert, setShowDrillTestAlert] = useState(false);
 
-  const handleWebSocketToggle = useCallback(async () => {
-    if (isConnected) {
-      await onDisconnectWebSocket();
+  const handleDMDATAWebSocketToggle = useCallback(async () => {
+    if (isDMDATAConnected) {
+      await onDisconnectDMDATAWebSocket();
     } else {
-      onConnectWebSocket();
+      onConnectDMDATAWebSocket();
     }
-  }, [isConnected, onConnectWebSocket, onDisconnectWebSocket]);
+  }, [isDMDATAConnected, onConnectDMDATAWebSocket, onDisconnectDMDATAWebSocket]);
 
   return (
     <Dialog open={showSettings} onOpenChange={setShowSettings}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto w-[95vw] sm:w-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">設定</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="display" className="w-full space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="display">表示</TabsTrigger>
-            <TabsTrigger value="features">機能</TabsTrigger>
-            <TabsTrigger value="eew">緊急地震速報</TabsTrigger>
-            <TabsTrigger value="dmdss">Project DM-D.S.S</TabsTrigger>
+          <TabsList className="flex flex-wrap w-full">
+            <TabsTrigger value="display" className="flex-grow">表示</TabsTrigger>
+            <TabsTrigger value="features" className="flex-grow">機能</TabsTrigger>
+            <TabsTrigger value="eew" className="flex-grow">緊急地震速報</TabsTrigger>
+            <TabsTrigger value="dmdss" className="flex-grow">DM-D.S.S</TabsTrigger>
           </TabsList>
 
           {/* 表示設定 */}
@@ -111,7 +112,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
                   title="アプリテーマ"
-                  description="アプリケーションの外観を変更できます。「システム」設定では、デバイスの設定に従います。"
+                  description="アプリケーションの外観を変更できます。"
                 >
                   <Popover open={openTheme} onOpenChange={setOpenTheme}>
                     <PopoverTrigger asChild>
@@ -119,6 +120,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         variant="outline"
                         role="combobox"
                         aria-expanded={openTheme}
+                        className="w-full sm:w-auto"
                       >
                         {THEME_OPTIONS.find(
                           (theme) => theme.value === settings.theme
@@ -166,6 +168,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       <Button
                         variant="outline"
                         role="combobox"
+                        className="w-full sm:w-auto"
                       >
                         {settings.world_map_resolution}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -208,8 +211,22 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   <Button
                     onClick={onSyncClock}
                     variant="outline"
+                    className="w-full sm:w-auto"
                   >
                     時計を合わせる
+                  </Button>
+                </SettingItem>
+
+                <SettingItem
+                  title="サイドパネルのサイズリセット"
+                  description="サイドパネルのサイズをデフォルトに戻します。"
+                >
+                  <Button 
+                    variant="outline" 
+                    onClick={onResetPanelSizes}
+                    className="w-full sm:w-auto"
+                  >
+                    リセット
                   </Button>
                 </SettingItem>
               </CardContent>
@@ -222,7 +239,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
                   title="強震モニタを有効にする"
-                  description="強震モニタを表示します。この機能をオンにすると地図の動作が重くなります。"
+                  description="強震モニタを表示します。"
                 >
                   <Switch
                     checked={settings.enable_kyoshin_monitor}
@@ -234,56 +251,13 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="地図の動的ズームを有効にする"
-                  description="地図の表示が自動的に拡大・縮小・移動されるようになります。（この機能は現在開発中なので、不安定です。）"
+                  description="地図の表示が自動的に拡大・縮小・移動されるようになります。（この機能は現在開発中なので不安定です。）"
                 >
                   <Switch
                     checked={settings.enable_dynamic_zoom}
                     onCheckedChange={(checked) =>
                       handleSettingChange("enable_dynamic_zoom", checked)
                     }
-                  />
-                </SettingItem>
-
-                <SettingItem
-                  title="細分化地域の予想震度を表示する"
-                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。（この機能は現在開発中なので、不安定です。）※DM-D.S.Sを利用しない場合は使用できません。"
-                >
-                  <Switch
-                  checked={isAuthenticated ? settings.enable_map_intensity_fill : false}
-                  onCheckedChange={(checked) =>
-                    handleSettingChange("enable_map_intensity_fill", checked)
-                  }
-                  disabled={!isAuthenticated}
-                  />
-                </SettingItem>
-
-                <SettingItem
-                  title="警報発表地域の塗りつぶしを有効にする"
-                  description="警報が発表されている、地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
-                >
-                  <Switch
-                  checked={isAuthenticated ? settings.enable_map_warning_area : false}
-                  onCheckedChange={(checked) =>
-                    handleSettingChange("enable_map_warning_area", checked)
-                  }
-                  disabled={!isAuthenticated}
-                  />
-                </SettingItem>
-
-                <SettingItem
-                  title="予測円の更新間隔"
-                  description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。※DM-D.S.Sを利用しない場合は使用できません。(${settings.ps_wave_update_interval} ms)`}
-                >
-                  <Slider
-                    value={[settings.ps_wave_update_interval]}
-                    max={1000}
-                    min={0}
-                    step={10}
-                    onValueChange={(value) =>
-                      handleSettingChange("ps_wave_update_interval", value[0])
-                    }
-                    className="ml-4"
-                    disabled={!isAuthenticated}
                   />
                 </SettingItem>
               </CardContent>
@@ -320,6 +294,134 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   disabled={!isAuthenticated}
                   />
                 </SettingItem>
+
+                <SettingItem
+                  title="細分化地域の予想震度を表示する"
+                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
+                >
+                  <Switch
+                  checked={isAuthenticated ? settings.enable_map_intensity_fill : false}
+                  onCheckedChange={(checked) =>
+                    handleSettingChange("enable_map_intensity_fill", checked)
+                  }
+                  disabled={!isAuthenticated}
+                  />
+                </SettingItem>
+
+                <SettingItem
+                  title="警報発表地域の塗りつぶしを有効にする"
+                  description="警報が発表されている、地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
+                >
+                  <Switch
+                  checked={isAuthenticated ? settings.enable_map_warning_area : false}
+                  onCheckedChange={(checked) =>
+                    handleSettingChange("enable_map_warning_area", checked)
+                  }
+                  disabled={!isAuthenticated}
+                  />
+                </SettingItem>
+
+                <SettingItem
+                  title="予測円の更新間隔"
+                  description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。※DM-D.S.Sを利用しない場合は使用できません。(${settings.ps_wave_update_interval} ms)`}
+                  vertical
+                >
+                  <Slider
+                    value={[settings.ps_wave_update_interval]}
+                    max={1000}
+                    min={0}
+                    step={10}
+                    onValueChange={(value) =>
+                      handleSettingChange("ps_wave_update_interval", value[0])
+                    }
+                    className="w-full mt-2 mx-1"
+                    disabled={!isAuthenticated}
+                  />
+                </SettingItem>
+
+                <SettingItem
+                  title="震度フィルターを有効にする"
+                  description="設定した震度に基づいて緊急地震速報の表示をフィルタリングします。一度条件を満たしたイベントは継続して表示されます。"
+                >
+                  <Switch
+                    checked={settings.enable_intensity_filter}
+                    onCheckedChange={(checked) =>
+                      handleSettingChange("enable_intensity_filter", checked)
+                    }
+                  />
+                </SettingItem>
+
+                {settings.enable_intensity_filter && (
+                  <>
+                    <SettingItem
+                      title="フィルター震度"
+                      description="指定した震度以上の緊急地震速報を表示します。"
+                    >
+
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" role="combobox" className="w-full sm:w-auto">
+                            {
+                              {
+                                "1": "震度1以上",
+                                "2": "震度2以上",
+                                "3": "震度3以上",
+                                "4": "震度4以上",
+                                "5-": "震度5弱以上",
+                                "5+": "震度5強以上",
+                                "6-": "震度6弱以上",
+                                "6+": "震度6強以上",
+                                "7": "震度7以上",
+                              }[settings.intensity_filter_value]
+                            }
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+
+                        <PopoverContent className="w-fit p-0">
+                          <Command>
+                            <CommandList>
+                              <CommandGroup>
+                                {[
+                                  { value: "1", label: "震度1以上" },
+                                  { value: "2", label: "震度2以上" },
+                                  { value: "3", label: "震度3以上" },
+                                  { value: "4", label: "震度4以上" },
+                                  { value: "5-", label: "震度5弱以上" },
+                                  { value: "5+", label: "震度5強以上" },
+                                  { value: "6-", label: "震度6弱以上" },
+                                  { value: "6+", label: "震度6強以上" },
+                                  { value: "7", label: "震度7以上" },
+                                ].map((option) => (
+                                  <CommandItem
+                                    key={option.value}
+                                    value={option.value}
+                                    onSelect={() =>
+                                      handleSettingChange(
+                                        "intensity_filter_value",
+                                        option.value
+                                      )
+                                    }
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        settings.intensity_filter_value === option.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    {option.label}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </SettingItem>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -335,23 +437,25 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               </CardHeader>
               
               <CardContent className="space-y-4">
-                <Table>
-                  <TableCaption>使用可能な区分のみ表示しています。</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>区分名</TableHead>
-                      <TableHead>区分API名</TableHead>
-                      <TableHead>価格（月）</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>緊急地震（予報）</TableCell>
-                      <TableCell>eew.forecast</TableCell>
-                      <TableCell>1650円</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableCaption>使用可能な区分のみ表示しています。</TableCaption>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>区分名</TableHead>
+                        <TableHead>区分API名</TableHead>
+                        <TableHead>価格（月）</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>緊急地震（予報）</TableCell>
+                        <TableCell>eew.forecast</TableCell>
+                        <TableCell>1650円</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
                 <SettingItem
                   title="アカウント連携"
                   description="DM-D.S.Sアカウントを連携してリアルタイム情報を受信します。"
@@ -365,6 +469,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                         window.location.href = "/api/oauth/authorize";
                       }
                     }}
+                    className="w-full sm:w-auto"
                   >
                     {isAuthenticated ? "連携を解除" : "アカウント認証"}
                   </Button>
@@ -376,10 +481,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                     description="リアルタイム情報を受信するためにWebSocketを接続します。"
                   >
                     <Button
-                      variant={isConnected ? "destructive" : "outline"}
-                      onClick={handleWebSocketToggle}
+                      variant={isDMDATAConnected ? "destructive" : "outline"}
+                      onClick={handleDMDATAWebSocketToggle}
+                      className="w-full sm:w-auto"
                     >
-                      {isConnected ? "接続を切断" : "接続を開始"}
+                      {isDMDATAConnected ? "接続を切断" : "接続を開始"}
                     </Button>
                   </SettingItem>
                 )}
@@ -406,7 +512,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
         {/* 各種確認用アラートダイアログ */}
         <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>本当に有効にしますか？</AlertDialogTitle>
               <AlertDialogDescription>
@@ -430,11 +536,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog
-          open={showDisconnectAlert}
-          onOpenChange={setShowDisconnectAlert}
-        >
-          <AlertDialogContent>
+        <AlertDialog open={showDisconnectAlert} onOpenChange={setShowDisconnectAlert}>
+          <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>本当にアカウントとの連携を解除しますか？</AlertDialogTitle>
               <AlertDialogDescription>
@@ -457,7 +560,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
         </AlertDialog>
 
         <AlertDialog open={showDrillTestAlert} onOpenChange={setShowDrillTestAlert}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle>本当に有効にしますか？</AlertDialogTitle>
               <AlertDialogDescription>

@@ -1,20 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { AlertCircle, AlertTriangle, Info, XCircle } from "lucide-react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { EewInformation } from "@dmdata/telegram-json-types";
+import { AlertCircle, AlertTriangle, XCircle } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { EewDisplayProps } from "@/types/types";
 
-const EewDisplay: React.FC<EewDisplayProps> = ({
+export const DMDATAMobileEewPanel: React.FC<EewDisplayProps> = ({
   parsedData,
-  isAccuracy = false,
   isLowAccuracy = false,
   onEpicenterUpdate,
   onRegionIntensityUpdate,
@@ -38,18 +31,18 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   
     if (JSON.stringify(prevWarningRegionsRef.current) !== JSON.stringify(regions)) {
       onWarningRegionUpdate(regions);
-      prevWarningRegionsRef.current = regions;
+      prevWarningRegionsRef.current = [...regions];
     }
-  }, [parsedData, onWarningRegionUpdate]);
+  }, [parsedData, onWarningRegionUpdate, prevWarningRegionsRef]);
 
-  const getJstTime = (timestamp: string | undefined): Date | null => {
+  const getJstTime = useCallback((timestamp: string | undefined): Date | null => {
+    if (!timestamp) return null;
     try {
-      if (!timestamp) return null;
       return new Date(timestamp);
     } catch {
       return null;
     }
-  };  
+  }, []);
 
   let originDt: Date | null = null;
   if (parsedData) {
@@ -137,7 +130,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   
     if (isNaN(latVal) || isNaN(lngVal) || isNaN(depthVal)) return;
   
-    onEpicenterUpdate({
+    const epicenterData = {
       eventId,
       serialNo,
       lat: latVal,
@@ -145,8 +138,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       icon,
       depthval: depthVal,
       originTime: quakeOriginTime,
-    });
-  }, [parsedData, onEpicenterUpdate, isLowAccuracy]);
+      isCancel: parsedData.body?.isCanceled || false,
+    };
+    
+    onEpicenterUpdate(epicenterData);
+  }, [parsedData, onEpicenterUpdate, isLowAccuracy, getJstTime]);
 
   useEffect(() => {
     if (!parsedData || !onRegionIntensityUpdate) return;
@@ -164,7 +160,9 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       onRegionIntensityUpdate({});
       return;
     }
+    
     const newMap: Record<string, string> = {};
+    
     intensityData.regions.forEach((region) => {
       const code = region.code;
       if (!region.forecastMaxInt) return;
@@ -176,7 +174,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       newMap[code] = final;
     });
 
-    onRegionIntensityUpdate(newMap);
+    onRegionIntensityUpdate({...newMap});
   }, [parsedData, onRegionIntensityUpdate]);
 
   if (!parsedData) {
@@ -195,8 +193,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     isWarning = false,
     earthquake,
     intensity,
-    prefectures = [],
-    zones = [],
   } = body as EewInformation.Latest.PublicCommonBody;
 
   const {
@@ -217,10 +213,10 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   const magnitudeCondition = magnitude?.condition || "";
 
   const magnitudeDisplay =
-    magnitudeValue !== "不明" ? `M${magnitudeValue}` : magnitudeCondition || "不明";
+    magnitudeValue !== "不明" ? `${magnitudeValue}` : magnitudeCondition || "不明";
 
   const forecastMaxInt = intensity?.forecastMaxInt;
-  const forecastMaxLgInt = intensity?.forecastMaxLgInt;
+  let isThreshold = false;
 
   const convertIntensity = (
     value: EewInformation.Latest.IntensityClass | "over" | "不明",
@@ -243,6 +239,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     let intensity = mapping[value] || "不明";
     if (isFrom && intensity !== "不明" && intensity !== "over") {
       intensity += "程度以上";
+      isThreshold = true;
     }
     return intensity;
   };
@@ -258,11 +255,6 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
       ? convertIntensity(forecastMaxInt.from || "不明", true)
       : convertIntensity(forecastMaxInt.to || "不明")
     : "不明";
-
-  const maxLgInt =
-    forecastMaxLgInt?.to === "over"
-      ? `${forecastMaxLgInt.from || "不明"}程度以上`
-      : forecastMaxLgInt?.to || "不明";
 
   const method = (() => {
     const condition = earthquakeCondition || "不明";
@@ -291,6 +283,7 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
   if (
     body &&
     !isLowAccuracy &&
+    !isCanceled &&
     (method === "PLUM法" || method === "レベル法" || method === "IPF法 (1点)")
   ) {
     return null;
@@ -320,89 +313,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     "7程度以上": { background: "#5F0CA2", text: "white" },
   };
 
-  const lgintcolors: Record<string, { background: string; text: string }> = {
-    "0": { background: "#2B8EB2", text: "white" },
-    "1": { background: "#F6CB51", text: "black" },
-    "2": { background: "#E54812", text: "white" },
-    "3": { background: "#C31B1B", text: "white" },
-    "4": { background: "#930A7A", text: "white" },
-    "不明": { background: "#62626B", text: "white" },
-    "0程度以上": { background: "#2B8EB2", text: "white" },
-    "1程度以上": { background: "#F6CB51", text: "black" },
-    "2程度以上": { background: "#E54812", text: "white" },
-    "3程度以上": { background: "#C31B1B", text: "white" },
-    "4程度以上": { background: "#930A7A", text: "white" },
-  };
-
   const backgroundColor = intensityColors[maxIntensity]?.background || "#CCCCCC";
   const textColor = intensityColors[maxIntensity]?.text || "black";
-  const lgint_backgroundColor =
-    lgintcolors[maxLgInt]?.background || "#CCCCCC";
-  const lgint_textColor = lgintcolors[maxLgInt]?.text || "black";
-  const regions =
-    prefectures.length > 8
-      ? zones.map((zone: { name: string; }) => zone.name || "不明")
-      : prefectures.map((pref) => pref.name || "不明");
-  const regionsDisplay = regions.length > 0 ? regions.join("、") : "不明";
   const accuracyData = hypocenterAccuracy;
   const epicenters = accuracyData?.epicenters || [];
   const epicenterAccuracy0 = epicenters[0] || "不明";
-  const epicenterAccuracy1 = epicenters[1] || "不明";
-  const accuracyDepthLabel = accuracyData?.depth || "不明";
-  const accuracyMagnitudeCalc = accuracyData?.magnitudeCalculation || "不明";
-  const accuracyNumberOfMagCalc =
-    accuracyData?.numberOfMagnitudeCalculation || "不明";
-
-  const mapAccuracyValue = (
-    value: string | number,
-    category: string
-  ): string => {
-    const mapping: Record<string, Record<string, string>> = {
-      epicenters: {
-        "0": "不明",
-        "1":
-          "P波/S波レベル越え、IPF法(1点)または仮定震源要素",
-        "2": "IPF法(2点)",
-        "3": "IPF法(3点/4点)",
-        "4": "IPF法(5点以上)",
-        "5": "防災科研システム(4点以下または精度情報なし)",
-        "6": "防災科研システム(5点以上)",
-        "7": "EPOS(海域)",
-        "8": "EPOS(内陸)",
-        "9": "震源とマグニチュードに基づく最終精度（気象庁）",
-      },
-      depth: {
-        "0": "不明",
-        "1":
-          "P波/S波レベル越え、IPF法(1点)または仮定震源要素",
-        "2": "IPF法(2点)",
-        "3": "IPF法(3点/4点)",
-        "4": "IPF法(5点以上)",
-        "5": "防災科研システム(4点以下または精度情報なし)",
-        "6": "防災科研システム(5点以上)",
-        "7": "EPOS(海域)",
-        "8": "EPOS(内陸)",
-      },
-      magnitudeCalculation: {
-        "0": "不明",
-        "2": "速度マグニチュード",
-        "3": "全相P相",
-        "4": "P相/全相混在",
-        "5": "全点全相",
-        "6": "EPOS",
-        "8": "P波/S波レベル越えまたは仮定震源要素",
-      },
-      numberOfMagnitudeCalculation: {
-        "0": "不明",
-        "1": "1点",
-        "2": "2点",
-        "3": "3点",
-        "4": "4点",
-        "5": "5点以上",
-      },
-    };
-    return mapping[category]?.[String(value)] || "未知の値";
-  };
 
   let formattedTimeDisplay = "不明";
   if (originDt) {
@@ -498,9 +413,11 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     ) {
       return (
         <>
+        <span className="text-red-700">
           緊急地震速報の特別警報です
           <br />
           身の安全を確保してください
+        </span>
         </>
       );
     } else if (displayIntensity === "深発地震のため震度推定なし") {
@@ -561,247 +478,146 @@ const EewDisplay: React.FC<EewDisplayProps> = ({
     } else if (isWarning) {
       return (
         <>
-          緊急地震速報（警報）発表
-          <br />
-          強い揺れに警戒してください
+          <span className="text-yellow-400">
+            強い揺れに警戒してください
+          </span>
         </>
       );
     } else {
       return (
         <>
-          緊急地震速報（予報）発表
-          <br />
-          揺れに注意してください
+          <span className="text-yellow-600 dark:text-yellow-400">
+            揺れに注意してください
+          </span>
         </>
       );
     }
   })();
 
-  const description = (
-    <>
-      {regionsDisplay !== "不明" && (
-        <>
-          <strong>{regionsDisplay}</strong>
-          <br />
-          では強い揺れに警戒してください
-          <br />
-          <br />
-        </>
-      )}
-      {additionalMessage}
-    </>
-  );
-
   const eventType = method !== "PLUM法" && method !== "レベル法" ? "地震" : "揺れ";
 
-  const isTest = status === "訓練" || status === "試験";
+  if (!parsedData) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-40 bg-white/90 dark:bg-black/90 border-t border-gray-200 dark:border-gray-800 p-4 text-center">
+        <p className="font-medium">緊急地震速報受信待機中</p>
+      </div>
+    );
+  }
 
   return (
-    <Card className="w-96 shadow-xl bg-white/90 dark:bg-black/75 border">
-      <CardHeader className="pb-4">
-        <CardTitle
-          className={`flex flex-wrap items-center gap-2 text-lg p-2 rounded-lg ${
+    <div className="relative top-0 left-0 right-0 z-40 max-h-[80vh] overflow-y-auto">
+      <div className="p-2 space-y-2">
+        <Card 
+          className="bg-white/90 dark:bg-black/90 border overflow-hidden"
+        >
+          <div className={`p-2 flex items-center gap-2 ${
             isCanceled
               ? "bg-gray-200 dark:bg-gray-600/20"
               : isWarning
               ? "bg-red-100 dark:bg-red-600/10"
               : "bg-yellow-100 dark:bg-yellow-950/30"
-          }`}
-        >
-          <div className="flex items-center gap-2 w-full">
+          }`}>
             {isCanceled ? (
-              <XCircle className="h-5 w-5 text-gray-500" />
+              <XCircle className="h-4 w-4 text-gray-500 shrink-0" />
             ) : isWarning ? (
-              <AlertCircle className="h-5 w-5 text-red-500" />
+              <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
             ) : (
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
             )}
-            {`緊急地震速報（${
-              isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
-            }）`}
-            {!isTest && (
-              <span className="text-sm ml-auto mr-2">
-                {isLastInfo ? `第${serialNo}報 （最終）` : `第${serialNo}報`}
-              </span>
-            )}
-          </div>
-
-          {isTest && (
-            <div className="flex w-full justify-between items-center text-sm">
-              <span className="text-xs">訓練・試験報</span>
+            <div className="flex-1 text-sm font-medium">
+              {`緊急地震速報（${
+                isWarning ? (isCanceled ? "取消" : "警報") : (isCanceled ? "取消" : "予報")
+              }）${isCanceled ? "" : method === "PLUM法" ? "※PLUM法による仮定震源" : method === "レベル法" ? "※レベル法による仮定震源" : ""}`}
+            </div>
+            <div className="text-xs">
+              {status === "訓練" || status === "試験" ? "訓練・試験報" : ""}
               {!isCanceled && (
-                <span className="ml-auto">
-                  {isLastInfo ? `第${serialNo}報 （最終）` : `第${serialNo}報`}
+                <span>
+                  {isLastInfo ? `第${serialNo}報 (最終)` : `第${serialNo}報`}
                 </span>
               )}
             </div>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!isCanceled &&(
-            <div
-            className={`rounded-lg border-2 p-4 ${
-              isWarning
-                ? "border-red-500/50 bg-red-200/30 dark:bg-red-950/30"
-                : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
-            }`}
-          >
-            <h1 className="text-2xl font-bold mb-2">
-              {hypName}で{eventType}
-            </h1>
-            <p className="text-sm text-gray-800 dark:text-gray-300">
-              {formattedTimeDisplay}
-              {detectionOrOccurrence}
-            </p>
-            <div
-              className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
-              style={{ backgroundColor, color: textColor }}
-            >
-              <h1 className="text-lg">
-                {displayIntensity}
-              </h1>
-            </div>
-            {maxLgInt !== "不明" && maxLgInt !== "0" && (
-              <div
-                className="rounded-md p-4 mt-4 text-center font-bold shadow-md"
-                style={{
-                  backgroundColor: lgint_backgroundColor,
-                  color: lgint_textColor,
-                }}
-              >
-                <h1 className="text-lg">
-                  推定最大長周期地震動階級 {maxLgInt}
-                </h1>
-              </div>
-            )}
           </div>
-        )}
-            {description && !isCanceled && (
-              <div
-                className={`rounded-lg p-4 border-2 ${
-                  isWarning
-                    ? "border-red-500/50 bg-red-200/30 dark:bg-red-950/30"
-                    : "border-yellow-500/50 bg-yellow-200/30 dark:bg-yellow-950/30"
-                }`}
-              >
-                <p className="text-sm font-medium">{description}</p>
-              </div>
-            )}
-            {isCanceled && (
-              <div
-                className={`rounded-lg p-4 border-2 bg-gray-200/30 dark:bg-gray-950/30`}
-              >
-                <p className="text-sm font-medium">この緊急地震速報は取り消されました。</p>
-              </div>
-            )}
-            
-            {!isCanceled && (
-              <>
-              {method === "PLUM法" || method === "レベル法" ? (
-                <div className="space-y-1 w-full">
-                  <p className="font-medium text-center p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
-                    {method === "PLUM法"
-                      ? "PLUM法による仮定震源"
-                      : "レベル法による仮定震源"}
+
+          {!isCanceled && (
+            <div className="p-3">
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex flex-col">
+                  <h3 className="text-2xl font-bold">{hypName}で{eventType}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {formattedTimeDisplay}
+                    {detectionOrOccurrence}
                   </p>
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1 p-2">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      マグニチュード
-                    </p>
-                    <p className="font-medium">{magnitudeDisplay}</p>
+                {displayIntensity === "深発地震のため震度推定なし" ? (
+                  <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-md font-bold flex items-center justify-end shrink-0" style={{ backgroundColor, color: textColor }}>
+                    <div className="flex flex-col items-center">
+                      <p className="text-xl">深発地震のため</p>
+                      <p className="text-xl">震度推定なし</p>
+                    </div>
                   </div>
-                  <div className="space-y-1 p-2">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      深さ
-                    </p>
-                    <p className="font-medium">{depthValue} km</p>
+                ) : displayIntensity === "単独点処理のため震度推定なし" ? (
+                  <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-md font-bold flex items-center justify-end shrink-0" style={{ backgroundColor, color: textColor }}>
+                    <div className="flex flex-col items-center">
+                      <p className="text-xl">単独点処理のため</p>
+                      <p className="text-xl">震度推定なし</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              </>
-            )}
+                ) : (
+                  <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-md font-bold flex items-center justify-end shrink-0" style={{ backgroundColor, color: textColor }}>
+                    <div className="flex flex-col items-end mr-4">
+                      <span>推定</span>
+                      <span>最大震度</span>
+                    </div>
+                    <div className="flex items-baseline">
+                      <p className="text-4xl">{raw_maxIntensity}</p>
+                      { isThreshold ? (<span className="flex items-baseline ml-1">程度以上</span>) : null }
+                    </div>
+                  </div>
+                )}
+              </div>
+              
 
-            {isAccuracy && (
-              <>
-                <Separator className="my-4" />
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 bg-blue-100 dark:bg-blue-950/30 p-2 rounded-lg">
-                    <Info className="h-4 w-4 text-blue-500" />
-                    <h3 className="font-medium">精度情報</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="p-2">
-                      <p className="text-gray-500 dark:text-gray-400">
-                        震央精度
-                      </p>
-                      <p className="mt-1">
-                        {mapAccuracyValue(
-                          epicenterAccuracy0,
-                          "epicenters"
-                        )}
-                      </p>
-                    </div>
-                    <div className="p-2">
-                      <p className="text-gray-500 dark:text-gray-400">
-                        震源精度
-                      </p>
-                      <p className="mt-1">
-                        {mapAccuracyValue(
-                          epicenterAccuracy1,
-                          "epicenters"
-                        )}
-                      </p>
-                    </div>
-                    <div className="p-2">
-                      <p className="text-gray-500 dark:text-gray-400">
-                        深さ精度
-                      </p>
-                      <p className="mt-1">
-                        {mapAccuracyValue(
-                          accuracyDepthLabel,
-                          "depth"
-                        )}
-                      </p>
-                    </div>
-                    <div className="p-2">
-                      <p className="text-gray-500 dark:text-gray-400">
-                        M精度
-                      </p>
-                      <p className="mt-1">
-                        {mapAccuracyValue(
-                          accuracyMagnitudeCalc,
-                          "magnitudeCalculation"
-                        )}
-                      </p>
-                    </div>
-                    <div className="p-2">
-                      <p className="text-gray-500 dark:text-gray-400">
-                        M計算使用観測点数
-                      </p>
-                      <p className="mt-1">
-                        {mapAccuracyValue(
-                          accuracyNumberOfMagCalc,
-                          "numberOfMagnitudeCalculation"
-                        )}
-                      </p>
-                    </div>
-                    <div className="p-2">
-                      <p className="text-gray-500 dark:text-gray-400">
-                        予測手法
-                      </p>
-                      <p className="mt-1">{method}</p>
-                    </div>
+              {method === "PLUM法" || method === "レベル法" ? (
+                <div className="flex items-center justify-end">
+                  <div className="mt-3 text-sm text-nowrap text-right">
+                    {additionalMessage}
                   </div>
                 </div>
-              </>
-            )}
-      </CardContent>
-    </Card>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div className="flex items-center space-x-1">
+                        <div className="flex items-baseline">
+                          <span className="text-sm mr-1">M</span>
+                          <p className="font-medium text-2xl">{magnitudeDisplay}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div className="flex items-baseline">
+                          <span className="text-sm mr-1 text-nowrap">深さ</span>
+                          <p className="font-medium text-2xl">{depthValue}</p>
+                          <span className="text-sm ml-1">km</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-sm text-nowrap text-right">
+                      {additionalMessage}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          
+          {isCanceled && (
+            <div className="p-3">
+              <p className="text-gray-600 dark:text-gray-400">この緊急地震速報は取り消されました。</p>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 };
-
-export default EewDisplay;

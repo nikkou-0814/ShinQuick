@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import Sntp from "sntp";
+import Sntp from "@hapi/sntp";
 
 export async function GET() {
   try {
     const options = {
-      host: "pool.ntp.org",
+      host: "ntp.nict.jp",
       port: 123,
       timeout: 1000,
     };

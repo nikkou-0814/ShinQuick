@@ -16,16 +16,19 @@ import {
   LocateFixed,
   Send,
   FlaskConical,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
-import EewDisplay from "@/components/eew-display";
+import DMDATAEewDisplay from "@/components/dmdata/eew-display";
 import { EewInformation } from "@dmdata/telegram-json-types";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
+import { DMDATAMobileEewPanel } from "@/components/dmdata/mobile-eew-panel";
 import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
 import { MapRef } from "react-map-gl/maplibre";
@@ -44,6 +47,10 @@ const DEFAULT_SETTINGS: Settings = {
   enable_map_warning_area: false,
   world_map_resolution: "50m",
   ps_wave_update_interval: 10,
+  enable_intensity_filter: false,
+  intensity_filter_value: "3",
+  leftPanelSize: 75,
+  rightPanelSize: 25,
 };
 
 const DynamicMap = dynamic(() => import("@/components/map"), {
@@ -82,13 +89,12 @@ function PageContent() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [serverBaseTime, setServerBaseTime] = useState<number | null>(null);
   const mapRef = useRef<MapRef | null>(null);
-  const [displayDataList, setDisplayDataList] = useState<
+  const [DMDATAdisplayDataList, setDMDATADisplayDataList] = useState<
     EewInformation.Latest.Main[]
   >([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const allRegionMapsRef = useRef<Record<string, RegionIntensityMap>>({});
   const [mergedRegionMap, setMergedRegionMap] = useState<RegionIntensityMap>({});
-  const [, setMultiRegionMap] = useState<Record<string, string[]>>({});
   const allWarningRegionsRef = useRef<
     Record<string, { code: string; name: string }[]>
   >({});
@@ -96,13 +102,16 @@ function PageContent() {
     { code: string; name: string }[]
   >([]);
   const {
-    isConnected,
-    receivedData,
-    connectWebSocket,
-    disconnectWebSocket,
+    isDMDATAConnected,
+    DMDATAreceivedData,
+    connectDMDATAWebSocket,
+    disconnectDMDATAWebSocket,
     injectTestData,
+    passedIntensityFilterRef,
   } = useWebSocket();
-  const canceledRemoveScheduledRef = useRef<Set<string>>(new Set());
+
+  const canceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const nonCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nowAppTimeRef = useRef<number>(0);
   const rAFBaseRef = useRef<number | null>(null);
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(
@@ -112,10 +121,29 @@ function PageContent() {
   const [epicenters, setEpicenters] = useState<EpicenterInfo[]>([]);
   const prevMultiRef = useRef<Record<string, string[]>>({});
   const prevMergedRef = useRef<Record<string, string>>({});
-  const isCancel = displayDataList[0]?.body?.isCanceled ?? false;
+  const isCancel = DMDATAdisplayDataList[0]?.body?.isCanceled ?? false;
   const [version, setVersion] = useState<string>("");
   const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [currentTime, setCurrentTime] = useState("----/--/-- --:--:--");
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [panelSizesLoaded, setPanelSizesLoaded] = useState<boolean>(false);
+  const [panelKey, setPanelKey] = useState(0);
+  const isDev = process.env.NEXT_PUBLIC_IS_DEV === "true";
+  const [expanded, setExpanded] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    // 初回判定
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [setIsMobile]);
 
   const shindoColors = useMemo(
     () => [
@@ -179,18 +207,99 @@ function PageContent() {
     setMapAutoZoomEnabled(settings.map_auto_zoom);
   }, [settings.map_auto_zoom]);
 
+  const getIntensityRank = useCallback((intensity: string): number => {
+    const intensityMap: Record<string, number> = {
+      "0": 0,
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5-": 5,
+      "5+": 6,
+      "6-": 7,
+      "6+": 8,
+      "7": 9,
+      "不明": -1,
+    };
+    return intensityMap[intensity] ?? -1;
+  }, []);
+
+  const getMaxIntensity = useCallback(
+    (data: EewInformation.Latest.Main): string => {
+      const { body } = data;
+      if (!body || body.isCanceled || !("intensity" in body)) {
+        return "不明";
+      }
+
+      const intensityData = (body as EewInformation.Latest.PublicCommonBody).intensity;
+      if (!intensityData || !intensityData.forecastMaxInt) {
+        return "不明";
+      }
+
+      const { from = "不明", to = "不明" } = intensityData.forecastMaxInt;
+      if (to === "over") {
+        return from;
+      }
+      return to;
+    },
+    []
+  );
+
+  const shouldDMDATADisplayEarthquake = useCallback(
+    (data: EewInformation.Latest.Main): boolean => {
+      // すでに条件を満たしたイベントは表示する
+      if (passedIntensityFilterRef.current.has(data.eventId)) {
+        return true;
+      }
+
+      if (!settings.enable_intensity_filter) {
+        return true;
+      }
+
+      if (data.body?.isCanceled) {
+        return true;
+      }
+
+      const maxIntensity = getMaxIntensity(data);
+      const intensityRank = getIntensityRank(maxIntensity);
+      const filterRank = getIntensityRank(settings.intensity_filter_value);
+
+      if (intensityRank === -1) {
+        return true;
+      }
+
+      const display = intensityRank >= filterRank;
+
+      if (display) {
+        passedIntensityFilterRef.current.add(data.eventId);
+      }
+
+      return display;
+    },
+    [
+      settings.enable_intensity_filter,
+      settings.intensity_filter_value,
+      getIntensityRank,
+      getMaxIntensity,
+      passedIntensityFilterRef, 
+    ]
+  );
+
   useEffect(() => {
-    if (receivedData) {
-      const newData = receivedData as EewInformation.Latest.Main;
-      setDisplayDataList((prevList) => {
-        const filtered = prevList.filter(
-          (data) => data.eventId !== newData.eventId
-        );
-        return [newData, ...filtered];
-      });
-      setForceAutoZoomTrigger(Date.now());
+    if (DMDATAreceivedData) {
+      const newData = DMDATAreceivedData as EewInformation.Latest.Main;
+
+      if (shouldDMDATADisplayEarthquake(newData)) {
+        setDMDATADisplayDataList((prevList) => {
+          const filtered = prevList.filter(
+            (data) => data.eventId !== newData.eventId
+          );
+          return [newData, ...filtered];
+        });
+        setForceAutoZoomTrigger(Date.now());
+      }
     }
-  }, [receivedData]);
+  }, [DMDATAreceivedData, shouldDMDATADisplayEarthquake]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -198,14 +307,15 @@ function PageContent() {
       if (savedSettings) {
         setSettings(JSON.parse(savedSettings));
       }
-      const token = localStorage.getItem("dmdata_access_token");
-      if (token) {
+      const DMDATAtoken = localStorage.getItem("dmdata_access_token");
+      if (DMDATAtoken) {
         setIsAuthenticated(true);
       }
+      setPanelSizesLoaded(true);
     }
   }, []);
 
-  const updateSettings = (newSettings: Partial<Settings>) => {
+  const updateSettings = useCallback((newSettings: Partial<Settings>) => {
     setSettings((prevSettings) => {
       const updatedSettings = { ...prevSettings, ...newSettings };
       if (typeof window !== "undefined") {
@@ -213,6 +323,20 @@ function PageContent() {
       }
       return updatedSettings;
     });
+  }, []);
+
+  const handlePanelResize = useCallback((sizes: number[]) => {
+    if (sizes.length === 2) {
+      updateSettings({ leftPanelSize: sizes[0], rightPanelSize: sizes[1] });
+    }
+  }, [updateSettings]);
+
+  const resetPanelSizes = () => {
+    updateSettings({
+      leftPanelSize: DEFAULT_SETTINGS.leftPanelSize,
+      rightPanelSize: DEFAULT_SETTINGS.rightPanelSize,
+    });
+    setPanelKey(prev => prev + 1);
   };
 
   const handleSettingChange = <K extends keyof Settings>(
@@ -227,17 +351,13 @@ function PageContent() {
     updateSettings({ [key]: value });
   };
 
-  const handleTimeUpdate = useCallback((newTime: string) => {
-    setCurrentTime(newTime);
-  }, []);
-
-  const handleConnectWebSocket = () => {
-    const token = localStorage.getItem("dmdata_access_token");
-    if (!token) {
+  const handleConnectDMDATAWebSocket = () => {
+    const DMDATAtoken = localStorage.getItem("dmdata_access_token");
+    if (!DMDATAtoken) {
       toast.error("アカウントを認証してください。");
       return;
     }
-    connectWebSocket(token, settings.enable_drill_test_info);
+    connectDMDATAWebSocket(DMDATAtoken, settings.enable_drill_test_info);
   };
 
   const handleDisconnectAuthentication = () => {
@@ -246,8 +366,8 @@ function PageContent() {
     toast.info("アカウントとの連携を解除しました。");
   };
 
-  const handleWebSocketDisconnect = async () => {
-    await disconnectWebSocket();
+  const handleDMDATAWebSocketDisconnect = async () => {
+    await disconnectDMDATAWebSocket();
   };
 
   const setHomePosition = () => {
@@ -263,7 +383,7 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/ishikawa/1.json");
+      const response = await fetch("/testdata/testdata9.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
@@ -276,7 +396,7 @@ function PageContent() {
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/ishikawa/4.json");
+      const response = await fetch("/testdata/testdata3.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
@@ -289,7 +409,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/test/testmiyagi.json");
+      const response = await fetch("/testdata/testdata4.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
@@ -328,45 +448,54 @@ function PageContent() {
     }
   };
 
+  // 地域震度情報の更新処理
   const onRegionIntensityUpdate = useCallback(
     (regionMap: Record<string, string>, eventId: string) => {
+      // イベントIDごとの地域震度マップを更新
       if (Object.keys(regionMap).length === 0) {
         delete allRegionMapsRef.current[eventId];
       } else {
         allRegionMapsRef.current[eventId] = regionMap;
       }
 
+      // 最大震度を計算するための一時マップ
       const merged: Record<string, string> = {};
       const multi: Record<string, string[]> = {};
-
-      Object.entries(allRegionMapsRef.current).forEach(([, map]) => {
-        Object.entries(map).forEach(([code, intensity]) => {
+      
+      // 各地域コードごとに全イベントの震度を収集
+      for (const [, map] of Object.entries(allRegionMapsRef.current)) {
+        for (const [code, intensity] of Object.entries(map)) {
           if (!multi[code]) {
             multi[code] = [];
           }
           multi[code].push(intensity);
-        });
-      });
+        }
+      }
 
-      Object.entries(multi).forEach(([code, intensities]) => {
+      // 各地域コードごとに最大震度を計算
+      for (const [code, intensities] of Object.entries(multi)) {
         let maxRank = -1;
         let maxIntensity = "0";
-        intensities.forEach((val) => {
+
+        for (const val of intensities) {
           const idx = INTENSITY_ORDER.indexOf(val);
           if (idx > maxRank) {
             maxRank = idx;
             maxIntensity = val;
           }
-        });
+        }
+        
         merged[code] = maxIntensity;
-      });
+      }
 
-      if (JSON.stringify(prevMultiRef.current) !== JSON.stringify(multi)) {
-        setMultiRegionMap(multi);
+      // 前回の値と比較して変更があれば状態を更新
+      const multiStr = JSON.stringify(multi);
+      if (JSON.stringify(prevMultiRef.current) !== multiStr) {
         prevMultiRef.current = multi;
       }
 
-      if (JSON.stringify(prevMergedRef.current) !== JSON.stringify(merged)) {
+      const mergedStr = JSON.stringify(merged);
+      if (JSON.stringify(prevMergedRef.current) !== mergedStr) {
         setMergedRegionMap(merged);
         prevMergedRef.current = merged;
       }
@@ -374,81 +503,91 @@ function PageContent() {
     []
   );
 
+  // 警報地域の更新処理
   const onWarningRegionUpdate = useCallback(
     (warningRegions: { code: string; name: string }[], eventId: string) => {
+      // イベントIDごとの警報地域を更新
       if (!warningRegions || warningRegions.length === 0) {
         delete allWarningRegionsRef.current[eventId];
       } else {
         allWarningRegionsRef.current[eventId] = warningRegions;
       }
+      
+      // 全イベントの警報地域をフラット化
       const merged = Object.values(allWarningRegionsRef.current).flat();
-
-      const unique = merged.reduce((acc, region) => {
-        if (!acc.find((r) => r.code === region.code)) {
-          acc.push(region);
+      
+      // 重複を除去
+      const uniqueCodes = new Set<string>();
+      const unique: { code: string; name: string }[] = [];
+      
+      for (const region of merged) {
+        if (!uniqueCodes.has(region.code)) {
+          uniqueCodes.add(region.code);
+          unique.push(region);
         }
-        return acc;
-      }, [] as { code: string; name: string }[]);
+      }
+      
+      // 状態を更新
       setMergedWarningRegions(unique);
     },
     []
   );
 
+  // 震源情報のクリーンアップ処理
   useEffect(() => {
-    const intervalTime =
-      settings.enable_dynamic_zoom && mapAutoZoomEnabled ? 2000 : 10000;
+    Object.keys(canceledTimersRef.current).forEach((eventId) => {
+      const stillExist = DMDATAdisplayDataList.some(
+        (d) => d.eventId === eventId && d.body?.isCanceled
+      );
+      if (!stillExist) {
+        clearTimeout(canceledTimersRef.current[eventId]);
+        delete canceledTimersRef.current[eventId];
+      }
+    });
 
-    const timer = setInterval(() => {
-      setEpicenters((prev) => {
-        const now = Date.now();
-        const filtered = prev.filter(
-          (e) => e.startTime && now - e.startTime < 3 * 60 * 1000
-        );
-        const removed = prev.filter(
-          (e) => e.startTime && now - e.startTime >= 3 * 60 * 1000
-        );
-
-        removed.forEach((e) => {
-          onRegionIntensityUpdate({}, e.eventId);
-          onWarningRegionUpdate([], e.eventId);
-        });
-
-        if (filtered.length === 0 && prev.length > 0) {
-          setDisplayDataList([]);
-        }
-        return filtered;
-      });
-    }, intervalTime);
-
-    return () => clearInterval(timer);
-  }, [
-    displayDataList,
-    onRegionIntensityUpdate,
-    onWarningRegionUpdate,
-    settings.enable_dynamic_zoom,
-    mapAutoZoomEnabled,
-  ]);
-
-  useEffect(() => {
-    displayDataList.forEach((data) => {
+    DMDATAdisplayDataList.forEach((data) => {
       if (!data.body?.isCanceled) return;
-      if (canceledRemoveScheduledRef.current.has(data.eventId)) return;
+      const eventId = data.eventId;
+      if (canceledTimersRef.current[eventId]) return;
 
-      setTimeout(() => {
-        setDisplayDataList((prev) =>
-          prev.filter((x) => x.eventId !== data.eventId)
-        );
-        setEpicenters((prev) =>
-          prev.filter((epi) => epi.eventId !== data.eventId)
-        );
-        onRegionIntensityUpdate({}, data.eventId);
-        onWarningRegionUpdate([], data.eventId);
-
-        canceledRemoveScheduledRef.current.delete(data.eventId);
+      canceledTimersRef.current[eventId] = setTimeout(() => {
+        setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete canceledTimersRef.current[eventId];
       }, 10000);
     });
-  }, [displayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
 
+  useEffect(() => {
+    Object.keys(nonCanceledTimersRef.current).forEach((eventId) => {
+      const target = DMDATAdisplayDataList.find((d) => d.eventId === eventId);
+      if (!target || target.body?.isCanceled) {
+        clearTimeout(nonCanceledTimersRef.current[eventId]);
+        delete nonCanceledTimersRef.current[eventId];
+      }
+    });
+
+    DMDATAdisplayDataList.forEach((data) => {
+      if (data.body?.isCanceled) return;
+      const eventId = data.eventId;
+      if (nonCanceledTimersRef.current[eventId]) return;
+
+      const isFinal = (data.body && "isFinal" in data.body && data.body.isFinal);
+      const removalTime = isFinal ? 3 * 60 * 1000 : 5 * 60 * 1000;
+
+      nonCanceledTimersRef.current[eventId] = setTimeout(() => {
+        setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete nonCanceledTimersRef.current[eventId];
+      }, removalTime);
+    });
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+
+  // 震源情報の更新処理
   const handleEpicenterUpdate = useCallback(
     ({
       eventId,
@@ -457,6 +596,7 @@ function PageContent() {
       icon,
       depthval,
       originTime,
+      isCancel,
     }: {
       eventId: string;
       lat: number;
@@ -464,61 +604,90 @@ function PageContent() {
       icon: string;
       depthval: number;
       originTime: number;
+      isCancel: boolean;
     }) => {
-      if (!eventId) return;
       setEpicenters((prev) => {
-        const existing = prev.find((p) => p.eventId === eventId);
-        if (!existing) {
+        const existingIndex = prev.findIndex((p) => p.eventId === eventId);
+  
+        if (existingIndex === -1) {
           const newEpi: EpicenterInfo = {
             eventId,
             lat,
             lng,
             icon,
-            startTime: Date.now(),
-            originTime,
             depthval,
+            originTime,
+            startTime: Date.now(),
+            isCancel,
           };
-          setForceAutoZoomTrigger(Date.now());
+  
+          // 自動ズームのトリガーをかける
+          requestAnimationFrame(() => {
+            setForceAutoZoomTrigger(Date.now());
+          });
+  
           return [...prev, newEpi];
         } else {
-          return prev.map((p) =>
-            p.eventId === eventId
-              ? (() => {
-                  setForceAutoZoomTrigger(Date.now());
-                  return {
-                    ...p,
-                    lat,
-                    lng,
-                    icon,
-                    depthval,
-                    originTime: originTime,
-                  };
-                })()
-              : p
-          );
+          const newEpicenters = [...prev];
+          const old = newEpicenters[existingIndex];
+
+          if (
+            old.lat === lat &&
+            old.lng === lng &&
+            old.icon === icon &&
+            old.depthval === depthval &&
+            old.originTime === originTime &&
+            old.isCancel === isCancel
+          ) {
+            return prev;
+          }
+          newEpicenters[existingIndex] = {
+            ...old,
+            lat,
+            lng,
+            icon,
+            depthval,
+            originTime,
+            isCancel,
+          };
+          requestAnimationFrame(() => {
+            setForceAutoZoomTrigger(Date.now());
+          });
+          return newEpicenters;
         }
       });
     },
-    []
+    [setEpicenters, setForceAutoZoomTrigger]
   );
 
+  // 地域震度マップのフィルタリング
   const filteredMergedRegionMap = useMemo(() => {
+    // 警報地域が無効の場合はフィルタリングしない
     if (!settings.enable_map_warning_area) return mergedRegionMap;
+    
+    // 警報地域のコードをSetに変換して高速検索
     const warningCodes = new Set(mergedWarningRegions.map((r) => r.code));
+    
+    // 警報地域以外の地域のみを含む新しいマップを作成
     const result: RegionIntensityMap = {};
-    for (const code in mergedRegionMap) {
+
+    for (const [code, intensity] of Object.entries(mergedRegionMap)) {
       if (!warningCodes.has(code)) {
-        result[code] = mergedRegionMap[code];
+        result[code] = intensity;
       }
     }
+    
     return result;
   }, [mergedRegionMap, mergedWarningRegions, settings.enable_map_warning_area]);
 
+  // 表示する震度
   const displayedIntensitySet = useMemo(() => {
     return new Set(Object.values(filteredMergedRegionMap));
   }, [filteredMergedRegionMap]);
 
+  // 表示する震度色
   const displayedShindoColors = useMemo(() => {
+    if (displayedIntensitySet.size === 0) return [];
     return shindoColors.filter(({ level }) => {
       const intensity = levelToIntensity[level];
       return displayedIntensitySet.has(intensity);
@@ -583,12 +752,13 @@ function PageContent() {
         setShowSettings={setShowSettings}
         settings={settings}
         handleSettingChange={handleSettingChange}
-        isConnected={isConnected}
-        onConnectWebSocket={handleConnectWebSocket}
+        isDMDATAConnected={isDMDATAConnected}
+        onConnectDMDATAWebSocket={handleConnectDMDATAWebSocket}
         isAuthenticated={isAuthenticated}
         onDisconnectAuthentication={handleDisconnectAuthentication}
-        onDisconnectWebSocket={handleWebSocketDisconnect}
+        onDisconnectDMDATAWebSocket={handleDMDATAWebSocketDisconnect}
         onSyncClock={handleClockSync}
+        onResetPanelSizes={resetPanelSizes}
       />
 
       {version && (
@@ -597,152 +767,275 @@ function PageContent() {
         </div>
       )}
 
-      <main className="h-full w-full flex">
-        <div className="flex-1 relative">
+      <main className="h-full w-full flex flex-col">
+        {isMobile && (
           <LoadingMapOverlay isVisible={!isMapLoaded} />
-          {(settings.enable_map_intensity_fill ||
-            settings.enable_map_warning_area) &&
-            showLegend && (
-              <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
-                <h3 className="text-center font-bold mb-2 px-3 pt-3">
-                  地図の凡例
-                </h3>
-                <div className="border-t my-2 w-full"></div>
-                <div className="space-y-1.5 px-3 pb-3">
-                  {settings.enable_map_warning_area &&
-                    mergedWarningRegions.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-full rounded shadow-sm text-left p-1"
-                          style={{
-                            backgroundColor: "red",
-                            color: "white",
-                          }}
-                        >
-                          <span className="text-xs font-medium">
-                            警報地域
-                          </span>
+        )}
+        {panelSizesLoaded && (
+          <ResizablePanelGroup key={`panel-${panelKey}`} direction="horizontal" className="h-full" onLayout={handlePanelResize}>
+            <ResizablePanel defaultSize={settings.leftPanelSize} minSize={50} className="relative">
+              <LoadingMapOverlay isVisible={!isMapLoaded} />
+              {(settings.enable_map_intensity_fill ||
+                settings.enable_map_warning_area) &&
+                showLegend && (
+                  <div className="absolute z-50 right-4 bottom-4 bg-white/50 dark:bg-black/50 rounded-lg shadow-lg border">
+                  <h3 className="text-center font-bold mb-2 px-3 pt-3">
+                    地図の凡例
+                  </h3>
+                  <div className="border-t my-2 w-full"></div>
+                  <div className="space-y-1.5 px-3 pb-3">
+                    {settings.enable_map_warning_area &&
+                      mergedWarningRegions.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-full rounded shadow-sm text-left p-1"
+                            style={{
+                              backgroundColor: "red",
+                              color: "white",
+                            }}
+                          >
+                            <span className="text-xs font-medium">
+                              警報地域
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  {settings.enable_map_intensity_fill &&
-                    displayedShindoColors.map(({ level, bgcolor, color }) => (
-                      <div key={level} className="flex items-center gap-2">
-                        <div
-                          className="w-full rounded shadow-sm text-left p-1"
-                          style={{
-                            backgroundColor: bgcolor,
-                            color: color,
-                          }}
-                        >
-                          <span className="text-xs font-medium">
-                            {level}
-                          </span>
+                      )}
+                    {settings.enable_map_intensity_fill &&
+                      displayedShindoColors.map(({ level, bgcolor, color }) => (
+                        <div key={level} className="flex items-center gap-2">
+                          <div
+                            className="w-full rounded shadow-sm text-left p-1"
+                            style={{
+                              backgroundColor: bgcolor,
+                              color: color,
+                            }}
+                          >
+                            <span className="text-xs font-medium">
+                              {level}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-          <DynamicMap
-            ref={mapRef}
-            enableKyoshinMonitor={settings.enable_kyoshin_monitor}
-            onTimeUpdate={handleTimeUpdate}
-            isConnected={isConnected}
-            epicenters={epicenters}
-            regionIntensityMap={mergedRegionMap}
-            enableMapIntensityFill={settings.enable_map_intensity_fill}
-            enableDynamicZoom={settings.enable_dynamic_zoom}
-            mapAutoZoom={mapAutoZoomEnabled}
-            mapResolution={settings.world_map_resolution}
-            onAutoZoomChange={setMapAutoZoomEnabled}
-            forceAutoZoomTrigger={forceAutoZoomTrigger}
-            enableMapWarningArea={settings.enable_map_warning_area}
-            warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
-            isCancel={isCancel}
-            psWaveUpdateInterval={settings.ps_wave_update_interval}
-            nowAppTimeRef={nowAppTimeRef}
-            onMapLoad={() => setIsMapLoaded(true)}
-          />
-        </div>
-
-        <div className="fixed bottom-4 left-4 shadow-lg bg-white/50 dark:bg-black/50 rounded-lg space-x-4 border">
-          <div className="flex space-x-3 p-3 justify-start items-center">
-            <Button variant="outline" onClick={() => setShowSettings(true)}>
-              <SettingsIcon />
-            </Button>
-            <Button variant="outline" onClick={setHomePosition}>
-              <LocateFixed />
-            </Button>
-            <Button variant="outline" onClick={handleTest} className="hidden">
-              <FlaskConical />
-            </Button>
-            <Button variant="outline" onClick={handleTest2} className="hidden">
-              <FlaskConical />
-            </Button>
-            <Button variant="outline" onClick={handleTest3} className="hidden">
-              <FlaskConical />
-            </Button>
-            <Button variant="outline" onClick={handleSendAllTests} className="hidden">
-              複数
-            </Button>
-            <div className="flex flex-col">
-              <ClockDisplay
+              <DynamicMap
+                ref={mapRef}
+                enableKyoshinMonitor={settings.enable_kyoshin_monitor}
+                epicenters={epicenters}
+                regionIntensityMap={mergedRegionMap}
+                enableMapIntensityFill={settings.enable_map_intensity_fill}
+                enableDynamicZoom={settings.enable_dynamic_zoom}
+                mapAutoZoom={mapAutoZoomEnabled}
+                mapResolution={settings.world_map_resolution}
+                onAutoZoomChange={setMapAutoZoomEnabled}
+                forceAutoZoomTrigger={forceAutoZoomTrigger}
+                enableMapWarningArea={settings.enable_map_warning_area}
+                warningRegionCodes={mergedWarningRegions.map((r) => r.code)}
+                isCancel={isCancel}
+                psWaveUpdateInterval={settings.ps_wave_update_interval}
                 nowAppTimeRef={nowAppTimeRef}
-                overrideTime={
-                  settings.enable_kyoshin_monitor ? currentTime : undefined
-                }
+                onMapLoad={() => setIsMapLoaded(true)}
               />
-              {isConnected && (
-                <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
-                  <Send size={16} />
-                  <p>DM-D.S.S</p>
+            </ResizablePanel>
+            
+            {!isMobile ? (
+              <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={settings.rightPanelSize} minSize={0} maxSize={40} className="relative">
+                <div className="h-full max-h-screen overflow-y-auto">
+                  {(() => {
+                    const filteredDisplayDataList = settings.enable_low_accuracy_eew
+                      ? DMDATAdisplayDataList
+                      : DMDATAdisplayDataList.filter((data) => {
+                        const body = data.body as EewInformation.Latest.PublicCommonBody;
+                        const earthquake = body.earthquake;
+                        if (!earthquake) return true;
+                        const method = getHypocenterMethod(earthquake);
+                        return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
+                      });
+
+                    return filteredDisplayDataList.length > 0 ? (
+                      <div className="space-y-4 p-2">
+                        {filteredDisplayDataList.map((data) => (
+                          <div key={data.eventId}>
+                            <DMDATAEewDisplay
+                              parsedData={data}
+                              isAccuracy={settings.enable_accuracy_info}
+                              isLowAccuracy={settings.enable_low_accuracy_eew}
+                              onEpicenterUpdate={handleEpicenterUpdate}
+                              onRegionIntensityUpdate={(regionMap) =>
+                                onRegionIntensityUpdate(regionMap, data.eventId)
+                              }
+                              onWarningRegionUpdate={(regions) =>
+                                onWarningRegionUpdate(regions, data.eventId)
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="w-full h-full min-h-screen flex justify-center items-center">
+                        <h1 className="text-xl">緊急地震速報受信待機中</h1>
+                      </div>
+                    )
+                  })()}
                 </div>
+              </ResizablePanel>
+            </>
+            ) : (
+              <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
+              {DMDATAdisplayDataList.map((data) => (
+                <div key={data.eventId} className="inline-block align-top w-[95%]">
+                  <DMDATAMobileEewPanel
+                    parsedData={data}
+                    isAccuracy={settings.enable_accuracy_info}
+                    isLowAccuracy={settings.enable_low_accuracy_eew}
+                    onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                    onRegionIntensityUpdate={(regionMap) =>
+                      onRegionIntensityUpdate(regionMap, data.eventId)
+                    }
+                    onWarningRegionUpdate={(regions) =>
+                      onWarningRegionUpdate(regions, data.eventId)
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            )}
+          </ResizablePanelGroup>
+        )}
+        
+        {hasMounted && (
+          <div className="fixed bottom-4 left-4 shadow-lg bg-white/50 dark:bg-black/50 rounded-lg border z-50">
+            <div className={`flex ${isMobile ? 'flex-col' : 'space-x-3'} p-3 items-start`}>
+              {isMobile ? (
+                <>
+                  <div className="ml-1 mb-1 justify-start space-y-1">
+                    <div className="flex items-center space-x-1">
+                      {isDMDATAConnected && (
+                        <div className="flex items-center text-xs text-green-500 space-x-1">
+                          <Send size={12} />
+                          <p className="text-xs">DM-D.S.S</p>
+                        </div>
+                      )}
+                    </div>
+                    <ClockDisplay
+                      nowAppTimeRef={nowAppTimeRef}
+                      KyoshinMonitor={settings.enable_kyoshin_monitor}
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSettings(true)}
+                    >
+                      <SettingsIcon className="h-4 w-4" />
+                      設定
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={setHomePosition}
+                    >
+                      <LocateFixed className="h-4 w-4" />
+                      ホーム
+                    </Button>
+                    {isDev && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExpanded(!expanded)}
+                      >
+                        {expanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+
+                  {expanded && isDev && (
+                    <div className="flex space-x-2 mb-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTest}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTest2}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleTest3}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSendAllTests}
+                      >
+                        複数
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex space-x-3 justify-start items-center">
+                    <Button variant="outline" onClick={() => setShowSettings(true)}>
+                      <SettingsIcon />
+                    </Button>
+                    <Button variant="outline" onClick={setHomePosition}>
+                      <LocateFixed />
+                    </Button>
+                    {isDev && (
+                      <>
+                        <Button variant="outline" onClick={handleTest}>
+                          <FlaskConical />
+                        </Button>
+                        <Button variant="outline" onClick={handleTest2}>
+                          <FlaskConical />
+                        </Button>
+                        <Button variant="outline" onClick={handleTest3}>
+                          <FlaskConical />
+                        </Button>
+                        <Button variant="outline" onClick={handleSendAllTests}>
+                          複数
+                        </Button>
+                      </>
+                    )}
+                    <div className="flex flex-col">
+                      <ClockDisplay
+                        nowAppTimeRef={nowAppTimeRef}
+                        KyoshinMonitor={settings.enable_kyoshin_monitor}
+                      />
+                      <div className="flex items-center space-x-1">
+                        {isDMDATAConnected && (
+                          <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
+                            <Send size={16} />
+                            <p>DM-D.S.S</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
-        </div>
-
-        <div className="w-[400px]">
-          <Sidebar variant="sidebar" side="right" className="w-fit">
-            <SidebarContent className="overflow-y-auto p-2">
-              {(() => {
-                const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                  ? displayDataList
-                  : displayDataList.filter((data) => {
-                      const body = data.body as EewInformation.Latest.PublicCommonBody;
-                      const earthquake = body.earthquake;
-                      if (!earthquake) return true;
-                      const method = getHypocenterMethod(earthquake);
-                      return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                    });
-
-                return filteredDisplayDataList.length > 0 ? (
-                  filteredDisplayDataList.map((data) => (
-                    <EewDisplay
-                      key={data.eventId}
-                      parsedData={data}
-                      isAccuracy={settings.enable_accuracy_info}
-                      isLowAccuracy={settings.enable_low_accuracy_eew}
-                      onEpicenterUpdate={handleEpicenterUpdate}
-                      onRegionIntensityUpdate={(regionMap) =>
-                        onRegionIntensityUpdate(regionMap, data.eventId)
-                      }
-                      onWarningRegionUpdate={(regions) =>
-                        onWarningRegionUpdate(regions, data.eventId)
-                      }
-                    />
-                  ))
-                ) : (
-                  <div className="w-[385px] h-full flex justify-center items-center">
-                    <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                  </div>
-                );
-              })()}
-            </SidebarContent>
-          </Sidebar>
-        </div>
+        )}
       </main>
     </>
   );
@@ -751,9 +1044,7 @@ function PageContent() {
 export default function Page() {
   return (
     <WebSocketProvider>
-      <SidebarProvider>
-        <PageContent />
-      </SidebarProvider>
+      <PageContent />
     </WebSocketProvider>
   );
 }

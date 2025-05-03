@@ -23,7 +23,7 @@ import Image from "next/image";
 
 import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
-import { MapProps, SaibunProperties, SaibunFeatureWithBbox } from "@/types/types";
+import { MapProps, SaibunProperties, SaibunFeatureWithBbox, EpicenterInfo } from "@/types/types";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getJapanHomePosition } from "@/utils/home-position";
 
@@ -46,6 +46,7 @@ const mapDataCache = {
   countries: {} as Record<string, FeatureCollection>,
   saibun: null as FeatureCollection | null,
   cities: null as FeatureCollection | null,
+  loading: {} as Record<string, Promise<FeatureCollection>>,
 };
 
 // 国データを読み込むためのワーカー
@@ -55,43 +56,54 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
     return mapDataCache.countries[resolution];
   }
   
-  let data: FeatureCollection;
-  
-  try {
-    if (resolution === "10m") {
-      const dataModule = await import("../../public/mapdata/10mCountries.json");
-      data = {
-        type: "FeatureCollection" as const,
-        features: (dataModule.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
-          (geometry: GeoJSON.Geometry) => ({
-            type: "Feature" as const,
-            geometry,
-            properties: {},
-          })
-        ),
-      };
-    } else if (resolution === "50m") {
-      const dataModule = await import("../../public/mapdata/50mCountries.json");
-      data = dataModule.default as unknown as FeatureCollection;
-    } else {
-      const dataModule = await import("../../public/mapdata/110mCountries.json");
-      data = dataModule.default as unknown as FeatureCollection;
-    }
-    
-    // キャッシュに保存
-    mapDataCache.countries[resolution] = data;
-    return data;
-  } catch (error) {
-    console.error(`国データの読み込みに失敗 (${resolution}):`, error);
-    throw error;
+  // 既に読み込み中の場合は、その Promise を返す
+  if (mapDataCache.loading[resolution] !== undefined) {
+    return mapDataCache.loading[resolution];
   }
+  
+  // 新しい読み込みを開始し、Promise をキャッシュ
+  const loadPromise = (async () => {
+    try {
+      let data: FeatureCollection;
+      
+      if (resolution === "10m") {
+        const dataModule = await import("../../public/mapdata/10mCountries.json");
+        data = {
+          type: "FeatureCollection" as const,
+          features: (dataModule.default as { geometries: GeoJSON.Geometry[] }).geometries.map(
+            (geometry: GeoJSON.Geometry) => ({
+              type: "Feature" as const,
+              geometry,
+              properties: {},
+            })
+          ),
+        };
+      } else if (resolution === "50m") {
+        const dataModule = await import("../../public/mapdata/50mCountries.json");
+        data = dataModule.default as unknown as FeatureCollection;
+      } else {
+        const dataModule = await import("../../public/mapdata/110mCountries.json");
+        data = dataModule.default as unknown as FeatureCollection;
+      }
+      
+      // キャッシュに保存
+      mapDataCache.countries[resolution] = data;
+      delete mapDataCache.loading[resolution];
+      return data;
+    } catch (error) {
+      console.error(`国データの読み込みに失敗 (${resolution}):`, error);
+      delete mapDataCache.loading[resolution];
+      throw error;
+    }
+  })();
+  
+  mapDataCache.loading[resolution] = loadPromise;
+  return loadPromise;
 };
 
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
     enableKyoshinMonitor,
-    onTimeUpdate,
-    isConnected,
     epicenters,
     regionIntensityMap,
     enableMapIntensityFill,
@@ -162,32 +174,42 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     return mapDataCache.saibun.features
       .filter((feature) => feature.geometry && feature.geometry.type)
       .map((feature) => {
+        // 既にbboxプロパティがある場合はそれを使用
+        if (feature.bbox && feature.bbox.length === 4) {
+          return {
+            feature,
+            bbox: feature.bbox as [number, number, number, number],
+          };
+        }
+        
         let minLat = 90,
           maxLat = -90,
           minLng = 180,
           maxLng = -180;
+          
+        // 座標処理
+        const processCoord = (coord: number[]) => {
+          const [lng, lat] = coord;
+          minLng = lng < minLng ? lng : minLng;
+          maxLng = lng > maxLng ? lng : maxLng;
+          minLat = lat < minLat ? lat : minLat;
+          maxLat = lat > maxLat ? lat : maxLat;
+        };
+        
         if (feature.geometry.type === "Polygon") {
-          (feature.geometry.coordinates || []).forEach((coordArr) => {
-            coordArr.forEach((coord) => {
-              const [lng, lat] = coord;
-              if (lng < minLng) minLng = lng;
-              if (lng > maxLng) maxLng = lng;
-              if (lat < minLat) minLat = lat;
-              if (lat > maxLat) maxLat = lat;
-            });
-          });
+          for (const coordArr of feature.geometry.coordinates || []) {
+            for (const coord of coordArr) {
+              processCoord(coord);
+            }
+          }
         } else if (feature.geometry.type === "MultiPolygon") {
-          (feature.geometry.coordinates || []).forEach((polygon) => {
-            polygon.forEach((coordArr) => {
-              coordArr.forEach((coord) => {
-                const [lng, lat] = coord;
-                if (lng < minLng) minLng = lng;
-                if (lng > maxLng) maxLng = lng;
-                if (lat < minLat) minLat = lat;
-                if (lat > maxLat) maxLat = lat;
-              });
-            });
-          });
+          for (const polygon of feature.geometry.coordinates || []) {
+            for (const coordArr of polygon) {
+              for (const coord of coordArr) {
+                processCoord(coord);
+              }
+            }
+          }
         }
 
         return {
@@ -205,14 +227,21 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     return new Set(warningRegionCodes);
   }, [warningRegionCodes]);
 
+  const prevPropsMapRef = useRef<Record<string, {color: string, opacity: number}>>({});
+  
   // 細分化地域の塗りつぶし色などをプロパティに仕込む
   const processedSaibunData = useMemo(() => {
     if (!saibunDataLoaded || saibunFeaturesWithBbox.length === 0) {
       return { type: "FeatureCollection", features: [] } as FeatureCollection;
     }
 
+    const currentPropsMap: Record<string, {color: string, opacity: number}> = {};    
     const clonedFeatures: Feature[] = saibunFeaturesWithBbox.map(({ feature }) => {
-      const cloned = JSON.parse(JSON.stringify(feature)) as Feature;
+      const cloned = {
+        ...feature,
+        properties: { ...feature.properties } as SaibunProperties,
+      };
+      
       const fProps = cloned.properties as SaibunProperties;
       const code = fProps.code ? String(fProps.code) : "";
 
@@ -234,10 +263,26 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
           }
         }
       }
-      fProps.computedFillColor = fillColor;
-      fProps.computedFillOpacity = fillOpacity;
+      
+      // 前回と同じプロパティなら再計算をスキップ
+      const prevProps = prevPropsMapRef.current[code];
+      if (prevProps && prevProps.color === fillColor && prevProps.opacity === fillOpacity) {
+        // 前回の値を再利用
+        fProps.computedFillColor = fillColor;
+        fProps.computedFillOpacity = fillOpacity;
+      } else {
+        // 新しい値を設定
+        fProps.computedFillColor = fillColor;
+        fProps.computedFillOpacity = fillOpacity;
+      }
+      
+      // 現在の値をマップに保存
+      currentPropsMap[code] = {color: fillColor, opacity: fillOpacity};
+      
       return cloned;
     });
+
+    prevPropsMapRef.current = currentPropsMap;
 
     return {
       type: "FeatureCollection",
@@ -283,12 +328,29 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   const lastAutoZoomTime = useRef(0);
   const pendingAutoZoom = useRef(false);
+  const processedEventIds = useRef<Set<string>>(new Set());
+  const prevEpicenters = useRef<EpicenterInfo[]>([]);
+  const prevRegionIntensityMapKeys = useRef<string[]>([]);
+  const currentViewBounds = useRef<{minLng: number, maxLng: number, minLat: number, maxLat: number} | null>(null);
 
   // 自動ズーム処理
   useEffect(() => {
-    if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) return;
+    if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) {
+      if (enableDynamicZoom && autoZoomEnabled && ref && 'current' in ref && ref.current) {
+        const { longitude, latitude, zoom } = getJapanHomePosition();
+        ref.current.flyTo({
+          center: [longitude, latitude],
+          duration: 1000,
+          zoom: zoom,
+          essential: true,
+        });
+      }
+      return;
+    }
+
     if (!enableDynamicZoom || !autoZoomEnabled) return;
     if (!ref || !('current' in ref) || !ref.current) return;
+    
     const now = nowAppTimeRef.current;
     if (now - lastAutoZoomTime.current < 200) {
       if (!pendingAutoZoom.current) {
@@ -301,77 +363,186 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       return;
     }
 
-    lastAutoZoomTime.current = now;
-
+    // 震源と塗りつぶし地域の境界を計算
     let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
     let hasValidBounds = false;
-
-    epicenters.forEach((epi) => {
+    
+    // 震源の境界を計算
+    for (let i = 0; i < epicenters.length; i++) {
+      const epi = epicenters[i];
       if (epi && typeof epi.lat === "number" && typeof epi.lng === "number") {
-        const lat = epi.lat;
-        const lng = epi.lng;
-        minLng = Math.min(minLng, lng);
-        maxLng = Math.max(maxLng, lng);
-        minLat = Math.min(minLat, lat);
-        maxLat = Math.max(maxLat, lat);
+        minLng = epi.lng < minLng ? epi.lng : minLng;
+        maxLng = epi.lng > maxLng ? epi.lng : maxLng;
+        minLat = epi.lat < minLat ? epi.lat : minLat;
+        maxLat = epi.lat > maxLat ? epi.lat : maxLat;
         hasValidBounds = true;
       }
-    });
+    }
 
-    if (Object.keys(regionIntensityMap).length > 0) {
-      for (const { bbox, feature } of saibunFeaturesWithBbox) {
+    // 塗りつぶし地域の境界を計算
+    const regionKeys = Object.keys(regionIntensityMap);
+    if (regionKeys.length > 0) {
+      const regionCodesSet = new Set(regionKeys);
+      
+      for (let i = 0; i < saibunFeaturesWithBbox.length; i++) {
+        const { bbox, feature } = saibunFeaturesWithBbox[i];
         const code = feature.properties?.code;
-        if (code && regionIntensityMap[String(code)] !== undefined) {
+        if (code && regionCodesSet.has(String(code))) {
           const [bMinLng, bMinLat, bMaxLng, bMaxLat] = bbox;
-          minLng = Math.min(minLng, bMinLng);
-          maxLng = Math.max(maxLng, bMaxLng);
-          minLat = Math.min(minLat, bMinLat);
-          maxLat = Math.max(maxLat, bMaxLat);
+          minLng = bMinLng < minLng ? bMinLng : minLng;
+          maxLng = bMaxLng > maxLng ? bMaxLng : maxLng;
+          minLat = bMinLat < minLat ? bMinLat : minLat;
+          maxLat = bMaxLat > maxLat ? bMaxLat : maxLat;
           hasValidBounds = true;
         }
       }
     }
 
     if (!hasValidBounds) {
+      const { longitude, latitude, zoom } = getJapanHomePosition();
       ref.current.flyTo({
-        center: [136, 35],
+        center: [longitude, latitude],
         duration: 1000,
-        zoom: 4.5,
+        zoom: zoom,
         essential: true,
       });
       return;
     }
 
+    if (ref.current) {
+      const bounds = ref.current.getBounds();
+      if (bounds) {
+        currentViewBounds.current = {
+          minLng: bounds.getWest(),
+          maxLng: bounds.getEast(),
+          minLat: bounds.getSouth(),
+          maxLat: bounds.getNorth()
+        };
+      }
+    }
+
+    // ズームを更新するかどうかの判断
+    let shouldUpdateZoom = false;
+    let zoomUpdateReason = "";
+
+    // 初報の場合は必ずズーム
+    const newEventIds = [];
+    for (let i = 0; i < epicenters.length; i++) {
+      if (!processedEventIds.current.has(epicenters[i].eventId)) {
+        newEventIds.push(epicenters[i]);
+      }
+    }
+    
+    if (newEventIds.length > 0) {
+      shouldUpdateZoom = true;
+      zoomUpdateReason = "初報のため";
+      for (let i = 0; i < newEventIds.length; i++) {
+        processedEventIds.current.add(newEventIds[i].eventId);
+      }
+    } 
+    else {
+      for (let i = 0; i < epicenters.length; i++) {
+        const epi = epicenters[i];
+        const prevEpi = prevEpicenters.current.find(p => p.eventId === epi.eventId);
+        if (prevEpi) {
+          const latDiff = Math.abs(epi.lat - prevEpi.lat);
+          const lngDiff = Math.abs(epi.lng - prevEpi.lng);
+          
+          // 位置が大幅に変わった場合（0.5度以上の変化）
+          if (latDiff > 0.5 || lngDiff > 0.5) {
+            shouldUpdateZoom = true;
+            zoomUpdateReason = "震源位置が大幅に変化";
+            break;
+          }
+          
+          // 現在の表示範囲から震源が外れた場合
+          if (currentViewBounds.current) {
+            const { minLng, maxLng, minLat, maxLat } = currentViewBounds.current;
+            if (epi.lng < minLng || epi.lng > maxLng || epi.lat < minLat || epi.lat > maxLat) {
+              shouldUpdateZoom = true;
+              zoomUpdateReason = "震源が表示範囲外";
+              break;
+            }
+          }
+        }
+      }
+      
+      // 塗りつぶし地域が更新されたかチェック
+      if (!shouldUpdateZoom) {
+        const currentRegionKeys = regionKeys;
+        const prevRegionKeys = prevRegionIntensityMapKeys.current;
+        
+        // 地域数が変わった場合
+        if (currentRegionKeys.length !== prevRegionKeys.length) {
+          shouldUpdateZoom = true;
+          zoomUpdateReason = "塗りつぶし地域が更新";
+        } 
+        // 地域が同じ数でも内容が変わった場合
+        else if (currentRegionKeys.length > 0) {
+          const prevKeysSet = new Set(prevRegionKeys);
+          for (let i = 0; i < currentRegionKeys.length; i++) {
+            if (!prevKeysSet.has(currentRegionKeys[i])) {
+              shouldUpdateZoom = true;
+              zoomUpdateReason = "塗りつぶし地域が更新";
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    prevEpicenters.current = [...epicenters];
+    prevRegionIntensityMapKeys.current = regionKeys;
+
+    if (!shouldUpdateZoom) {
+      return;
+    }
+
+    lastAutoZoomTime.current = now;
+
+    // 最適なズームレベルを決定
     let maxZoom = 10;
     if (epicenters.length === 1) {
       maxZoom = epicenters[0].depthval > 150 ? 5 : 7;
     } else if (epicenters.length > 1) {
-      maxZoom = epicenters.some((epi) => epi.depthval > 150) ? 5 : 6;
+      let hasDeepEpicenter = false;
+      for (let i = 0; i < epicenters.length; i++) {
+        if (epicenters[i].depthval > 150) {
+          hasDeepEpicenter = true;
+          break;
+        }
+      }
+      maxZoom = hasDeepEpicenter ? 5 : 6;
     }
 
-    try {
-      const viewport = new WebMercatorViewport({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }).fitBounds(
-        [
-          [minLng, minLat],
-          [maxLng, maxLat],
-        ],
-        { padding: 50, maxZoom }
-      );
+    // requestAnimationFrameを使用して視覚的な更新
+    requestAnimationFrame(() => {
+      try {
+        const viewport = new WebMercatorViewport({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }).fitBounds(
+          [
+            [minLng, minLat],
+            [maxLng, maxLat],
+          ],
+          { padding: 50, maxZoom }
+        );
 
-      ref.current.flyTo({
-        center: [viewport.longitude, viewport.latitude],
-        duration: 500,
-        zoom: viewport.zoom,
-        essential: true,
-      });
-      
-      onAutoZoomChange?.(true);
-    } catch (e) {
-      console.error("Auto-zoom calculation failed:", e);
-    }
+        const duration = zoomUpdateReason === "塗りつぶし地域が更新" ? 100 : 300;
+
+        ref.current?.flyTo({
+          center: [viewport.longitude, viewport.latitude],
+          duration: duration,
+          zoom: viewport.zoom,
+          essential: true,
+        });
+        
+        onAutoZoomChange?.(true);
+      } catch (e) {
+        console.error("Auto-zoom calculation failed:", e);
+      }
+    });
   }, [
     epicenters,
     regionIntensityMap,
@@ -412,13 +583,15 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
       clearTimeout(autoZoomTimeoutRef.current);
     }
     if (enableDynamicZoom) {
-      autoZoomTimeoutRef.current = window.setTimeout(() => {
-        setHomePosition();
-        setAutoZoomEnabled(true);
-        onAutoZoomChange?.(true);
-      }, 10000);
+      if (epicenters.length === 0 && Object.keys(regionIntensityMap).length === 0) {
+        autoZoomTimeoutRef.current = window.setTimeout(() => {
+          setHomePosition();
+          setAutoZoomEnabled(true);
+          onAutoZoomChange?.(true);
+        }, 10000);
+      }
     }
-  }, [enableDynamicZoom, onAutoZoomChange, setHomePosition]);
+  }, [enableDynamicZoom, onAutoZoomChange, setHomePosition, epicenters, regionIntensityMap]);
 
   const reorderMapLayers = useCallback(() => {
     if (ref && "current" in ref && ref.current) {
@@ -445,6 +618,15 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [ref]);
 
+  useEffect(() => {
+    if (enableKyoshinMonitor) {
+      const timer = setTimeout(() => {
+        reorderMapLayers();
+      }, 400); 
+      return () => clearTimeout(timer);
+    }
+  }, [enableKyoshinMonitor, reorderMapLayers]);
+
   const handleMoveStart = useCallback(() => {
     setIsMapMoving(true);
     window.dispatchEvent(new Event('movestart'));
@@ -458,7 +640,7 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
 
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
     setViewState(evt.viewState);
-  }, []);
+  }, [setViewState]);
 
   // マップのロード完了
   const onMapLoadHandler = useCallback(() => {
@@ -509,12 +691,12 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
           alt="epicenter"
           width={48}
           height={48}
-          className={isCancel ? "opacity-30" : "blink"}
+          className={epi.isCancel ? "opacity-30" : "blink"}
           priority={true}
         />
       </Marker>
     ));
-  }, [epicenters, isCancel]);
+  }, [epicenters]);
 
   return (
     <div
@@ -593,8 +775,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         />
         <KyoshinMonitor
           enableKyoshinMonitor={enableKyoshinMonitor}
-          onTimeUpdate={onTimeUpdate}
-          isConnected={isConnected}
           nowAppTimeRef={nowAppTimeRef}
         />
       </Map>
