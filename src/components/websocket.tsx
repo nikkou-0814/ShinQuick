@@ -6,6 +6,7 @@ import React, {
   useState,
   useRef,
   useCallback,
+  useEffect,
 } from "react";
 import { toast } from "sonner";
 import pako from "pako";
@@ -69,8 +70,6 @@ export const WebSocketProvider = ({
   const wsRef = useRef<WebSocket | null>(null);
   const socketIdRef = useRef<number | null>(null);
   const passedIntensityFilterRef = useRef<Set<string>>(new Set());
-  
-  // AXIS関連の状態
   const [isAXISConnected, setIsAXISConnected] = useState(false);
   const [AXISreceivedData, setAXISReceivedData] = useState<AXISEewInformation | null>(null);
   const axisWsRef = useRef<WebSocket | null>(null);
@@ -78,8 +77,65 @@ export const WebSocketProvider = ({
   const axisRetryCountRef = useRef<number>(0);
   const axisRetryMaxRef = useRef<number>(10);
   const axisHeartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [displayDataList, setDisplayDataList] = useState<EewInformation.Latest.Main[]>([]);
+  const [axisDisplayDataList, setAxisDisplayDataList] = useState<AXISEewInformation[]>([]);
+  const receivedEventsRef = useRef<Record<string, { source: "DMDATA" | "AXIS", timestamp: number }>>({});
 
-  // WebSocket接続処理
+  useEffect(() => {
+    if (DMDATAreceivedData) {
+      const eventId = DMDATAreceivedData.eventId;
+      const currentTime = Date.now();
+      const existingEvent = receivedEventsRef.current[eventId];
+      
+      if (!existingEvent) {
+        receivedEventsRef.current[eventId] = { source: "DMDATA", timestamp: currentTime };
+        setDisplayDataList(prev => {
+          const filtered = prev.filter(item => item.eventId !== eventId);
+          return [DMDATAreceivedData, ...filtered];
+        });
+      } else if (existingEvent.source === "DMDATA") {
+        receivedEventsRef.current[eventId] = { source: "DMDATA", timestamp: currentTime };
+        setDisplayDataList(prev => {
+          const filtered = prev.filter(item => item.eventId !== eventId);
+          return [DMDATAreceivedData, ...filtered];
+        });
+      } else if (existingEvent.source === "AXIS") {
+        receivedEventsRef.current[eventId] = { source: "DMDATA", timestamp: currentTime };
+        setDisplayDataList(prev => {
+          const filtered = prev.filter(item => item.eventId !== eventId);
+          return [DMDATAreceivedData, ...filtered];
+        });
+        setAxisDisplayDataList(prev => prev.filter(item => item.EventID !== eventId));
+      }
+    }
+  }, [DMDATAreceivedData]);
+
+  useEffect(() => {
+    if (AXISreceivedData) {
+      const eventId = AXISreceivedData.EventID;
+      const currentTime = Date.now();
+      const existingEvent = receivedEventsRef.current[eventId];
+      
+      if (!existingEvent) {
+        receivedEventsRef.current[eventId] = { source: "AXIS", timestamp: currentTime };
+
+        setAxisDisplayDataList(prev => {
+          const filtered = prev.filter(item => item.EventID !== eventId);
+          return [AXISreceivedData, ...filtered];
+        });
+      } else if (existingEvent.source === "AXIS") {
+        receivedEventsRef.current[eventId] = { source: "AXIS", timestamp: currentTime };
+        setAxisDisplayDataList(prev => {
+          const filtered = prev.filter(item => item.EventID !== eventId);
+          return [AXISreceivedData, ...filtered];
+        });
+      } else if (existingEvent.source === "DMDATA") {
+        console.log(`AXIS data for event ${eventId} ignored as DMDATA is already active`);
+      }
+    }
+  }, [AXISreceivedData]);
+
+  // DMDATA WebSocket接続処理
   const connectDMDATAWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
     if (
       wsRef.current &&
@@ -246,7 +302,7 @@ export const WebSocketProvider = ({
   };
 
   // テストデータ注入処理の最適化
-  const injectTestData = useCallback((testData: { body: string }) => {
+  const injectdmdataTestData = useCallback((testData: { body: string }) => {
     requestAnimationFrame(() => {
       const decodedData = decodeAndDecompress(testData.body);
       if (decodedData) {
@@ -255,6 +311,13 @@ export const WebSocketProvider = ({
       } else {
         toast.error("形式が無効");
       }
+    });
+  }, []);
+
+  const injectaxisTestData = useCallback((testData: AXISEewInformation) => {
+    requestAnimationFrame(() => {
+      setAXISReceivedData(testData);
+      toast.success("テストデータOK");
     });
   }, []);
 
@@ -280,13 +343,9 @@ export const WebSocketProvider = ({
         setIsAXISConnected(true);
         console.log("AXIS WebSocket connected");
         toast.success("AXIS WebSocketに接続しました！");
-        
-        // 接続成功時にリトライ回数とタイマーをリセット
         axisRetrySecRef.current = 100;
         axisRetryCountRef.current = 0;
-        
-        // ハートビートの開始
-        startAxiosHeartbeat();
+        startAxisHeartbeat();
       });
 
       // メッセージ受信時の処理
@@ -299,9 +358,7 @@ export const WebSocketProvider = ({
             axisRetryCountRef.current = 0;
             console.log('AXIS: hello received');
           } else if (message === 'hb') {
-            // ハートビート応答 - 何もしない
           } else {
-            // データメッセージの処理
             const data = JSON.parse(message);
             console.log(`AXIS: ${data.channel} received`);
             
@@ -323,23 +380,23 @@ export const WebSocketProvider = ({
       // 切断時の処理
       ws.addEventListener("close", () => {
         setIsAXISConnected(false);
-        stopAxiosHeartbeat();
+        stopAxisHeartbeat();
         console.log("AXIS WebSocketが切断されました。");
         
         // 再接続処理
-        retryAxiosConnection();
+        retryAxisConnection();
       });
     } catch (err) {
       console.error("AXIS WebSocket接続に失敗しました:", err);
       toast.error("AXIS WebSocket接続に失敗しました。");
-      retryAxiosConnection();
+      retryAxisConnection();
     }
   };
 
   // AXIS WebSocket切断処理
   const disconnectAXISWebSocket = async () => {
     if (axisWsRef.current) {
-      stopAxiosHeartbeat();
+      stopAxisHeartbeat();
       axisWsRef.current.close();
       axisWsRef.current = null;
       setIsAXISConnected(false);
@@ -349,8 +406,7 @@ export const WebSocketProvider = ({
     }
   };
 
-  // AXIOS ハートビート処理の開始
-  const startAxiosHeartbeat = () => {
+  const startAxisHeartbeat = () => {
     if (axisHeartbeatTimerRef.current) {
       clearTimeout(axisHeartbeatTimerRef.current);
     }
@@ -365,16 +421,15 @@ export const WebSocketProvider = ({
     sendHeartbeat();
   };
 
-  // AXIOS ハートビート処理の停止
-  const stopAxiosHeartbeat = () => {
+  const stopAxisHeartbeat = () => {
     if (axisHeartbeatTimerRef.current) {
       clearTimeout(axisHeartbeatTimerRef.current);
       axisHeartbeatTimerRef.current = null;
     }
   };
 
-  // AXIOS 再接続処理
-  const retryAxiosConnection = () => {
+  // AXIS 再接続処理
+  const retryAxisConnection = () => {
     axisRetrySecRef.current = axisRetrySecRef.current * 2;
     
     if (axisRetryCountRef.current < axisRetryMaxRef.current) {
@@ -399,13 +454,15 @@ export const WebSocketProvider = ({
         DMDATAreceivedData,
         connectDMDATAWebSocket,
         disconnectDMDATAWebSocket,
-        injectTestData,
+        injectdmdataTestData,
+        injectaxisTestData,
         passedIntensityFilterRef,
-        // AXIS関連
         isAXISConnected,
         AXISreceivedData,
         connectAXISWebSocket,
         disconnectAXISWebSocket,
+        displayDataList,
+        axisDisplayDataList,
       }}
     >
       {children}

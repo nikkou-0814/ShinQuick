@@ -284,7 +284,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
                   title="精度の低い緊急地震速報を表示する（1点観測）"
-                  description="十分に知識がある方のみご利用ください。誤報の可能性が高くなります。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="十分に知識がある方のみご利用ください。誤報の可能性が高くなります。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_low_accuracy_eew : false}
@@ -298,7 +298,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="緊急地震速報の精度情報を表示する"
-                  description="イベント毎の情報が長くなるため、見切れる場合があります。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="イベント毎の情報が長くなるため、見切れる場合があります。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_accuracy_info : false}
@@ -311,7 +311,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="細分化地域の予想震度を表示する"
-                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_map_intensity_fill : false}
@@ -324,7 +324,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="警報発表地域の塗りつぶしを有効にする"
-                  description="警報が発表されている、地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="警報が発表されている、地域を塗りつぶします。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_map_warning_area : false}
@@ -337,7 +337,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="予測円の更新間隔"
-                  description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。※DM-D.S.Sを利用しない場合は使用できません。(${settings.ps_wave_update_interval} ms)`}
+                  description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。(${settings.ps_wave_update_interval} ms)`}
                   vertical
                 >
                   <Slider

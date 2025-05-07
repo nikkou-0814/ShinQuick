@@ -101,13 +101,15 @@ export interface WebSocketContextType {
   DMDATAreceivedData: EewInformation.Latest.Main | null;
   connectDMDATAWebSocket: (DMDATAtoken: string, enableDrillTestInfo: boolean) => Promise<void>;
   disconnectDMDATAWebSocket: () => Promise<void>;
-  injectTestData: (data: { body: string }) => void;
+  injectdmdataTestData: (data: { body: string }) => void;
+  injectaxisTestData: (data: AXISEewInformation) => void;
   passedIntensityFilterRef: React.RefObject<Set<string>>;
-  // AXIS関連の追加
   isAXISConnected: boolean;
   AXISreceivedData: AXISEewInformation | null;
   connectAXISWebSocket: (AXIStoken: string) => Promise<void>;
   disconnectAXISWebSocket: () => Promise<void>;
+  displayDataList: EewInformation.Latest.Main[];
+  axisDisplayDataList: AXISEewInformation[];
 }
 
 // 強震モニタ用データ
