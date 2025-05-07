@@ -314,11 +314,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。"
                 >
                   <Switch
-                  checked={isAuthenticated ? settings.enable_map_intensity_fill : false}
+                  checked={isAuthenticated || axisToken ? settings.enable_map_intensity_fill : false}
                   onCheckedChange={(checked) =>
                     handleSettingChange("enable_map_intensity_fill", checked)
                   }
-                  disabled={!isAuthenticated}
+                  disabled={!isAuthenticated && !axisToken}
                   />
                 </SettingItem>
 
@@ -349,7 +349,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       handleSettingChange("ps_wave_update_interval", value[0])
                     }
                     className="w-full mt-2 mx-1"
-                    disabled={!isAuthenticated}
+                    disabled={!isAuthenticated && !axisToken}
                   />
                 </SettingItem>
 
