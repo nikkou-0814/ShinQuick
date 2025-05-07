@@ -5,12 +5,10 @@ on:
     branches:
       - dev
       - main
-      - axis
   pull_request:
     branches:
       - dev
       - main
-      - axis
 
 jobs:
   build:
