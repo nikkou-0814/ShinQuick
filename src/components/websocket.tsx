@@ -272,7 +272,6 @@ export const WebSocketProvider = ({
     try {
       // WebSocketの接続
       const socketUrl = `wss://ws.axis.prioris.jp/socket?token=${encodeURIComponent(token)}`;
-      const headers = { Authorization: `Bearer ${token}` };
       const ws = new WebSocket(socketUrl);
       axisWsRef.current = ws;
 

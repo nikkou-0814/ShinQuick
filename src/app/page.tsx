@@ -109,7 +109,7 @@ function PageContent() {
     injectTestData,
     passedIntensityFilterRef,
     isAXISConnected,
-    AXISreceivedData,
+    // AXISreceivedData,
     connectAXISWebSocket,
     disconnectAXISWebSocket,
   } = useWebSocket();
