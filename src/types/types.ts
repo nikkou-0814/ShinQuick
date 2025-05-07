@@ -87,6 +87,12 @@ export interface SettingsDialogProps {
   isDMDATAConnected: boolean;
   onSyncClock: () => void;
   onResetPanelSizes: () => void;
+  // AXIS関連の追加
+  isAXISConnected: boolean;
+  onConnectAXISWebSocket: () => void;
+  onDisconnectAXISWebSocket: () => Promise<void>;
+  axisToken: string;
+  onAxisTokenChange: (token: string) => void;
 }
 
 // WebSocketコンテキストで扱う型
@@ -97,6 +103,11 @@ export interface WebSocketContextType {
   disconnectDMDATAWebSocket: () => Promise<void>;
   injectTestData: (data: { body: string }) => void;
   passedIntensityFilterRef: React.RefObject<Set<string>>;
+  // AXIS関連の追加
+  isAXISConnected: boolean;
+  AXISreceivedData: AXISEewInformation | null;
+  connectAXISWebSocket: (AXIStoken: string) => Promise<void>;
+  disconnectAXISWebSocket: () => Promise<void>;
 }
 
 // 強震モニタ用データ

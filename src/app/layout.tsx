@@ -35,14 +35,14 @@ export const metadata = {
 
 const RootLayout: FC<RootLayoutProps> = (props) => {
   return (
-   <html lang="ja" 
-     suppressHydrationWarning
-   >
+    <html lang="ja" 
+      suppressHydrationWarning
+    >
       <body className="">
-       <ThemeProvider attribute="class" defaultTheme="system">
+        <ThemeProvider attribute="class" defaultTheme="system">
           {props.children}
-          <Toaster richColors expand={true} />
-       </ThemeProvider>
+          <Toaster richColors expand={true} position="top-left" />
+        </ThemeProvider>
       </body>
     </html>
   );

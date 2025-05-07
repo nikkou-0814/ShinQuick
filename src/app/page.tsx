@@ -108,8 +108,13 @@ function PageContent() {
     disconnectDMDATAWebSocket,
     injectTestData,
     passedIntensityFilterRef,
+    isAXISConnected,
+    AXISreceivedData,
+    connectAXISWebSocket,
+    disconnectAXISWebSocket,
   } = useWebSocket();
 
+  const [axisToken, setAxisToken] = useState<string>("");
   const canceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nonCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nowAppTimeRef = useRef<number>(0);
@@ -311,6 +316,12 @@ function PageContent() {
       if (DMDATAtoken) {
         setIsAuthenticated(true);
       }
+      
+      const savedAxisToken = localStorage.getItem("axis_access_token");
+      if (savedAxisToken) {
+        setAxisToken(savedAxisToken);
+      }
+      
       setPanelSizesLoaded(true);
     }
   }, []);
@@ -745,6 +756,25 @@ function PageContent() {
     fetchVersion();
   }, []);
 
+  const handleAxisTokenChange = (token: string) => {
+    setAxisToken(token);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("axis_access_token", token);
+    }
+  };
+
+  const handleConnectAXISWebSocket = () => {
+    if (!axisToken) {
+      toast.error("AXISトークンを入力してください。");
+      return;
+    }
+    connectAXISWebSocket(axisToken);
+  };
+
+  const handleAXISWebSocketDisconnect = async () => {
+    await disconnectAXISWebSocket();
+  };
+
   return (
     <>
       <SettingsDialog
@@ -759,6 +789,11 @@ function PageContent() {
         onDisconnectDMDATAWebSocket={handleDMDATAWebSocketDisconnect}
         onSyncClock={handleClockSync}
         onResetPanelSizes={resetPanelSizes}
+        isAXISConnected={isAXISConnected}
+        onConnectAXISWebSocket={handleConnectAXISWebSocket}
+        onDisconnectAXISWebSocket={handleAXISWebSocketDisconnect}
+        axisToken={axisToken}
+        onAxisTokenChange={handleAxisTokenChange}
       />
 
       {version && (
@@ -920,6 +955,12 @@ function PageContent() {
                           <p className="text-xs">DM-D.S.S</p>
                         </div>
                       )}
+                      {isAXISConnected && (
+                        <div className="flex items-center text-xs text-blue-500 space-x-1">
+                          <Send size={12} />
+                          <p className="text-xs">AXIS</p>
+                        </div>
+                      )}
                     </div>
                     <ClockDisplay
                       nowAppTimeRef={nowAppTimeRef}
@@ -1026,6 +1067,12 @@ function PageContent() {
                           <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
                             <Send size={16} />
                             <p>DM-D.S.S</p>
+                          </div>
+                        )}
+                        {isAXISConnected && (
+                          <div className="flex items-center text-xs text-blue-500 space-x-1 text-right">
+                            <Send size={16} />
+                            <p>AXIS</p>
                           </div>
                         )}
                       </div>

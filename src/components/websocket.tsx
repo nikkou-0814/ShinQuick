@@ -10,7 +10,7 @@ import React, {
 import { toast } from "sonner";
 import pako from "pako";
 import { EewInformation } from "@dmdata/telegram-json-types";
-import { WebSocketContextType, SchemaCheck } from "@/types/types";
+import { WebSocketContextType, SchemaCheck, AXISEewInformation } from "@/types/types";
 
 // 型チェック
 const isEewInformationMain = (
@@ -69,6 +69,15 @@ export const WebSocketProvider = ({
   const wsRef = useRef<WebSocket | null>(null);
   const socketIdRef = useRef<number | null>(null);
   const passedIntensityFilterRef = useRef<Set<string>>(new Set());
+  
+  // AXIS関連の状態
+  const [isAXISConnected, setIsAXISConnected] = useState(false);
+  const [AXISreceivedData, setAXISReceivedData] = useState<AXISEewInformation | null>(null);
+  const axisWsRef = useRef<WebSocket | null>(null);
+  const axisRetrySecRef = useRef<number>(100);
+  const axisRetryCountRef = useRef<number>(0);
+  const axisRetryMaxRef = useRef<number>(10);
+  const axisHeartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // WebSocket接続処理
   const connectDMDATAWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
@@ -249,6 +258,141 @@ export const WebSocketProvider = ({
     });
   }, []);
 
+  // AXIS WebSocket接続処理
+  const connectAXISWebSocket = async (token: string) => {
+    if (
+      axisWsRef.current &&
+      (axisWsRef.current.readyState === WebSocket.OPEN ||
+        axisWsRef.current.readyState === WebSocket.CONNECTING)
+    ) {
+      toast.warning("AXIS WebSocketはすでに接続されています。");
+      return;
+    }
+
+    try {
+      // WebSocketの接続
+      const socketUrl = `wss://ws.axis.prioris.jp/socket?token=${encodeURIComponent(token)}`;
+      const headers = { Authorization: `Bearer ${token}` };
+      const ws = new WebSocket(socketUrl);
+      axisWsRef.current = ws;
+
+      // 接続時の処理
+      ws.addEventListener("open", () => {
+        setIsAXISConnected(true);
+        console.log("AXIS WebSocket connected");
+        toast.success("AXIS WebSocketに接続しました！");
+        
+        // 接続成功時にリトライ回数とタイマーをリセット
+        axisRetrySecRef.current = 100;
+        axisRetryCountRef.current = 0;
+        
+        // ハートビートの開始
+        startAxiosHeartbeat();
+      });
+
+      // メッセージ受信時の処理
+      ws.addEventListener("message", (ev) => {
+        try {
+          const message = ev.data;
+          
+          if (message === 'hello') {
+            axisRetrySecRef.current = 100;
+            axisRetryCountRef.current = 0;
+            console.log('AXIS: hello received');
+          } else if (message === 'hb') {
+            // ハートビート応答 - 何もしない
+          } else {
+            // データメッセージの処理
+            const data = JSON.parse(message);
+            console.log(`AXIS: ${data.channel} received`);
+            
+            if (data.channel === 'eew') {
+              setAXISReceivedData(data.message);
+            }
+          }
+        } catch (e) {
+          console.error("AXIS メッセージ処理エラー:", e);
+        }
+      });
+
+      // エラー発生時の処理
+      ws.addEventListener("error", (err) => {
+        console.error("AXIS WebSocketエラー:", err);
+        toast.error("AXIS WebSocketでエラーが発生しました。");
+      });
+
+      // 切断時の処理
+      ws.addEventListener("close", () => {
+        setIsAXISConnected(false);
+        stopAxiosHeartbeat();
+        console.log("AXIS WebSocketが切断されました。");
+        
+        // 再接続処理
+        retryAxiosConnection();
+      });
+    } catch (err) {
+      console.error("AXIS WebSocket接続に失敗しました:", err);
+      toast.error("AXIS WebSocket接続に失敗しました。");
+      retryAxiosConnection();
+    }
+  };
+
+  // AXIS WebSocket切断処理
+  const disconnectAXISWebSocket = async () => {
+    if (axisWsRef.current) {
+      stopAxiosHeartbeat();
+      axisWsRef.current.close();
+      axisWsRef.current = null;
+      setIsAXISConnected(false);
+      toast.info("AXIS WebSocketを正常に切断しました。");
+    } else {
+      toast.warning("AXIS WebSocketはすでに切断されています。");
+    }
+  };
+
+  // AXIOS ハートビート処理の開始
+  const startAxiosHeartbeat = () => {
+    if (axisHeartbeatTimerRef.current) {
+      clearTimeout(axisHeartbeatTimerRef.current);
+    }
+    
+    const sendHeartbeat = () => {
+      if (axisWsRef.current && axisWsRef.current.readyState === WebSocket.OPEN) {
+        axisWsRef.current.send('hb');
+        axisHeartbeatTimerRef.current = setTimeout(sendHeartbeat, 30000);
+      }
+    };
+    
+    sendHeartbeat();
+  };
+
+  // AXIOS ハートビート処理の停止
+  const stopAxiosHeartbeat = () => {
+    if (axisHeartbeatTimerRef.current) {
+      clearTimeout(axisHeartbeatTimerRef.current);
+      axisHeartbeatTimerRef.current = null;
+    }
+  };
+
+  // AXIOS 再接続処理
+  const retryAxiosConnection = () => {
+    axisRetrySecRef.current = axisRetrySecRef.current * 2;
+    
+    if (axisRetryCountRef.current < axisRetryMaxRef.current) {
+      axisRetryCountRef.current++;
+      console.log(`AXIS Retry: ${axisRetryCountRef.current} (delay ${axisRetrySecRef.current}ms)`);
+      
+      setTimeout(() => {
+        const token = localStorage.getItem("axis_access_token") || "";
+        if (token) {
+          connectAXISWebSocket(token);
+        }
+      }, axisRetrySecRef.current);
+    } else {
+      console.log("AXIS 最大再接続回数に達しました。");
+    }
+  };
+
   return (
     <WebSocketContext.Provider
       value={{
@@ -258,6 +402,11 @@ export const WebSocketProvider = ({
         disconnectDMDATAWebSocket,
         injectTestData,
         passedIntensityFilterRef,
+        // AXIS関連
+        isAXISConnected,
+        AXISreceivedData,
+        connectAXISWebSocket,
+        disconnectAXISWebSocket,
       }}
     >
       {children}
