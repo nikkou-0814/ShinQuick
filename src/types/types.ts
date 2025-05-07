@@ -110,6 +110,8 @@ export interface WebSocketContextType {
   disconnectAXISWebSocket: () => Promise<void>;
   displayDataList: EewInformation.Latest.Main[];
   axisDisplayDataList: AXISEewInformation[];
+  setAxisDisplayDataList: React.Dispatch<React.SetStateAction<AXISEewInformation[]>>;
+  setDisplayDataList: React.Dispatch<React.SetStateAction<EewInformation.Latest.Main[]>>;
 }
 
 // 強震モニタ用データ

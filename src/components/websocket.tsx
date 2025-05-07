@@ -463,6 +463,8 @@ export const WebSocketProvider = ({
         disconnectAXISWebSocket,
         displayDataList,
         axisDisplayDataList,
+        setAxisDisplayDataList,
+        setDisplayDataList,
       }}
     >
       {children}

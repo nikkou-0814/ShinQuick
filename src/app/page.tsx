@@ -116,11 +116,15 @@ function PageContent() {
     disconnectAXISWebSocket,
     displayDataList,
     axisDisplayDataList,
+    setAxisDisplayDataList,
+    setDisplayDataList,
   } = useWebSocket();
 
   const [axisToken, setAxisToken] = useState<string>("");
   const canceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nonCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const axisCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const axisNonCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nowAppTimeRef = useRef<number>(0);
   const rAFBaseRef = useRef<number | null>(null);
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(
@@ -550,7 +554,7 @@ function PageContent() {
     []
   );
 
-  // 震源情報のクリーンアップ処理
+  // DMDATAクリーンアップ処理
   useEffect(() => {
     Object.keys(canceledTimersRef.current).forEach((eventId) => {
       const stillExist = DMDATAdisplayDataList.some(
@@ -569,13 +573,21 @@ function PageContent() {
 
       canceledTimersRef.current[eventId] = setTimeout(() => {
         setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
         setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
         onRegionIntensityUpdate({}, eventId);
         onWarningRegionUpdate([], eventId);
         delete canceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
       }, 10000);
     });
-  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setDMDATADisplayDataList, setDisplayDataList, setMapAutoZoomEnabled]);
 
   useEffect(() => {
     Object.keys(nonCanceledTimersRef.current).forEach((eventId) => {
@@ -590,19 +602,94 @@ function PageContent() {
       if (data.body?.isCanceled) return;
       const eventId = data.eventId;
       if (nonCanceledTimersRef.current[eventId]) return;
-
-      const isFinal = (data.body && "isFinal" in data.body && data.body.isFinal);
-      const removalTime = isFinal ? 3 * 60 * 1000 : 5 * 60 * 1000;
+      const body = data.body as EewInformation.Latest.PublicCommonBody;
+      const removalTime = body.isLastInfo ? 3 * 60 * 1000 : 5 * 60 * 1000;
 
       nonCanceledTimersRef.current[eventId] = setTimeout(() => {
         setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
         setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
         onRegionIntensityUpdate({}, eventId);
         onWarningRegionUpdate([], eventId);
         delete nonCanceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
       }, removalTime);
     });
-  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setDMDATADisplayDataList, setDisplayDataList, setMapAutoZoomEnabled]);
+
+  // AXIS震源情報のクリーンアップ処理
+  useEffect(() => {
+    Object.keys(axisCanceledTimersRef.current).forEach((eventId) => {
+      const stillExist = axisDisplayDataList.some(
+        (d) => d.EventID === eventId && d.Flag.is_cancel
+      );
+      if (!stillExist) {
+        clearTimeout(axisCanceledTimersRef.current[eventId]);
+        delete axisCanceledTimersRef.current[eventId];
+      }
+    });
+
+    axisDisplayDataList.forEach((data) => {
+      if (!data.Flag.is_cancel) return;
+      const eventId = data.EventID;
+      if (axisCanceledTimersRef.current[eventId]) return;
+
+      axisCanceledTimersRef.current[eventId] = setTimeout(() => {
+        setAxisDisplayDataList((prev) => prev.filter((x) => x.EventID !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete axisCanceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
+      }, 10000);
+    });
+  }, [axisDisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setAxisDisplayDataList, setMapAutoZoomEnabled]);
+
+  useEffect(() => {
+    Object.keys(axisNonCanceledTimersRef.current).forEach((eventId) => {
+      const target = axisDisplayDataList.find((d) => d.EventID === eventId);
+      if (!target || target.Flag.is_cancel) {
+        clearTimeout(axisNonCanceledTimersRef.current[eventId]);
+        delete axisNonCanceledTimersRef.current[eventId];
+      }
+    });
+
+    axisDisplayDataList.forEach((data) => {
+      if (data.Flag.is_cancel) return;
+      const eventId = data.EventID;
+      if (axisNonCanceledTimersRef.current[eventId]) return;
+
+      const isFinal = data.Flag.is_final;
+      const removalTime = isFinal ? 3 * 60 * 1000 : 5 * 60 * 1000;
+
+      axisNonCanceledTimersRef.current[eventId] = setTimeout(() => {
+        setAxisDisplayDataList((prev) => prev.filter((x) => x.EventID !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete axisNonCanceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
+      }, removalTime);
+    });
+  }, [axisDisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setAxisDisplayDataList, setMapAutoZoomEnabled]);
 
   // 震源情報の更新処理
   const handleEpicenterUpdate = useCallback(
