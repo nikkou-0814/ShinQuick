@@ -2,26 +2,26 @@
 
 <div style="text-align: center;">
   <img src="images/screenshot.png" alt="screenshot" style="max-width: 100%; height: auto;">
-  動作の例
+  v0.1.1での動作例
 </div>
 
 ## 概要
 
 震Quickは「緊急地震速報を、見やすく、リアルタイムに」をコンセプトに開発されたWebアプリケーションです。
 
-### 特徴
+### 特徴など
 
 #### リアルタイム表示
 
-Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊急地震速報をほぼリアルタイムで表示します。（※利用には`緊急地震（予報）`の契約が別途必要です）
+Project DM-D.S.SまたはAXISを使用したWebSocket通信により、気象庁発表の緊急地震速報をほぼリアルタイムで表示します。**（※利用するには別途、契約または会員登録が必要です）**
+
+#### 複数情報源の併用
+
+Project DM-D.S.SとAXISは同時にWebSocket接続が可能です。たとえば、AXISの情報を先に受信し、その後にDM-D.S.Sの情報が届いた場合は、DM-D.S.Sの内容が自動的にAXISの情報に上書きされて表示されます。
 
 #### 情報収集の補助
 
 防災情報の確認を日常的に行うユーザー向けに、情報収集の補助を目的としています。
-
-#### 詳細な情報表示
-
-レベル法やIPF1点検知による緊急地震速報、震度0の表示など、一定の知識を有した方向けの機能があります。
 
 ## ご利用にあたって
 
@@ -51,7 +51,8 @@ Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊�
 
 ### 緊急地震速報
 
-* [Project DM(Disaster Mitigation)-Data Send Service](https://dmdata.jp)（※各自の契約が必須）
+* [Project DM(Disaster Mitigation)-Data Send Service](https://dmdata.jp)（※各自契約が必須）
+* [AXIS(An eXtendable Information Stream)](https://axis.prioris.jp/)（※各自会員登録が必須）
 * [Yahoo!天気・災害 強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)（※DM-D.S.S使用時には無効）
 
 ### その他データ
@@ -133,7 +134,7 @@ Project DM-D.S.Sを使用したWebSocket通信により、気象庁発表の緊�
 
 * **バグ修正**: 既知のバグや不具合の修正を行う
 * **機能追加**: 新しい機能や改善提案を実装する
-* **パフォーマンス最適化**: 処理の軽量化や高速化に取り組む
+* **最適化**: 処理の軽量化や高速化に取り組む
 
 ### ドキュメントの改善
 * **READMEの改善**
