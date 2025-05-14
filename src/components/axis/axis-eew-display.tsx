@@ -169,6 +169,8 @@ const AXISEewDisplay: React.FC<AXISEewDisplayProps> = ({
         return { bg: "#4CD0A7", text: "black" };
       case "1":
         return { bg: "#2B8EB2", text: "white" };
+      case "不明":
+        return { bg: "#62626B", text: "white" };
       default:
         return { bg: "#CCCCCC", text: "black" };
     }
@@ -197,6 +199,21 @@ const AXISEewDisplay: React.FC<AXISEewDisplayProps> = ({
   const intensityColors = getIntensityColor(Intensity);
   const backgroundColor = intensityColors.bg;
   const textColor = intensityColors.text;
+
+  let displayIntensity = `推定最大震度 ${convertIntensity(Intensity)}`;
+
+  // 深発
+  if (depthValue !== "不明") {
+    const depthStr = depthValue.replace(/[^0-9]/g, "");
+    const depthNum = parseInt(depthStr, 10);
+    if (
+      !isNaN(depthNum) &&
+      depthNum >= 150 &&
+      convertIntensity(Intensity) === "不明"
+    ) {
+      displayIntensity = "深発地震のため震度推定なし";
+    }
+  }
 
   const additionalMessage = (() => {
     if (
@@ -228,8 +245,6 @@ const AXISEewDisplay: React.FC<AXISEewDisplayProps> = ({
       );
     }
   })();
-
-  const displayIntensity = `推定最大震度 ${convertIntensity(Intensity)}`;
 
   return (
     <Card className="shadow-xl bg-white/90 dark:bg-black/75 border m-2">

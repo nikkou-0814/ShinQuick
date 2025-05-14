@@ -430,7 +430,7 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/testdata2.json");
+      const response = await fetch("/testdata/testdata7.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();

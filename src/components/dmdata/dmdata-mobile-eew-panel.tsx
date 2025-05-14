@@ -401,7 +401,7 @@ export const DMDATAMobileEewPanel: React.FC<EewDisplayProps> = ({
   if (depthValue !== "不明") {
     const depthStr = depthValue.replace(/[^0-9]/g, "");
     const depthNum = parseInt(depthStr, 10);
-    if (!isNaN(depthNum) && depthNum > 150) {
+    if (!isNaN(depthNum) && depthNum >= 150) {
       displayIntensity = "深発地震のため震度推定なし";
     }
   }

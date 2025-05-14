@@ -503,11 +503,11 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     // 最適なズームレベルを決定
     let maxZoom = 10;
     if (epicenters.length === 1) {
-      maxZoom = epicenters[0].depthval > 150 ? 5 : 7;
+      maxZoom = epicenters[0].depthval >= 150 ? 5 : 7;
     } else if (epicenters.length > 1) {
       let hasDeepEpicenter = false;
       for (let i = 0; i < epicenters.length; i++) {
-        if (epicenters[i].depthval > 150) {
+        if (epicenters[i].depthval >= 150) {
           hasDeepEpicenter = true;
           break;
         }

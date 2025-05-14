@@ -180,6 +180,8 @@ export const AXISMobileEewPanel: React.FC<AXISMobileEewPanelProps> = ({
         return { bg: "#4CD0A7", text: "black" };
       case "1":
         return { bg: "#2B8EB2", text: "white" };
+      case "不明":
+        return { bg: "#62626B", text: "white" };
       default:
         return { bg: "#CCCCCC", text: "black" };
     }
@@ -208,6 +210,21 @@ export const AXISMobileEewPanel: React.FC<AXISMobileEewPanelProps> = ({
   const intensityColors = getIntensityColor(Intensity);
   const backgroundColor = intensityColors.bg;
   const textColor = intensityColors.text;
+
+  let displayIntensity = convertIntensity(Intensity)
+
+  // 深発
+  if (depthValue !== "不明") {
+    const depthStr = depthValue.replace(/[^0-9]/g, "");
+    const depthNum = parseInt(depthStr, 10);
+    if (
+      !isNaN(depthNum) &&
+      depthNum >= 150 &&
+      convertIntensity(Intensity) === "不明"
+    ) {
+      displayIntensity = "深発地震のため震度推定なし";
+    }
+  }
 
   const additionalMessage = (() => {
     if (
@@ -239,8 +256,6 @@ export const AXISMobileEewPanel: React.FC<AXISMobileEewPanelProps> = ({
       );
     }
   })();
-
-  const displayIntensity = convertIntensity(Intensity)
 
   return (
     <div className="relative top-0 left-0 right-0 z-40 max-h-[80vh] overflow-y-auto">
@@ -286,15 +301,24 @@ export const AXISMobileEewPanel: React.FC<AXISMobileEewPanelProps> = ({
                     {formattedTimeDisplay} 頃発生
                   </p>
                 </div>
-                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-md font-bold flex items-center justify-end shrink-0" style={{ backgroundColor, color: textColor }}>
-                  <div className="flex flex-col items-end mr-4">
-                    <span>推定</span>
-                    <span>最大震度</span>
-                  </div>
-                  <div className="flex items-baseline">
-                    <p className="text-4xl">{displayIntensity}</p>
-                  </div>
-                </div>
+                  {displayIntensity === "深発地震のため震度推定なし" ? (
+                    <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-md font-bold flex items-center justify-end shrink-0" style={{ backgroundColor, color: textColor }}>
+                      <div className="flex flex-col items-center">
+                        <p className="text-xl">深発地震のため</p>
+                        <p className="text-xl">震度推定なし</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-md font-bold flex items-center justify-end shrink-0" style={{ backgroundColor, color: textColor }}>
+                      <div className="flex flex-col items-end mr-4">
+                        <span>推定</span>
+                        <span>最大震度</span>
+                      </div>
+                      <div className="flex items-baseline">
+                        <p className="text-4xl">{displayIntensity}</p>
+                      </div>
+                    </div>
+                  )}
               </div>
               
               <div className="flex items-center justify-between">
