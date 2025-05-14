@@ -238,6 +238,14 @@ export const AXISMobileEewPanel: React.FC<AXISMobileEewPanelProps> = ({
           身の安全を確保してください
         </>
       );
+    } else if (displayIntensity === "深発地震のため震度推定なし") {
+      return (
+        <>
+          震源が深いため震央から遠い場所で
+          <br />
+          揺れが大きくなることがあります
+        </>
+      );
     } else if (isWarning) {
       return (
         <>
