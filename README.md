@@ -31,44 +31,44 @@ Project DM-D.S.SとAXISは同時にWebSocket接続が可能です。たとえば
 
 #### 基本知識
 
-* [緊急地震速報とは](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/whats-eew.html)
+- [緊急地震速報とは](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/whats-eew.html)
 
-* [緊急地震速報の発表条件](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/shousai.html#2)
+- [緊急地震速報の発表条件](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/shousai.html#2)
 
-* [緊急地震速報の特性や限界、利用上の注意](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/tokusei.html)
+- [緊急地震速報の特性や限界、利用上の注意](https://www.data.jma.go.jp/svd/eew/data/nc/shikumi/tokusei.html)
 
 #### 1点観測を使用する場合の知識
 
-* [PLUM法とは](https://www.data.jma.go.jp/svd/eew/data/nc/plum/index.html)
+- [PLUM法とは](https://www.data.jma.go.jp/svd/eew/data/nc/plum/index.html)
 
-* [レベル法とは](https://www.data.jma.go.jp/eew/data/nc/katsuyou/reference.pdf#page=15)
+- [レベル法とは](https://www.data.jma.go.jp/eew/data/nc/katsuyou/reference.pdf#page=15)
 
 ## 情報の取得元
 
 ### 強震モニタ
 
-* [Yahoo!天気・災害 強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)
+- [Yahoo!天気・災害 強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)
 
 ### 緊急地震速報
 
-* [Project DM(Disaster Mitigation)-Data Send Service](https://dmdata.jp)（※各自契約が必須）
-* [AXIS(An eXtendable Information Stream)](https://axis.prioris.jp/)（※各自会員登録が必須）
-* [Yahoo!天気・災害 強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)（※DM-D.S.S使用時には無効）
+- [Project DM(Disaster Mitigation)-Data Send Service](https://dmdata.jp)（※各自契約が必須）
+- [AXIS(An eXtendable Information Stream)](https://axis.prioris.jp/)（※各自会員登録が必須）
+- [Yahoo!天気・災害 強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)（※DM-D.S.S使用時には無効）
 
 ### その他データ
 
 #### 走時表
 
-* [気象庁 走時表・射出角表・速度構造データファイル](https://www.data.jma.go.jp/eqev/data/bulletin/catalog/appendix/trtime/trt_j.html)
+- [気象庁 走時表・射出角表・速度構造データファイル](https://www.data.jma.go.jp/eqev/data/bulletin/catalog/appendix/trtime/trt_j.html)
 
 #### 地図データ（世界）
 
-* [Natural Earth](https://www.naturalearthdata.com/) (一部改変)
+- [Natural Earth](https://www.naturalearthdata.com/) (一部改変)
 
 #### 地図データ（日本）
 
-* [気象庁 予報区等GISデータ](https://www.data.jma.go.jp/developer/gis.html) (一部改変)
-* [国土数値情報](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-v3_1.html) (一部改変)
+- [気象庁 予報区等GISデータ](https://www.data.jma.go.jp/developer/gis.html) (一部改変)
+- [国土数値情報](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N03-v3_1.html) (一部改変)
 
 ## 謝辞
 
@@ -76,29 +76,29 @@ Project DM-D.S.SとAXISは同時にWebSocket接続が可能です。たとえば
 
 ### 気象庁 / 国土交通省（国土数値情報）
 
-* 走時表、GISデータ、緊急地震速報に関する情報提供
-* 地理情報の提供
+- 走時表、GISデータ、緊急地震速報に関する情報提供
+- 地理情報の提供
 
 ### Yahoo! JAPAN
 
-* 強震モニタと緊急地震速報の提供
+- 強震モニタと緊急地震速報の提供
 
 ### [リアルタイム地震ビューアー](https://github.com/kotoho7/scratch-realtime-earthquake-viewer-page)
 
-* アプリ全体の仕様を参考にしています。
-* 震度配色を利用しています。
+- アプリ全体の仕様を参考にしています。
+- 震度配色を利用しています。
 
 ### [EarthQuicklyForWeb](https://github.com/Ameuma773/EarthQuicklyForWeb)
 
-* ソースコードを参考に強震モニタを実装しています。
+- ソースコードを参考に強震モニタを実装しています。
 
 ### [JQuake](https://jquake.net)
 
-* 設定や緊急地震速報のUIを参考にしています。
+- 設定や緊急地震速報のUIを参考にしています。
 
 ### [KyoshinEewViewer for ingen](https://github.com/ingen084/KyoshinEewViewerIngen)
 
-* 設定のDM-D.S.SタブのUIなどを参考にしています。
+- 設定のDM-D.S.SタブのUIなどを参考にしています。
 
 ## ライセンス
 
@@ -132,18 +132,18 @@ Project DM-D.S.SとAXISは同時にWebSocket接続が可能です。たとえば
 
 ### コードの貢献
 
-* **バグ修正**: 既知のバグや不具合の修正を行う
-* **機能追加**: 新しい機能や改善提案を実装する
-* **最適化**: 処理の軽量化や高速化に取り組む
+- **バグ修正**: 既知のバグや不具合の修正を行う
+- **機能追加**: 新しい機能や改善提案を実装する
+- **最適化**: 処理の軽量化や高速化に取り組む
 
 ### ドキュメントの改善
-* **READMEの改善**
-* **誤字脱字の修正**
-* **機能説明の追加や分かりやすくするための編集**
+- **READMEの改善**
+- **誤字脱字の修正**
+- **機能説明の追加や分かりやすくするための編集**
 
 ### バグ報告・改善提案
-* **Issueの作成**: バグや改善点をGitHubのIssueで報告
-* **フィードバックの提供**: 実際に使ってみて気づいた点を共有
+- **Issueの作成**: バグや改善点をGitHubのIssueで報告
+- **フィードバックの提供**: 実際に使ってみて気づいた点を共有
 
 ### 貢献の方法
 Pull Request（PR）は`dev`ブランチに対して送ってください。  
