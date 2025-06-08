@@ -162,6 +162,48 @@ const DMDATAEewDisplay: React.FC<EewDisplayProps> = ({
       onRegionIntensityUpdate({});
       return;
     }
+
+    if (!("earthquake" in body)) {
+      onRegionIntensityUpdate({});
+      return;
+    }
+
+    const { earthquake } = body;
+    const { hypocenter } = earthquake;
+    const { accuracy: hypocenterAccuracy } = hypocenter;
+
+    const method = (() => {
+      const condition = earthquake.condition || "不明";
+      const accuracyEpicenters = hypocenterAccuracy?.epicenters || [];
+
+      if (condition === "仮定震源要素") {
+        return "PLUM法";
+      } else if (accuracyEpicenters.length > 0) {
+        const epicVal = accuracyEpicenters[0];
+        const epicValInt = parseInt(epicVal, 10);
+
+        if (epicValInt === 1) {
+          return earthquake.originTime ? "IPF法 (1点)" : "レベル法";
+        } else if (epicValInt === 2) {
+          return "IPF法 (2点)";
+        } else if (epicValInt === 3 || epicValInt === 4) {
+          return "IPF法 (3点以上)";
+        } else {
+          return earthquake.originTime ? "不明" : "レベル法";
+        }
+      } else {
+        return earthquake.originTime ? "不明" : "レベル法";
+      }
+    })();
+
+    const isLowAccuracyMethod =
+      method === "PLUM法" || method === "レベル法" || method === "IPF法 (1点)";
+
+    if (!isLowAccuracy && isLowAccuracyMethod) {
+      onRegionIntensityUpdate({});
+      return;
+    }
+
     const intensityData = (body as EewInformation.Latest.PublicCommonBody).intensity;
     if (!intensityData || !intensityData.regions) {
       onRegionIntensityUpdate({});
@@ -181,7 +223,7 @@ const DMDATAEewDisplay: React.FC<EewDisplayProps> = ({
     });
 
     onRegionIntensityUpdate({...newMap});
-  }, [parsedData, onRegionIntensityUpdate]);
+  }, [parsedData, onRegionIntensityUpdate, isLowAccuracy]);
 
   if (!parsedData) {
     return null;

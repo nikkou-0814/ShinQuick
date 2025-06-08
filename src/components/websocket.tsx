@@ -80,9 +80,61 @@ export const WebSocketProvider = ({
   const [displayDataList, setDisplayDataList] = useState<EewInformation.Latest.Main[]>([]);
   const [axisDisplayDataList, setAxisDisplayDataList] = useState<AXISEewInformation[]>([]);
   const receivedEventsRef = useRef<Record<string, { source: "DMDATA" | "AXIS", timestamp: number }>>({});
+  const dmdataLatestSerialRef = useRef<Record<string, number>>({});
+  const axisLatestSerialRef = useRef<Record<string, number>>({});
+
+  const shouldProcessDMDATAData = (data: EewInformation.Latest.Main): boolean => {
+    const eventId = data.eventId;
+    const serialNo = parseInt(data.serialNo || '0', 10);
+    const isCanceled = data.body?.isCanceled || false;
+    
+    const currentLatestSerial = dmdataLatestSerialRef.current[eventId] || 0;
+    
+    if (isCanceled) {
+      return true;
+    }
+    
+    if (serialNo > currentLatestSerial) {
+      dmdataLatestSerialRef.current[eventId] = serialNo;
+      return true;
+    }
+    
+    if (serialNo < currentLatestSerial) {
+      return false;
+    }
+    
+    return false;
+  };
+
+  const shouldProcessAXISData = (data: AXISEewInformation): boolean => {
+    const eventId = data.EventID;
+    const serialNo = data.Serial;
+    const isCanceled = data.Flag.is_cancel;
+    
+    const currentLatestSerial = axisLatestSerialRef.current[eventId] || 0;
+    
+    if (isCanceled) {
+      return true;
+    }
+    
+    if (serialNo > currentLatestSerial) {
+      axisLatestSerialRef.current[eventId] = serialNo;
+      return true;
+    }
+    
+    if (serialNo < currentLatestSerial) {
+      return false;
+    }
+    
+    return false;
+  };
 
   useEffect(() => {
     if (DMDATAreceivedData) {
+      if (!shouldProcessDMDATAData(DMDATAreceivedData)) {
+        return;
+      }
+
       const eventId = DMDATAreceivedData.eventId;
       const currentTime = Date.now();
       const existingEvent = receivedEventsRef.current[eventId];
@@ -112,6 +164,10 @@ export const WebSocketProvider = ({
 
   useEffect(() => {
     if (AXISreceivedData) {
+      if (!shouldProcessAXISData(AXISreceivedData)) {
+        return;
+      }
+
       const eventId = AXISreceivedData.EventID;
       const currentTime = Date.now();
       const existingEvent = receivedEventsRef.current[eventId];

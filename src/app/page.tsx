@@ -300,9 +300,36 @@ function PageContent() {
     ]
   );
 
+  const dmdataPageSerialRef = useRef<Record<string, number>>({});
+  const shouldProcessPageDMDATAData = useCallback((data: EewInformation.Latest.Main): boolean => {
+    const eventId = data.eventId;
+    const serialNo = parseInt(data.serialNo || '0', 10);
+    const isCanceled = data.body?.isCanceled || false;
+    const currentLatestSerial = dmdataPageSerialRef.current[eventId] || 0;
+    
+    if (isCanceled) {
+      return true;
+    }
+    
+    if (serialNo > currentLatestSerial) {
+      dmdataPageSerialRef.current[eventId] = serialNo;
+      return true;
+    }
+    
+    if (serialNo < currentLatestSerial) {
+      return false;
+    }
+    
+    return false;
+  }, []);
+
   useEffect(() => {
     if (DMDATAreceivedData) {
       const newData = DMDATAreceivedData as EewInformation.Latest.Main;
+
+      if (!shouldProcessPageDMDATAData(newData)) {
+        return;
+      }
 
       if (shouldDMDATADisplayEarthquake(newData)) {
         setDMDATADisplayDataList((prevList) => {
@@ -314,7 +341,7 @@ function PageContent() {
         setForceAutoZoomTrigger(Date.now());
       }
     }
-  }, [DMDATAreceivedData, shouldDMDATADisplayEarthquake]);
+  }, [DMDATAreceivedData, shouldDMDATADisplayEarthquake, shouldProcessPageDMDATAData]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
