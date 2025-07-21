@@ -87,6 +87,12 @@ export interface SettingsDialogProps {
   isDMDATAConnected: boolean;
   onSyncClock: () => void;
   onResetPanelSizes: () => void;
+  // AXIS関連の追加
+  isAXISConnected: boolean;
+  onConnectAXISWebSocket: () => void;
+  onDisconnectAXISWebSocket: () => Promise<void>;
+  axisToken: string;
+  onAxisTokenChange: (token: string) => void;
 }
 
 // WebSocketコンテキストで扱う型
@@ -95,8 +101,17 @@ export interface WebSocketContextType {
   DMDATAreceivedData: EewInformation.Latest.Main | null;
   connectDMDATAWebSocket: (DMDATAtoken: string, enableDrillTestInfo: boolean) => Promise<void>;
   disconnectDMDATAWebSocket: () => Promise<void>;
-  injectTestData: (data: { body: string }) => void;
+  injectdmdataTestData: (data: { body: string }) => void;
+  injectaxisTestData: (data: AXISEewInformation) => void;
   passedIntensityFilterRef: React.RefObject<Set<string>>;
+  isAXISConnected: boolean;
+  AXISreceivedData: AXISEewInformation | null;
+  connectAXISWebSocket: (AXIStoken: string) => Promise<void>;
+  disconnectAXISWebSocket: () => Promise<void>;
+  displayDataList: EewInformation.Latest.Main[];
+  axisDisplayDataList: AXISEewInformation[];
+  setAxisDisplayDataList: React.Dispatch<React.SetStateAction<AXISEewInformation[]>>;
+  setDisplayDataList: React.Dispatch<React.SetStateAction<EewInformation.Latest.Main[]>>;
 }
 
 // 強震モニタ用データ

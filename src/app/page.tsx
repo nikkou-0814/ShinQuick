@@ -26,14 +26,16 @@ import {
 } from "@/components/ui/resizable";
 import { WebSocketProvider, useWebSocket } from "@/components/websocket";
 import { toast } from "sonner";
-import DMDATAEewDisplay from "@/components/dmdata/eew-display";
+import DMDATAEewDisplay from "@/components/dmdata/dmdata-eew-display";
 import { EewInformation } from "@dmdata/telegram-json-types";
-import { DMDATAMobileEewPanel } from "@/components/dmdata/mobile-eew-panel";
-import { Settings, EpicenterInfo, RegionIntensityMap } from "@/types/types";
+import { DMDATAMobileEewPanel } from "@/components/dmdata/dmdata-mobile-eew-panel";
+import { Settings, EpicenterInfo, RegionIntensityMap, AXISEewInformation } from "@/types/types";
 import { LoadingMapOverlay } from "@/components/ui/loading-map-overlay";
 import { MapRef } from "react-map-gl/maplibre";
 import { ClockDisplay } from "@/components/clock-display"
 import { getJapanHomePosition } from "@/utils/home-position";
+import { AXISMobileEewPanel } from "@/components/axis/axis-mobile-eew-panel";
+import AXISEewDisplay from "@/components/axis/axis-eew-display";
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -106,12 +108,23 @@ function PageContent() {
     DMDATAreceivedData,
     connectDMDATAWebSocket,
     disconnectDMDATAWebSocket,
-    injectTestData,
+    injectdmdataTestData,
+    injectaxisTestData,
     passedIntensityFilterRef,
+    isAXISConnected,
+    connectAXISWebSocket,
+    disconnectAXISWebSocket,
+    displayDataList,
+    axisDisplayDataList,
+    setAxisDisplayDataList,
+    setDisplayDataList,
   } = useWebSocket();
 
+  const [axisToken, setAxisToken] = useState<string>("");
   const canceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nonCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const axisCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const axisNonCanceledTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const nowAppTimeRef = useRef<number>(0);
   const rAFBaseRef = useRef<number | null>(null);
   const [mapAutoZoomEnabled, setMapAutoZoomEnabled] = useState(
@@ -236,11 +249,13 @@ function PageContent() {
         return "不明";
       }
 
-      const { from = "不明", to = "不明" } = intensityData.forecastMaxInt;
-      if (to === "over") {
-        return from;
-      }
-      return to;
+      const forecastMaxInt = intensityData.forecastMaxInt;
+      const maxInt = forecastMaxInt && 'to' in forecastMaxInt
+        ? (forecastMaxInt.to === "over" 
+            ? (forecastMaxInt as { from?: string }).from || "0" 
+            : (forecastMaxInt as { to?: string }).to || "0")
+        : "0";
+      return maxInt;
     },
     []
   );
@@ -285,9 +300,36 @@ function PageContent() {
     ]
   );
 
+  const dmdataPageSerialRef = useRef<Record<string, number>>({});
+  const shouldProcessPageDMDATAData = useCallback((data: EewInformation.Latest.Main): boolean => {
+    const eventId = data.eventId;
+    const serialNo = parseInt(data.serialNo || '0', 10);
+    const isCanceled = data.body?.isCanceled || false;
+    const currentLatestSerial = dmdataPageSerialRef.current[eventId] || 0;
+    
+    if (isCanceled) {
+      return true;
+    }
+    
+    if (serialNo > currentLatestSerial) {
+      dmdataPageSerialRef.current[eventId] = serialNo;
+      return true;
+    }
+    
+    if (serialNo < currentLatestSerial) {
+      return false;
+    }
+    
+    return false;
+  }, []);
+
   useEffect(() => {
     if (DMDATAreceivedData) {
       const newData = DMDATAreceivedData as EewInformation.Latest.Main;
+
+      if (!shouldProcessPageDMDATAData(newData)) {
+        return;
+      }
 
       if (shouldDMDATADisplayEarthquake(newData)) {
         setDMDATADisplayDataList((prevList) => {
@@ -299,7 +341,7 @@ function PageContent() {
         setForceAutoZoomTrigger(Date.now());
       }
     }
-  }, [DMDATAreceivedData, shouldDMDATADisplayEarthquake]);
+  }, [DMDATAreceivedData, shouldDMDATADisplayEarthquake, shouldProcessPageDMDATAData]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -311,6 +353,12 @@ function PageContent() {
       if (DMDATAtoken) {
         setIsAuthenticated(true);
       }
+      
+      const savedAxisToken = localStorage.getItem("axis_access_token");
+      if (savedAxisToken) {
+        setAxisToken(savedAxisToken);
+      }
+      
       setPanelSizesLoaded(true);
     }
   }, []);
@@ -383,24 +431,24 @@ function PageContent() {
 
   const handleTest = async () => {
     try {
-      const response = await fetch("/testdata/testdata9.json");
+      const response = await fetch("/testdata/testaxis.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
-      injectTestData(testData);
+      injectaxisTestData(testData);
     } catch (error) {
       console.error("テストデータの挿入失敗:", error);
-      toast.error("テストデータの読み込みに失敗しました。");
+      toast.error("テストデータの挿入に失敗しました。");
     }
   };
 
   const handleTest2 = async () => {
     try {
-      const response = await fetch("/testdata/testdata3.json");
+      const response = await fetch("/testdata/testdata.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
-      injectTestData(testData);
+      injectdmdataTestData(testData);
     } catch (error) {
       console.error("テストデータの挿入失敗:", error);
       toast.error("テストデータの読み込みに失敗しました。");
@@ -409,11 +457,11 @@ function PageContent() {
 
   const handleTest3 = async () => {
     try {
-      const response = await fetch("/testdata/testdata4.json");
+      const response = await fetch("/testdata/testdata7.json");
       if (!response.ok)
         throw new Error(`テストデータ取得失敗: ${response.statusText}`);
       const testData = await response.json();
-      injectTestData(testData);
+      injectdmdataTestData(testData);
     } catch (error) {
       console.error("テストデータの挿入失敗:", error);
       toast.error("テストデータの読み込みに失敗しました。");
@@ -438,7 +486,7 @@ function PageContent() {
           throw new Error(`テストデータ取得失敗: ${response.statusText}`);
         }
         const testData = await response.json();
-        await injectTestData(testData);
+        await injectdmdataTestData(testData);
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
       toast.success("全てのテストデータを送信しました。");
@@ -533,7 +581,7 @@ function PageContent() {
     []
   );
 
-  // 震源情報のクリーンアップ処理
+  // DMDATAクリーンアップ処理
   useEffect(() => {
     Object.keys(canceledTimersRef.current).forEach((eventId) => {
       const stillExist = DMDATAdisplayDataList.some(
@@ -552,13 +600,21 @@ function PageContent() {
 
       canceledTimersRef.current[eventId] = setTimeout(() => {
         setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
         setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
         onRegionIntensityUpdate({}, eventId);
         onWarningRegionUpdate([], eventId);
         delete canceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
       }, 10000);
     });
-  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setDMDATADisplayDataList, setDisplayDataList, setMapAutoZoomEnabled]);
 
   useEffect(() => {
     Object.keys(nonCanceledTimersRef.current).forEach((eventId) => {
@@ -573,19 +629,94 @@ function PageContent() {
       if (data.body?.isCanceled) return;
       const eventId = data.eventId;
       if (nonCanceledTimersRef.current[eventId]) return;
-
-      const isFinal = (data.body && "isFinal" in data.body && data.body.isFinal);
-      const removalTime = isFinal ? 3 * 60 * 1000 : 5 * 60 * 1000;
+      const body = data.body as EewInformation.Latest.PublicCommonBody;
+      const removalTime = body.isLastInfo ? 3 * 60 * 1000 : 5 * 60 * 1000;
 
       nonCanceledTimersRef.current[eventId] = setTimeout(() => {
         setDMDATADisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
+        setDisplayDataList((prev) => prev.filter((x) => x.eventId !== eventId));
         setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
         onRegionIntensityUpdate({}, eventId);
         onWarningRegionUpdate([], eventId);
         delete nonCanceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
       }, removalTime);
     });
-  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate]);
+  }, [DMDATAdisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setDMDATADisplayDataList, setDisplayDataList, setMapAutoZoomEnabled]);
+
+  // AXIS震源情報のクリーンアップ処理
+  useEffect(() => {
+    Object.keys(axisCanceledTimersRef.current).forEach((eventId) => {
+      const stillExist = axisDisplayDataList.some(
+        (d) => d.EventID === eventId && d.Flag.is_cancel
+      );
+      if (!stillExist) {
+        clearTimeout(axisCanceledTimersRef.current[eventId]);
+        delete axisCanceledTimersRef.current[eventId];
+      }
+    });
+
+    axisDisplayDataList.forEach((data) => {
+      if (!data.Flag.is_cancel) return;
+      const eventId = data.EventID;
+      if (axisCanceledTimersRef.current[eventId]) return;
+
+      axisCanceledTimersRef.current[eventId] = setTimeout(() => {
+        setAxisDisplayDataList((prev) => prev.filter((x) => x.EventID !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete axisCanceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
+      }, 10000);
+    });
+  }, [axisDisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setAxisDisplayDataList, setMapAutoZoomEnabled]);
+
+  useEffect(() => {
+    Object.keys(axisNonCanceledTimersRef.current).forEach((eventId) => {
+      const target = axisDisplayDataList.find((d) => d.EventID === eventId);
+      if (!target || target.Flag.is_cancel) {
+        clearTimeout(axisNonCanceledTimersRef.current[eventId]);
+        delete axisNonCanceledTimersRef.current[eventId];
+      }
+    });
+
+    axisDisplayDataList.forEach((data) => {
+      if (data.Flag.is_cancel) return;
+      const eventId = data.EventID;
+      if (axisNonCanceledTimersRef.current[eventId]) return;
+
+      const isFinal = data.Flag.is_final;
+      const removalTime = isFinal ? 3 * 60 * 1000 : 5 * 60 * 1000;
+
+      axisNonCanceledTimersRef.current[eventId] = setTimeout(() => {
+        setAxisDisplayDataList((prev) => prev.filter((x) => x.EventID !== eventId));
+        setEpicenters((prev) => prev.filter((epi) => epi.eventId !== eventId));
+        onRegionIntensityUpdate({}, eventId);
+        onWarningRegionUpdate([], eventId);
+        delete axisNonCanceledTimersRef.current[eventId];
+        
+        if (Object.keys(canceledTimersRef.current).length === 0 && 
+            Object.keys(nonCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisCanceledTimersRef.current).length === 0 && 
+            Object.keys(axisNonCanceledTimersRef.current).length === 0) {
+          setMapAutoZoomEnabled(true);
+        }
+      }, removalTime);
+    });
+  }, [axisDisplayDataList, onRegionIntensityUpdate, onWarningRegionUpdate, setAxisDisplayDataList, setMapAutoZoomEnabled]);
 
   // 震源情報の更新処理
   const handleEpicenterUpdate = useCallback(
@@ -699,32 +830,6 @@ function PageContent() {
       Object.keys(mergedRegionMap).length > 0) ||
     (settings.enable_map_warning_area && mergedWarningRegions.length > 0);
 
-  const getHypocenterMethod = (
-    earthquake: EewInformation.Latest.PublicCommonBody["earthquake"]
-  ): string => {
-    const { originTime, condition, hypocenter } = earthquake;
-    const earthquakeCondition = condition || "不明";
-    const accuracyEpicenters = hypocenter?.accuracy?.epicenters || [];
-
-    if (earthquakeCondition === "仮定震源要素") {
-      return "PLUM法";
-    }
-
-    if (accuracyEpicenters.length > 0) {
-      const epicValInt = parseInt(accuracyEpicenters[0], 10);
-      if (epicValInt === 1) {
-        return originTime ? "IPF法 (1点)" : "レベル法";
-      } else if (epicValInt === 2) {
-        return "IPF法 (2点)";
-      } else if (epicValInt === 3 || epicValInt === 4) {
-        return "IPF法 (3点以上)";
-      } else {
-        return originTime ? "不明" : "レベル法";
-      }
-    }
-    return originTime ? "不明" : "レベル法";
-  };
-
   const handleClockSync = () => {
     fetchServerTime(true);
   };
@@ -745,6 +850,160 @@ function PageContent() {
     fetchVersion();
   }, []);
 
+  const handleAxisTokenChange = (token: string) => {
+    setAxisToken(token);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("axis_access_token", token);
+    }
+  };
+
+  const handleConnectAXISWebSocket = () => {
+    if (!axisToken) {
+      toast.error("AXISトークンを入力してください。");
+      return;
+    }
+    connectAXISWebSocket(axisToken);
+  };
+
+  const handleAXISWebSocketDisconnect = async () => {
+    await disconnectAXISWebSocket();
+  };
+
+  const renderEewDisplay = () => {
+    const filterEnabled = settings.enable_intensity_filter;
+    const threshold = settings.intensity_filter_value;
+    const thresholdIdx = INTENSITY_ORDER.indexOf(threshold);
+    
+    // DMDATAの最大震度を抽出
+    const filteredDmd = filterEnabled
+      ? displayDataList.filter((data) => {
+          const body = data.body as EewInformation.Latest.PublicCommonBody;
+          const forecastMaxInt = body.intensity?.forecastMaxInt || {};
+          const maxInt = forecastMaxInt && 'to' in forecastMaxInt
+            ? (forecastMaxInt.to === "over" 
+              ? (forecastMaxInt as { from?: string }).from || "0" 
+              : (forecastMaxInt as { to?: string }).to || "0")
+            : "0";
+          const scale = maxInt;
+          return INTENSITY_ORDER.indexOf(scale) >= thresholdIdx;
+        })
+      : displayDataList;
+    
+    // AXISの最大震度を抽出
+    const filteredAxis = filterEnabled
+      ? axisDisplayDataList.filter((data) => {
+          return INTENSITY_ORDER.indexOf(data.Intensity) >= thresholdIdx;
+        })
+      : axisDisplayDataList;
+    
+    const allEvents: Array<{
+      id: string, 
+      type: 'dmdata' | 'axis', 
+      data: EewInformation.Latest.Main | AXISEewInformation,
+      timestamp: number
+    }> = [
+      ...filteredDmd.map(data => ({
+        id: data.eventId,
+        type: 'dmdata' as const,
+        data,
+        timestamp: 'reportTime' in data.body ? new Date(data.body.reportTime as string).getTime() : 0,
+        serialNo: parseInt(data.serialNo || '0', 10)
+      })),
+      ...filteredAxis.map(data => ({
+        id: data.EventID,
+        type: 'axis' as const,
+        data,
+        timestamp: new Date(data.ReportDateTime).getTime() || 0,
+        serialNo: data.Serial
+      }))
+    ];
+    
+    allEvents.sort((a, b) => {
+      if (a.id !== b.id) {
+        return b.timestamp - a.timestamp;
+      }
+      if ('serialNo' in a && 'serialNo' in b) {
+        return (b.serialNo as number) - (a.serialNo as number);
+      }
+      return b.timestamp - a.timestamp;
+    });
+
+    const hasDMDATA = filteredDmd.length > 0;
+    const hasAXIS  = filteredAxis.length > 0;
+    
+    if (!hasDMDATA && !hasAXIS) {
+      return (
+        <div className="w-full h-full min-h-screen flex justify-center items-center">
+          <h1 className="text-xl">緊急地震速報受信待機中</h1>
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full h-full min-h-screen">
+        {allEvents.map((event) => (
+          <div key={`${event.type}-${event.id}`}>
+            {event.type === 'dmdata' ? (
+              isMobile ? (
+                <DMDATAMobileEewPanel
+                  parsedData={event.data as EewInformation.Latest.Main}
+                  isAccuracy={settings.enable_accuracy_info}
+                  isLowAccuracy={settings.enable_low_accuracy_eew}
+                  onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                  onRegionIntensityUpdate={(regionMap) =>
+                    onRegionIntensityUpdate(regionMap, event.id)
+                  }
+                  onWarningRegionUpdate={(regions) =>
+                    onWarningRegionUpdate(regions, event.id)
+                  }
+                />
+              ) : (
+                <DMDATAEewDisplay
+                  parsedData={event.data as EewInformation.Latest.Main}
+                  isAccuracy={settings.enable_accuracy_info}
+                  isLowAccuracy={settings.enable_low_accuracy_eew}
+                  onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                  onRegionIntensityUpdate={(regionMap) =>
+                    onRegionIntensityUpdate(regionMap, event.id)
+                  }
+                  onWarningRegionUpdate={(regions) =>
+                    onWarningRegionUpdate(regions, event.id)
+                  }
+                />
+              )
+            ) : (
+              isMobile ? (
+                <AXISMobileEewPanel
+                  parsedData={event.data as AXISEewInformation}
+                  isLowAccuracy={settings.enable_low_accuracy_eew}
+                  onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                  onRegionIntensityUpdate={(regionMap) =>
+                    onRegionIntensityUpdate(regionMap, event.id)
+                  }
+                  onWarningRegionUpdate={(regions) =>
+                    onWarningRegionUpdate(regions, event.id)
+                  }
+                />
+              ) : (
+                <AXISEewDisplay
+                  parsedData={event.data as AXISEewInformation}
+                  isLowAccuracy={settings.enable_low_accuracy_eew}
+                  onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                  onRegionIntensityUpdate={(regionMap) =>
+                    onRegionIntensityUpdate(regionMap, event.id)
+                  }
+                  onWarningRegionUpdate={(regions) =>
+                    onWarningRegionUpdate(regions, event.id)
+                  }
+                />
+              )
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <>
       <SettingsDialog
@@ -759,6 +1018,11 @@ function PageContent() {
         onDisconnectDMDATAWebSocket={handleDMDATAWebSocketDisconnect}
         onSyncClock={handleClockSync}
         onResetPanelSizes={resetPanelSizes}
+        isAXISConnected={isAXISConnected}
+        onConnectAXISWebSocket={handleConnectAXISWebSocket}
+        onDisconnectAXISWebSocket={handleAXISWebSocketDisconnect}
+        axisToken={axisToken}
+        onAxisTokenChange={handleAxisTokenChange}
       />
 
       {version && (
@@ -845,64 +1109,45 @@ function PageContent() {
               <ResizableHandle withHandle />
               <ResizablePanel defaultSize={settings.rightPanelSize} minSize={0} maxSize={40} className="relative">
                 <div className="h-full max-h-screen overflow-y-auto">
-                  {(() => {
-                    const filteredDisplayDataList = settings.enable_low_accuracy_eew
-                      ? DMDATAdisplayDataList
-                      : DMDATAdisplayDataList.filter((data) => {
-                        const body = data.body as EewInformation.Latest.PublicCommonBody;
-                        const earthquake = body.earthquake;
-                        if (!earthquake) return true;
-                        const method = getHypocenterMethod(earthquake);
-                        return !["PLUM法", "レベル法", "IPF法 (1点)"].includes(method);
-                      });
-
-                    return filteredDisplayDataList.length > 0 ? (
-                      <div className="space-y-4 p-2">
-                        {filteredDisplayDataList.map((data) => (
-                          <div key={data.eventId}>
-                            <DMDATAEewDisplay
-                              parsedData={data}
-                              isAccuracy={settings.enable_accuracy_info}
-                              isLowAccuracy={settings.enable_low_accuracy_eew}
-                              onEpicenterUpdate={handleEpicenterUpdate}
-                              onRegionIntensityUpdate={(regionMap) =>
-                                onRegionIntensityUpdate(regionMap, data.eventId)
-                              }
-                              onWarningRegionUpdate={(regions) =>
-                                onWarningRegionUpdate(regions, data.eventId)
-                              }
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="w-full h-full min-h-screen flex justify-center items-center">
-                        <h1 className="text-xl">緊急地震速報受信待機中</h1>
-                      </div>
-                    )
-                  })()}
+                  {renderEewDisplay()}
                 </div>
               </ResizablePanel>
             </>
             ) : (
               <div className="fixed top-0 left-0 right-0 z-40 max-h-[80vh] overflow-x-auto whitespace-nowrap">
-              {DMDATAdisplayDataList.map((data) => (
-                <div key={data.eventId} className="inline-block align-top w-[95%]">
-                  <DMDATAMobileEewPanel
-                    parsedData={data}
-                    isAccuracy={settings.enable_accuracy_info}
-                    isLowAccuracy={settings.enable_low_accuracy_eew}
-                    onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
-                    onRegionIntensityUpdate={(regionMap) =>
-                      onRegionIntensityUpdate(regionMap, data.eventId)
-                    }
-                    onWarningRegionUpdate={(regions) =>
-                      onWarningRegionUpdate(regions, data.eventId)
-                    }
-                  />
-                </div>
-              ))}
-            </div>
+                {DMDATAdisplayDataList.map((data) => (
+                  <div key={`dmdata-${data.eventId}`} className="inline-block align-top w-[95%]">
+                    <DMDATAMobileEewPanel
+                      parsedData={data}
+                      isAccuracy={settings.enable_accuracy_info}
+                      isLowAccuracy={settings.enable_low_accuracy_eew}
+                      onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                      onRegionIntensityUpdate={(regionMap) =>
+                        onRegionIntensityUpdate(regionMap, data.eventId)
+                      }
+                      onWarningRegionUpdate={(regions) =>
+                        onWarningRegionUpdate(regions, data.eventId)
+                      }
+                    />
+                  </div>
+                ))}
+                
+                {axisDisplayDataList.map((data) => (
+                  <div key={`axis-${data.EventID}`} className="inline-block align-top w-[95%]">
+                    <AXISMobileEewPanel
+                      parsedData={data}
+                      isLowAccuracy={settings.enable_low_accuracy_eew}
+                      onEpicenterUpdate={(epi) => handleEpicenterUpdate(epi)}
+                      onRegionIntensityUpdate={(regionMap) =>
+                        onRegionIntensityUpdate(regionMap, data.EventID)
+                      }
+                      onWarningRegionUpdate={(regions) =>
+                        onWarningRegionUpdate(regions, data.EventID)
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
             )}
           </ResizablePanelGroup>
         )}
@@ -918,6 +1163,12 @@ function PageContent() {
                         <div className="flex items-center text-xs text-green-500 space-x-1">
                           <Send size={12} />
                           <p className="text-xs">DM-D.S.S</p>
+                        </div>
+                      )}
+                      {isAXISConnected && (
+                        <div className="flex items-center text-xs text-blue-500 space-x-1">
+                          <Send size={12} />
+                          <p className="text-xs">AXIS</p>
                         </div>
                       )}
                     </div>
@@ -1026,6 +1277,12 @@ function PageContent() {
                           <div className="flex items-center text-xs text-green-500 space-x-1 text-right">
                             <Send size={16} />
                             <p>DM-D.S.S</p>
+                          </div>
+                        )}
+                        {isAXISConnected && (
+                          <div className="flex items-center text-xs text-blue-500 space-x-1 text-right">
+                            <Send size={16} />
+                            <p>AXIS</p>
                           </div>
                         )}
                       </div>

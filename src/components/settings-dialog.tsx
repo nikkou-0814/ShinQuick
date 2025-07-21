@@ -54,6 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Input } from "@/components/ui/input";
 import SettingItem from "@/components/setting-item";
 import { Slider } from "@/components/ui/slider"
 import { SettingsDialogProps, Settings } from "@/types/types";
@@ -76,6 +77,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   isDMDATAConnected,
   onSyncClock,
   onResetPanelSizes,
+  isAXISConnected,
+  onConnectAXISWebSocket,
+  onDisconnectAXISWebSocket,
+  axisToken,
+  onAxisTokenChange,
 }) => {
   const [openTheme, setOpenTheme] = useState(false);
   const [openWorldMapRes, setOpenWorldMapRes] = useState(false);
@@ -91,6 +97,14 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
     }
   }, [isDMDATAConnected, onConnectDMDATAWebSocket, onDisconnectDMDATAWebSocket]);
 
+  const handleAXISWebSocketToggle = useCallback(async () => {
+    if (isAXISConnected) {
+      await onDisconnectAXISWebSocket();
+    } else {
+      onConnectAXISWebSocket();
+    }
+  }, [isAXISConnected, onConnectAXISWebSocket, onDisconnectAXISWebSocket]);
+
   return (
     <Dialog open={showSettings} onOpenChange={setShowSettings}>
       <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto w-[95vw] sm:w-auto p-4 sm:p-6">
@@ -103,7 +117,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             <TabsTrigger value="display" className="flex-grow">表示</TabsTrigger>
             <TabsTrigger value="features" className="flex-grow">機能</TabsTrigger>
             <TabsTrigger value="eew" className="flex-grow">緊急地震速報</TabsTrigger>
-            <TabsTrigger value="dmdss" className="flex-grow">DM-D.S.S</TabsTrigger>
+            <TabsTrigger value="websockets" className="flex-grow">WebSockets</TabsTrigger>
           </TabsList>
 
           {/* 表示設定 */}
@@ -270,7 +284,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
                   title="精度の低い緊急地震速報を表示する（1点観測）"
-                  description="十分に知識がある方のみご利用ください。誤報の可能性が高くなります。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="十分に知識がある方のみご利用ください。誤報の可能性が高くなります。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_low_accuracy_eew : false}
@@ -284,7 +298,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="緊急地震速報の精度情報を表示する"
-                  description="イベント毎の情報が長くなるため、見切れる場合があります。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="イベント毎の情報が長くなるため、見切れる場合があります。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_accuracy_info : false}
@@ -297,20 +311,20 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="細分化地域の予想震度を表示する"
-                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。"
                 >
                   <Switch
-                  checked={isAuthenticated ? settings.enable_map_intensity_fill : false}
+                  checked={isAuthenticated || axisToken ? settings.enable_map_intensity_fill : false}
                   onCheckedChange={(checked) =>
                     handleSettingChange("enable_map_intensity_fill", checked)
                   }
-                  disabled={!isAuthenticated}
+                  disabled={!isAuthenticated && !axisToken}
                   />
                 </SettingItem>
 
                 <SettingItem
                   title="警報発表地域の塗りつぶしを有効にする"
-                  description="警報が発表されている、地域を塗りつぶします。※DM-D.S.Sを利用しない場合は使用できません。"
+                  description="警報が発表されている、地域を塗りつぶします。"
                 >
                   <Switch
                   checked={isAuthenticated ? settings.enable_map_warning_area : false}
@@ -323,7 +337,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
 
                 <SettingItem
                   title="予測円の更新間隔"
-                  description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。※DM-D.S.Sを利用しない場合は使用できません。(${settings.ps_wave_update_interval} ms)`}
+                  description={`P/S波予測円の更新間隔をミリ秒単位で設定できます。(${settings.ps_wave_update_interval} ms)`}
                   vertical
                 >
                   <Slider
@@ -335,7 +349,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       handleSettingChange("ps_wave_update_interval", value[0])
                     }
                     className="w-full mt-2 mx-1"
-                    disabled={!isAuthenticated}
+                    disabled={!isAuthenticated && !axisToken}
                   />
                 </SettingItem>
 
@@ -427,8 +441,8 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
           </TabsContent>
 
           {/* 接続設定 */}
-          <TabsContent value="dmdss">
-            <Card>
+          <TabsContent value="websockets">
+            <Card className="mb-4">
               <CardHeader>
                 <CardTitle>Project DM-D.S.S</CardTitle>
                 <CardDescription>
@@ -504,6 +518,44 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       }
                     }}
                   />
+                </SettingItem>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>AXIS</CardTitle>
+                <CardDescription>
+                  AXISを使用して緊急地震速報を受信します。得られる情報は異なる場合があります。
+                </CardDescription>
+              </CardHeader>
+              
+              <CardContent className="space-y-4">
+                <SettingItem
+                  title="AXISトークン"
+                  description="AXISトークンを入力して保存します。このトークンは自動的に保存されます。"
+                  vertical
+                >
+                  <Input 
+                    type="input"
+                    value={axisToken}
+                    onChange={(e) => onAxisTokenChange(e.target.value)}
+                    placeholder="AXISトークンを入力"
+                    className="w-full"
+                  />
+                </SettingItem>
+
+                <SettingItem
+                  title="AXIS WebSocket接続"
+                  description="AXISからリアルタイム情報を受信するためにWebSocketを接続します。"
+                >
+                  <Button
+                    variant={isAXISConnected ? "destructive" : "outline"}
+                    onClick={handleAXISWebSocketToggle}
+                    className="w-full sm:w-auto"
+                    disabled={!axisToken}
+                  >
+                    {isAXISConnected ? "接続を切断" : "接続を開始"}
+                  </Button>
                 </SettingItem>
               </CardContent>
             </Card>

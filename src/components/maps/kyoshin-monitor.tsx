@@ -326,11 +326,11 @@ const KyoshinMonitor: React.FC<KyoshinMonitorProps> = ({
         ["exponential", 2.5],
         ["zoom"],
         0, 2,
-        5, 3,
-        10, 10,
-        15, 15,
-        20, 20,
-        22, 30
+        5, 4,
+        10, 38,
+        15, 48,
+        20, 48,
+        22, 64
       ],
       "circle-stroke-color": "#fff",
       "circle-stroke-width": 0,
