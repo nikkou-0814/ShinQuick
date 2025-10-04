@@ -2,13 +2,12 @@ import React, { useEffect, useState } from "react"
 import { ClockDisplayProps } from "@/types/types"
 
 const ClockDisplay: React.FC<ClockDisplayProps> = React.memo(
-  ({ nowAppTimeRef, KyoshinMonitor }) => {
+  ({ nowAppTimeRef }) => {
     const [displayTime, setDisplayTime] = useState("----/--/-- --:--:--");
 
     useEffect(() => {
       const interval = setInterval(() => {
-        const adjustedTime =
-          nowAppTimeRef.current - (KyoshinMonitor ? 2000 : 0);
+        const adjustedTime = nowAppTimeRef.current;
         const dateObj = new Date(adjustedTime);
         const formatted = dateObj.toLocaleString("ja-JP", {
           year: "numeric",
@@ -21,7 +20,7 @@ const ClockDisplay: React.FC<ClockDisplayProps> = React.memo(
         setDisplayTime(formatted);
       }, 1000);
       return () => clearInterval(interval);
-    }, [nowAppTimeRef, KyoshinMonitor]);
+    }, [nowAppTimeRef]);
 
     return <p className="pr-1">{displayTime}</p>;
   }

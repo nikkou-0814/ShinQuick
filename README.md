@@ -45,15 +45,10 @@ Project DM-D.S.SとAXISは同時にWebSocket接続が可能です。たとえば
 
 ## 情報の取得元
 
-### 強震モニタ
-
-- [Yahoo!天気・災害 強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)
-
 ### 緊急地震速報
 
 - [Project DM(Disaster Mitigation)-Data Send Service](https://dmdata.jp)（※各自契約が必須）
 - [AXIS(An eXtendable Information Stream)](https://axis.prioris.jp/)（※各自会員登録が必須）
-- [Yahoo!天気・災害 強震モニタ](https://typhoon.yahoo.co.jp/weather/jp/earthquake/kyoshin/)（※DM-D.S.S使用時には無効）
 
 ### その他データ
 
@@ -79,18 +74,10 @@ Project DM-D.S.SとAXISは同時にWebSocket接続が可能です。たとえば
 - 走時表、GISデータ、緊急地震速報に関する情報提供
 - 地理情報の提供
 
-### Yahoo! JAPAN
-
-- 強震モニタと緊急地震速報の提供
-
 ### [リアルタイム地震ビューアー](https://github.com/kotoho7/scratch-realtime-earthquake-viewer-page)
 
 - アプリ全体の仕様を参考にしています。
 - 震度配色を利用しています。
-
-### [EarthQuicklyForWeb](https://github.com/Ameuma773/EarthQuicklyForWeb)
-
-- ソースコードを参考に強震モニタを実装しています。
 
 ### [JQuake](https://jquake.net)
 

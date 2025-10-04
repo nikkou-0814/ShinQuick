@@ -21,7 +21,6 @@ import { useTheme } from "next-themes";
 import { FeatureCollection, Feature } from "geojson";
 import Image from "next/image";
 
-import KyoshinMonitor from "./maps/kyoshin-monitor";
 import PsWave from "./maps/ps-wave";
 import { MapProps, SaibunProperties, SaibunFeatureWithBbox, EpicenterInfo } from "@/types/types";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -103,7 +102,6 @@ const loadCountryData = async (resolution: string): Promise<FeatureCollection> =
 
 const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
   const {
-    enableKyoshinMonitor,
     epicenters,
     regionIntensityMap,
     enableMapIntensityFill,
@@ -618,15 +616,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
     }
   }, [ref]);
 
-  useEffect(() => {
-    if (enableKyoshinMonitor) {
-      const timer = setTimeout(() => {
-        reorderMapLayers();
-      }, 400); 
-      return () => clearTimeout(timer);
-    }
-  }, [enableKyoshinMonitor, reorderMapLayers]);
-
   const handleMoveStart = useCallback(() => {
     setIsMapMoving(true);
     window.dispatchEvent(new Event('movestart'));
@@ -772,10 +761,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
           nowAppTimeRef={nowAppTimeRef}
           isMapMoving={isMapMoving}
           ref={ref}
-        />
-        <KyoshinMonitor
-          enableKyoshinMonitor={enableKyoshinMonitor}
-          nowAppTimeRef={nowAppTimeRef}
         />
       </Map>
     </div>

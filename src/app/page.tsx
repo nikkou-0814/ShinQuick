@@ -39,7 +39,6 @@ import AXISEewDisplay from "@/components/axis/axis-eew-display";
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
-  enable_kyoshin_monitor: false,
   enable_dynamic_zoom: true,
   map_auto_zoom: true,
   enable_low_accuracy_eew: false,
@@ -1086,7 +1085,6 @@ function PageContent() {
 
               <DynamicMap
                 ref={mapRef}
-                enableKyoshinMonitor={settings.enable_kyoshin_monitor}
                 epicenters={epicenters}
                 regionIntensityMap={mergedRegionMap}
                 enableMapIntensityFill={settings.enable_map_intensity_fill}
@@ -1174,7 +1172,6 @@ function PageContent() {
                     </div>
                     <ClockDisplay
                       nowAppTimeRef={nowAppTimeRef}
-                      KyoshinMonitor={settings.enable_kyoshin_monitor}
                     />
                   </div>
                   <div className="flex space-x-2">
@@ -1270,7 +1267,6 @@ function PageContent() {
                     <div className="flex flex-col">
                       <ClockDisplay
                         nowAppTimeRef={nowAppTimeRef}
-                        KyoshinMonitor={settings.enable_kyoshin_monitor}
                       />
                       <div className="flex items-center space-x-1">
                         {isDMDATAConnected && (

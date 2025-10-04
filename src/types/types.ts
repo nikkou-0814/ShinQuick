@@ -5,7 +5,6 @@ import { Feature } from "geojson";
 // 設定の型
 export interface Settings {
   theme: "system" | "dark" | "light";
-  enable_kyoshin_monitor: boolean;
   enable_dynamic_zoom: boolean;
   map_auto_zoom: boolean;
   enable_low_accuracy_eew: boolean;
@@ -57,7 +56,6 @@ export type RegionIntensityMap = Record<string, string>;
 
 // マップコンポーネントのProps
 export interface MapProps {
-  enableKyoshinMonitor: boolean;
   epicenters: EpicenterInfo[];
   regionIntensityMap: RegionIntensityMap;
   enableMapIntensityFill: boolean;
@@ -115,33 +113,12 @@ export interface WebSocketContextType {
 }
 
 // 強震モニタ用データ
-export interface KmoniData {
-  realTimeData?: {
-    intensity?: string;
-    timestamp?: string;
-  };
-  psWave?: {
-    items?: Array<{
-      latitude: string;
-      longitude: string;
-      pRadius: string;
-      sRadius: string;
-    }>;
-  };
-}
-
 // 走時表からP/S波を割り出す
 export interface TravelTableRow {
   p: number;
   s: number;
   depth: number;
   distance: number;
-}
-
-// 強震モニタ用のベースProps
-export interface BaseKyoshinMonitorProps {
-  enableKyoshinMonitor: boolean;
-  nowAppTimeRef: React.RefObject<number>;
 }
 
 // P/S波用のProps
@@ -161,16 +138,6 @@ export interface SaibunProperties {
   [key: string]: unknown;
 }
 
-// 強震モニタ観測点用型
-export interface SiteListData {
-  items: [number, number][];
-}
-
-// 強震モニタ用のProps
-export type KyoshinMonitorProps = Omit<BaseKyoshinMonitorProps, "nowAppTime"> & {
-  nowAppTimeRef: React.RefObject<number>;
-};
-
 export interface SaibunFeatureWithBbox {
   feature: Feature;
   bbox: [number, number, number, number];
@@ -179,7 +146,6 @@ export interface SaibunFeatureWithBbox {
 // 時計表示用のProps
 export interface ClockDisplayProps {
   nowAppTimeRef: React.RefObject<number>;
-  KyoshinMonitor: boolean;
 }
 
 export interface ModifiedPsWaveProps extends Omit<PsWaveProps, "nowAppTime"> {
