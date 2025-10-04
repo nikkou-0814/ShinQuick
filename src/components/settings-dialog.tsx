@@ -252,18 +252,6 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
             <Card>
               <CardContent className="space-y-4 pt-4">
                 <SettingItem
-                  title="強震モニタを有効にする"
-                  description="強震モニタを表示します。"
-                >
-                  <Switch
-                    checked={settings.enable_kyoshin_monitor}
-                    onCheckedChange={(checked) =>
-                      handleSettingChange("enable_kyoshin_monitor", checked)
-                    }
-                  />
-                </SettingItem>
-
-                <SettingItem
                   title="地図の動的ズームを有効にする"
                   description="地図の表示が自動的に拡大・縮小・移動されるようになります。（この機能は現在開発中なので不安定です。）"
                 >
