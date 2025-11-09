@@ -173,6 +173,10 @@ const PsWave: React.FC<ModifiedPsWaveProps> = ({
     const features: Feature<Polygon>[] = [];
 
     epicentersList.forEach((epi) => {
+      if (epi.icon === "/assumed.png") {
+        return;
+      }
+
       const elapsedTime = (currentTime - epi.originTime) / 1000;
       const [pDistance, sDistance] = getValue(travelTable, epi.depthval, elapsedTime);
 
