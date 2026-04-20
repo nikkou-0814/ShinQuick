@@ -1,6 +1,7 @@
 import { EewInformation } from "@dmdata/telegram-json-types";
 import { MapRef } from "react-map-gl/maplibre";
 import { Feature } from "geojson";
+import { DMDATAAuthMode, DMDATAConnectionAuth } from "@/lib/dmdata-auth";
 
 // 設定の型
 export interface Settings {
@@ -79,8 +80,15 @@ export interface SettingsDialogProps {
   settings: Settings;
   handleSettingChange: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   onConnectDMDATAWebSocket: () => void;
-  isAuthenticated: boolean;
-  onDisconnectAuthentication: () => void;
+  hasDMDATACredentials: boolean;
+  dmdataAuthMode: DMDATAAuthMode;
+  onDMDATAAuthModeChange: (mode: DMDATAAuthMode) => void;
+  isDMDATAOAuthConfigured: boolean;
+  onStartDMDATAOAuth: () => void;
+  onClearDMDATAOAuth: () => void;
+  dmdataApiKey: string;
+  onDMDATAApiKeyChange: (apiKey: string) => void;
+  onClearDMDATAApiKey: () => void;
   onDisconnectDMDATAWebSocket: () => Promise<void>;
   isDMDATAConnected: boolean;
   onSyncClock: () => void;
@@ -97,7 +105,7 @@ export interface SettingsDialogProps {
 export interface WebSocketContextType {
   isDMDATAConnected: boolean;
   DMDATAreceivedData: EewInformation.Latest.Main | null;
-  connectDMDATAWebSocket: (DMDATAtoken: string, enableDrillTestInfo: boolean) => Promise<void>;
+  connectDMDATAWebSocket: (auth: DMDATAConnectionAuth, enableDrillTestInfo: boolean) => Promise<void>;
   disconnectDMDATAWebSocket: () => Promise<void>;
   injectdmdataTestData: (data: { body: string }) => void;
   injectaxisTestData: (data: AXISEewInformation) => void;

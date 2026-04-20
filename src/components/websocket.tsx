@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import pako from "pako";
 import { EewInformation } from "@dmdata/telegram-json-types";
 import { WebSocketContextType, SchemaCheck, AXISEewInformation } from "@/types/types";
+import { DMDATAConnectionAuth } from "@/lib/dmdata-auth";
 
 // 型チェック
 const isEewInformationMain = (
@@ -69,6 +70,7 @@ export const WebSocketProvider = ({
     useState<EewInformation.Latest.Main | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const socketIdRef = useRef<number | null>(null);
+  const dmdataAuthorizationRef = useRef<DMDATAConnectionAuth | null>(null);
   const passedIntensityFilterRef = useRef<Set<string>>(new Set());
   const [isAXISConnected, setIsAXISConnected] = useState(false);
   const [AXISreceivedData, setAXISReceivedData] = useState<AXISEewInformation | null>(null);
@@ -192,7 +194,10 @@ export const WebSocketProvider = ({
   }, [AXISreceivedData]);
 
   // DMDATA WebSocket接続処理
-  const connectDMDATAWebSocket = async (token: string, enableDrillTestInfo: boolean) => {
+  const connectDMDATAWebSocket = async (
+    auth: DMDATAConnectionAuth,
+    enableDrillTestInfo: boolean
+  ) => {
     if (
       wsRef.current &&
       (wsRef.current.readyState === WebSocket.OPEN ||
@@ -219,7 +224,7 @@ export const WebSocketProvider = ({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: auth.authorizationHeader,
         },
         body: JSON.stringify(requestBody),
         signal: controller.signal,
@@ -246,6 +251,7 @@ export const WebSocketProvider = ({
       const ws = new WebSocket(data.websocket.url, ["dmdata.v2"]);
       wsRef.current = ws;
       socketIdRef.current = data.websocket.id;
+      dmdataAuthorizationRef.current = auth;
 
       // 接続イベント
       ws.addEventListener("open", () => {
@@ -283,6 +289,7 @@ export const WebSocketProvider = ({
       ws.addEventListener("close", () => {
         setIsDMDATAConnected(false);
         socketIdRef.current = null;
+        dmdataAuthorizationRef.current = null;
         console.log("WebSocketが切断されました。");
       });
 
@@ -307,7 +314,18 @@ export const WebSocketProvider = ({
     }
 
     const socketCloseUrl = `https://api.dmdata.jp/v2/socket/${socketIdRef.current}`;
-    const token = localStorage.getItem("dmdata_access_token") || "";
+    const auth = dmdataAuthorizationRef.current;
+
+    if (!auth) {
+      toast.warning("認証情報が見つからないため、接続状態をリセットします。");
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      socketIdRef.current = null;
+      setIsDMDATAConnected(false);
+      return;
+    }
 
     try {
       const controller = new AbortController();
@@ -316,7 +334,7 @@ export const WebSocketProvider = ({
       const response = await fetch(socketCloseUrl, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: auth.authorizationHeader,
         },
         signal: controller.signal,
       });
@@ -331,6 +349,7 @@ export const WebSocketProvider = ({
         
         // 状態のリセット
         socketIdRef.current = null;
+        dmdataAuthorizationRef.current = null;
         setDMDATAReceivedData(null);
         setIsDMDATAConnected(false);
         toast.info("WebSocketを正常に切断しました。");
@@ -353,6 +372,7 @@ export const WebSocketProvider = ({
         wsRef.current = null;
       }
       socketIdRef.current = null;
+      dmdataAuthorizationRef.current = null;
       setIsDMDATAConnected(false);
     }
   };
