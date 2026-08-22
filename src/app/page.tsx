@@ -36,6 +36,17 @@ import { ClockDisplay } from "@/components/clock-display"
 import { getJapanHomePosition } from "@/utils/home-position";
 import { AXISMobileEewPanel } from "@/components/axis/axis-mobile-eew-panel";
 import AXISEewDisplay from "@/components/axis/axis-eew-display";
+import {
+  clearStoredDMDATAOAuthTokens,
+  DMDATAAuthMode,
+  getStoredDMDATAApiKey,
+  getStoredDMDATAAuthMode,
+  getStoredDMDATAConnectionAuth,
+  getStoredDMDATAOAuthToken,
+  hasStoredDMDATACredentials,
+  setStoredDMDATAApiKey,
+  setStoredDMDATAAuthMode,
+} from "@/lib/dmdata-auth";
 
 const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -93,7 +104,10 @@ function PageContent() {
   const [DMDATAdisplayDataList, setDMDATADisplayDataList] = useState<
     EewInformation.Latest.Main[]
   >([]);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [hasDMDATACredentials, setHasDMDATACredentials] = useState<boolean>(false);
+  const [isDMDATAOAuthConfigured, setIsDMDATAOAuthConfigured] = useState<boolean>(false);
+  const [dmdataAuthMode, setDmdataAuthMode] = useState<DMDATAAuthMode>("oauth");
+  const [dmdataApiKey, setDmdataApiKey] = useState<string>("");
   const allRegionMapsRef = useRef<Record<string, RegionIntensityMap>>({});
   const [mergedRegionMap, setMergedRegionMap] = useState<RegionIntensityMap>({});
   const allWarningRegionsRef = useRef<
@@ -348,10 +362,10 @@ function PageContent() {
       if (savedSettings) {
         setSettings(JSON.parse(savedSettings));
       }
-      const DMDATAtoken = localStorage.getItem("dmdata_access_token");
-      if (DMDATAtoken) {
-        setIsAuthenticated(true);
-      }
+      setHasDMDATACredentials(hasStoredDMDATACredentials());
+      setIsDMDATAOAuthConfigured(Boolean(getStoredDMDATAOAuthToken()));
+      setDmdataAuthMode(getStoredDMDATAAuthMode());
+      setDmdataApiKey(getStoredDMDATAApiKey());
       
       const savedAxisToken = localStorage.getItem("axis_access_token");
       if (savedAxisToken) {
@@ -399,18 +413,49 @@ function PageContent() {
   };
 
   const handleConnectDMDATAWebSocket = () => {
-    const DMDATAtoken = localStorage.getItem("dmdata_access_token");
-    if (!DMDATAtoken) {
-      toast.error("アカウントを認証してください。");
+    const auth = getStoredDMDATAConnectionAuth();
+
+    if (!auth) {
+      toast.error(
+        dmdataAuthMode === "oauth"
+          ? "OAuth 認証を完了してください。"
+          : "dmdata の API キーを入力してください。"
+      );
       return;
     }
-    connectDMDATAWebSocket(DMDATAtoken, settings.enable_drill_test_info);
+
+    connectDMDATAWebSocket(auth, settings.enable_drill_test_info);
   };
 
-  const handleDisconnectAuthentication = () => {
-    localStorage.removeItem("dmdata_access_token");
-    setIsAuthenticated(false);
-    toast.info("アカウントとの連携を解除しました。");
+  const handleStartDMDATAOAuth = () => {
+    if (typeof window !== "undefined") {
+      window.location.href = "/api/oauth/authorize";
+    }
+  };
+
+  const handleDMDATAAuthModeChange = (mode: DMDATAAuthMode) => {
+    setDmdataAuthMode(mode);
+    setStoredDMDATAAuthMode(mode);
+  };
+
+  const handleDMDATAApiKeyChange = (apiKey: string) => {
+    setDmdataApiKey(apiKey);
+    setStoredDMDATAApiKey(apiKey);
+    setHasDMDATACredentials(Boolean(getStoredDMDATAOAuthToken() || apiKey.trim()));
+  };
+
+  const handleClearDMDATAOAuth = () => {
+    clearStoredDMDATAOAuthTokens();
+    setIsDMDATAOAuthConfigured(false);
+    setHasDMDATACredentials(Boolean(getStoredDMDATAApiKey()));
+    toast.info("OAuth 連携を解除しました。");
+  };
+
+  const handleClearDMDATAApiKey = () => {
+    setDmdataApiKey("");
+    setStoredDMDATAApiKey("");
+    setHasDMDATACredentials(Boolean(getStoredDMDATAOAuthToken()));
+    toast.info("API キーを削除しました。");
   };
 
   const handleDMDATAWebSocketDisconnect = async () => {
@@ -1012,8 +1057,15 @@ function PageContent() {
         handleSettingChange={handleSettingChange}
         isDMDATAConnected={isDMDATAConnected}
         onConnectDMDATAWebSocket={handleConnectDMDATAWebSocket}
-        isAuthenticated={isAuthenticated}
-        onDisconnectAuthentication={handleDisconnectAuthentication}
+        hasDMDATACredentials={hasDMDATACredentials}
+        dmdataAuthMode={dmdataAuthMode}
+        onDMDATAAuthModeChange={handleDMDATAAuthModeChange}
+        isDMDATAOAuthConfigured={isDMDATAOAuthConfigured}
+        onStartDMDATAOAuth={handleStartDMDATAOAuth}
+        onClearDMDATAOAuth={handleClearDMDATAOAuth}
+        dmdataApiKey={dmdataApiKey}
+        onDMDATAApiKeyChange={handleDMDATAApiKeyChange}
+        onClearDMDATAApiKey={handleClearDMDATAApiKey}
         onDisconnectDMDATAWebSocket={handleDMDATAWebSocketDisconnect}
         onSyncClock={handleClockSync}
         onResetPanelSizes={resetPanelSizes}

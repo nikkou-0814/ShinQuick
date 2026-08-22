@@ -58,6 +58,7 @@ import { Input } from "@/components/ui/input";
 import SettingItem from "@/components/setting-item";
 import { Slider } from "@/components/ui/slider"
 import { SettingsDialogProps, Settings } from "@/types/types";
+import { DMDATAAuthMode } from "@/lib/dmdata-auth";
 
 const THEME_OPTIONS = [
   { value: "system", label: "システム" },
@@ -71,8 +72,15 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   settings,
   handleSettingChange,
   onConnectDMDATAWebSocket,
-  isAuthenticated,
-  onDisconnectAuthentication,
+  hasDMDATACredentials,
+  dmdataAuthMode,
+  onDMDATAAuthModeChange,
+  isDMDATAOAuthConfigured,
+  onStartDMDATAOAuth,
+  onClearDMDATAOAuth,
+  dmdataApiKey,
+  onDMDATAApiKeyChange,
+  onClearDMDATAApiKey,
   onDisconnectDMDATAWebSocket,
   isDMDATAConnected,
   onSyncClock,
@@ -88,6 +96,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
   const [showAlert, setShowAlert] = useState(false);
   const [showDisconnectAlert, setShowDisconnectAlert] = useState(false);
   const [showDrillTestAlert, setShowDrillTestAlert] = useState(false);
+
+  const isSelectedDMDATAModeReady =
+    dmdataAuthMode === "oauth"
+      ? isDMDATAOAuthConfigured
+      : Boolean(dmdataApiKey.trim());
 
   const handleDMDATAWebSocketToggle = useCallback(async () => {
     if (isDMDATAConnected) {
@@ -275,12 +288,12 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   description="十分に知識がある方のみご利用ください。誤報の可能性が高くなります。"
                 >
                   <Switch
-                  checked={isAuthenticated ? settings.enable_low_accuracy_eew : false}
+                  checked={hasDMDATACredentials ? settings.enable_low_accuracy_eew : false}
                   onCheckedChange={(checked) => {
                     if (checked) setShowAlert(true);
                     else handleSettingChange("enable_low_accuracy_eew", false);
                   }}
-                  disabled={!isAuthenticated}
+                  disabled={!hasDMDATACredentials}
                   />
                 </SettingItem>
 
@@ -289,11 +302,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   description="イベント毎の情報が長くなるため、見切れる場合があります。"
                 >
                   <Switch
-                  checked={isAuthenticated ? settings.enable_accuracy_info : false}
+                  checked={hasDMDATACredentials ? settings.enable_accuracy_info : false}
                   onCheckedChange={(checked) =>
                     handleSettingChange("enable_accuracy_info", checked)
                   }
-                  disabled={!isAuthenticated}
+                  disabled={!hasDMDATACredentials}
                   />
                 </SettingItem>
 
@@ -302,11 +315,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   description="細分化地域における震度予測がされた場合に、対象の地域を塗りつぶします。"
                 >
                   <Switch
-                  checked={isAuthenticated || axisToken ? settings.enable_map_intensity_fill : false}
+                  checked={hasDMDATACredentials || axisToken ? settings.enable_map_intensity_fill : false}
                   onCheckedChange={(checked) =>
                     handleSettingChange("enable_map_intensity_fill", checked)
                   }
-                  disabled={!isAuthenticated && !axisToken}
+                  disabled={!hasDMDATACredentials && !axisToken}
                   />
                 </SettingItem>
 
@@ -315,11 +328,11 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   description="警報が発表されている、地域を塗りつぶします。"
                 >
                   <Switch
-                  checked={isAuthenticated ? settings.enable_map_warning_area : false}
+                  checked={hasDMDATACredentials ? settings.enable_map_warning_area : false}
                   onCheckedChange={(checked) =>
                     handleSettingChange("enable_map_warning_area", checked)
                   }
-                  disabled={!isAuthenticated}
+                  disabled={!hasDMDATACredentials}
                   />
                 </SettingItem>
 
@@ -337,7 +350,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                       handleSettingChange("ps_wave_update_interval", value[0])
                     }
                     className="w-full mt-2 mx-1"
-                    disabled={!isAuthenticated && !axisToken}
+                    disabled={!hasDMDATACredentials && !axisToken}
                   />
                 </SettingItem>
 
@@ -459,28 +472,69 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
                   </Table>
                 </div>
                 <SettingItem
-                  title="アカウント連携"
-                  description="DM-D.S.Sアカウントを連携してリアルタイム情報を受信します。"
+                  title="接続方式"
+                  description="通常の認証またはAPIキーを使用して接続します。"
+                  vertical
                 >
-                  <Button
-                    variant={isAuthenticated ? "destructive" : "outline"}
-                    onClick={() => {
-                      if (isAuthenticated) {
-                        setShowDisconnectAlert(true);
-                      } else if (typeof window !== "undefined") {
-                        window.location.href = "/api/oauth/authorize";
-                      }
-                    }}
-                    className="w-full sm:w-auto"
+                  <Tabs
+                    value={dmdataAuthMode}
+                    onValueChange={(value) => onDMDATAAuthModeChange(value as DMDATAAuthMode)}
+                    className="w-full"
                   >
-                    {isAuthenticated ? "連携を解除" : "アカウント認証"}
-                  </Button>
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="oauth">通常認証</TabsTrigger>
+                      <TabsTrigger value="apiKey">APIキー</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="oauth" className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        DMDATA.JPとのアカウント連携をしてリアルタイム情報を受信します。
+                      </p>
+                      <div className="flex justify-end">
+                        <Button
+                          variant={isDMDATAOAuthConfigured ? "destructive" : "outline"}
+                          onClick={() => {
+                            if (isDMDATAOAuthConfigured) {
+                              setShowDisconnectAlert(true);
+                            } else {
+                              onStartDMDATAOAuth();
+                            }
+                          }}
+                          className="w-full sm:w-auto"
+                        >
+                          {isDMDATAOAuthConfigured ? "連携を解除" : "アカウント認証"}
+                        </Button>
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="apiKey" className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        APIキーを入力してリアルタイム情報を受信します。
+                      </p>
+                      <Input
+                        type="password"
+                        value={dmdataApiKey}
+                        onChange={(e) => onDMDATAApiKeyChange(e.target.value)}
+                        placeholder="APIキーを入力"
+                        autoComplete="off"
+                        className="w-full"
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          variant="outline"
+                          onClick={onClearDMDATAApiKey}
+                          className="w-full sm:w-auto"
+                          disabled={!dmdataApiKey.trim()}
+                        >
+                          APIキーを削除
+                        </Button>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </SettingItem>
 
-                {isAuthenticated && (
+                {isSelectedDMDATAModeReady && (
                   <SettingItem
                     title="WebSocket接続"
-                    description="リアルタイム情報を受信するためにWebSocketを接続します。"
+                    description={`${dmdataAuthMode === "oauth" ? "通常認証" : "API キー"}でリアルタイム情報を受信します。`}
                   >
                     <Button
                       variant={isDMDATAConnected ? "destructive" : "outline"}
@@ -589,7 +643,7 @@ const SettingsDialog: React.FC<SettingsDialogProps> = ({
               <AlertDialogCancel>キャンセル</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
-                  onDisconnectAuthentication();
+                  onClearDMDATAOAuth();
                   setShowDisconnectAlert(false);
                 }}
               >
