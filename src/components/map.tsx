@@ -15,7 +15,7 @@ import Map, {
   ViewStateChangeEvent,
   MapRef
 } from "react-map-gl/maplibre";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { WebMercatorViewport } from "viewport-mercator-project";
 import { useTheme } from "next-themes";
 import { FeatureCollection, Feature } from "geojson";
