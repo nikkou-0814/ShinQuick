@@ -5,7 +5,9 @@
   "packageManager": "pnpm@12.4.1",
   "license": "MIT",
   "scripts": {
+    "predev": "node scripts/copy-maplibre-assets.mjs",
     "dev": "next dev --turbopack",
+    "prebuild": "node scripts/copy-maplibre-assets.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."
