@@ -2,13 +2,7 @@
   "name": "shin-quick",
   "version": "0.1.4",
   "private": true,
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "12.4.1",
-      "onFail": "error"
-    }
-  },
+  "packageManager": "pnpm@12.4.1",
   "license": "MIT",
   "scripts": {
     "dev": "next dev --turbopack",
