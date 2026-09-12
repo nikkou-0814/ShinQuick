@@ -15,7 +15,7 @@ import Map, {
   ViewStateChangeEvent,
   MapRef
 } from "react-map-gl/maplibre";
-import * as maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import { WebMercatorViewport } from "viewport-mercator-project";
 import { useTheme } from "next-themes";
 import { FeatureCollection, Feature } from "geojson";
@@ -701,7 +701,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         longitude={viewState.longitude}
         latitude={viewState.latitude}
         zoom={viewState.zoom}
-        mapLib={maplibregl}
         onMove={onMove}
         onMoveStart={() => {
           handleMoveStart();
