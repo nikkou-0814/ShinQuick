@@ -57,18 +57,5 @@
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.19",
     "typescript": "^5"
-  },
-  "pnpm": {
-    "overrides": {
-      "@humanfs/node": "^0.16.8",
-      "browserslist": "^4.28.9",
-      "flatted": "^3.4.2",
-      "glob@>=10.2.0 <10.5.0": "^10.5.0",
-      "js-yaml": "^4.3.2",
-      "postcss-selector-parser": "^6.1.4",
-      "protocol-buffers-schema": "^3.6.1",
-      "sharp": "^0.35.4",
-      "yaml": "^2.8.3"
-    }
   }
 }
