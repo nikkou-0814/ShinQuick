@@ -1,5 +1,8 @@
 packages: []
 
+allowBuilds:
+  unrs-resolver: true
+
 overrides:
   '@humanfs/node': ^0.16.8
   browserslist: ^4.28.9
