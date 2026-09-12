@@ -15,7 +15,7 @@ import Map, {
   ViewStateChangeEvent,
   MapRef
 } from "react-map-gl/maplibre";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { WebMercatorViewport } from "viewport-mercator-project";
 import { useTheme } from "next-themes";
 import { FeatureCollection, Feature } from "geojson";
@@ -25,6 +25,8 @@ import PsWave from "./maps/ps-wave";
 import { MapProps, SaibunProperties, SaibunFeatureWithBbox, EpicenterInfo } from "@/types/types";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getJapanHomePosition } from "@/utils/home-position";
+
+maplibregl.setWorkerUrl("/maplibre-gl/maplibre-gl-worker.mjs");
 
 const intensityFillColors: Record<string, string> = {
   "0": "#62626B",
@@ -701,7 +703,6 @@ const MapComponent = React.forwardRef<MapRef, MapProps>((props, ref) => {
         longitude={viewState.longitude}
         latitude={viewState.latitude}
         zoom={viewState.zoom}
-        mapLib={maplibregl}
         onMove={onMove}
         onMoveStart={() => {
           handleMoveStart();
